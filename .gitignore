@@ -1,1 +1,4 @@
 .env
+local_data/
+__pycache__/
+*.py[cod]
