@@ -23,6 +23,13 @@
   - 이미 저장된 목록 페이지와 본문 파일은 다시 요청하지 않고 건너뛴다.
   - 실패한 요청은 `retry_queue.jsonl`에 남긴다.
 
+- `classify_precedents.py`
+  - 수집된 상세 JSON에서 사건명, 판시사항, 판결요지, 판례내용 등을 뽑는다.
+  - 원본을 삭제하거나 덮어쓰지 않고 LLM 입력용 JSONL을 만든다.
+  - `--mode classify`에서는 Ollama 로컬 LLM으로 요약, 관련성, 분야, 분쟁유형,
+    confidence, 사람 검토 필요 여부를 JSONL로 저장한다.
+  - 이미 분류된 판례는 기본적으로 다시 분류하지 않고 건너뛴다.
+
 ## 저장 구조
 
 ```text
@@ -32,10 +39,15 @@ local_data/precedents/
 │   │   ├── case_name/
 │   │   └── body/
 │   └── details/
-└── manifests/
+├── manifests/
     ├── collection_manifest.json
     ├── candidates.jsonl
     └── retry_queue.jsonl
+└── processed/
+    ├── llm_inputs.jsonl
+    ├── classification_results.jsonl
+    ├── classification_failures.jsonl
+    └── classification_manifest.json
 ```
 
 ## 실행
@@ -56,4 +68,22 @@ python3 precedents/collect_precedents.py
 
 ```bash
 python3 precedents/collect_precedents.py --overwrite-searches --overwrite-details
+```
+
+LLM 입력 데이터만 먼저 만들 때:
+
+```bash
+python3 precedents/classify_precedents.py --mode prepare
+```
+
+로컬 LLM으로 일부만 테스트 분류할 때:
+
+```bash
+python3 precedents/classify_precedents.py --mode classify --limit 20
+```
+
+이미 분류된 판례를 유지하면서 이어서 분류할 때:
+
+```bash
+python3 precedents/classify_precedents.py --mode classify
 ```

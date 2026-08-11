@@ -31,10 +31,15 @@ PRECEDENT_DATA_ROOT = LOCAL_DATA_ROOT / "precedents"
 RAW_SEARCHES_DIR = PRECEDENT_DATA_ROOT / "raw" / "searches"
 RAW_DETAILS_DIR = PRECEDENT_DATA_ROOT / "raw" / "details"
 MANIFESTS_DIR = PRECEDENT_DATA_ROOT / "manifests"
+PROCESSED_DIR = PRECEDENT_DATA_ROOT / "processed"
 
 COLLECTION_MANIFEST_PATH = MANIFESTS_DIR / "collection_manifest.json"
 CANDIDATES_PATH = MANIFESTS_DIR / "candidates.jsonl"
 RETRY_QUEUE_PATH = MANIFESTS_DIR / "retry_queue.jsonl"
+LLM_INPUTS_PATH = PROCESSED_DIR / "llm_inputs.jsonl"
+CLASSIFICATION_RESULTS_PATH = PROCESSED_DIR / "classification_results.jsonl"
+CLASSIFICATION_FAILURES_PATH = PROCESSED_DIR / "classification_failures.jsonl"
+CLASSIFICATION_MANIFEST_PATH = PROCESSED_DIR / "classification_manifest.json"
 
 DEFAULT_DISPLAY = 100
 DEFAULT_DELAY_SECONDS = float(
@@ -45,6 +50,10 @@ DEFAULT_TIMEOUT_SECONDS = float(
 )
 DEFAULT_MAX_RETRIES = int(os.environ.get("PRECEDENT_COLLECTION_MAX_RETRIES", "3"))
 USER_AGENT = "AlphaLawVA-precedent-collector/0.1"
+DEFAULT_OLLAMA_BASE_URL = os.environ.get(
+    "OLLAMA_BASE_URL", "http://127.0.0.1:11434"
+)
+DEFAULT_PRECEDENT_LLM_MODEL = os.environ.get("PRECEDENT_LLM_MODEL", "gemma3:4b")
 
 
 def load_env_file(path: Path = ENV_FILE) -> None:
@@ -82,6 +91,7 @@ def ensure_collection_dirs() -> None:
     RAW_SEARCHES_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DETAILS_DIR.mkdir(parents=True, exist_ok=True)
     MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def now_utc_iso() -> str:
