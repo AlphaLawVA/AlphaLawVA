@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""판례 수집 공통 설정 파일.
+
+API 주소, 로컬 저장 경로, 환경변수 이름처럼 여러 수집 스크립트가 같이
+써야 하는 값을 한 곳에 모아둔다.
+"""
+
+from __future__ import annotations
+
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ENV_FILE = PROJECT_ROOT / ".env"
+
+SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do"
+DETAIL_URL = "https://www.law.go.kr/DRF/lawService.do"
+API_TARGET = "prec"
+API_RESPONSE_TYPE = "JSON"
+DATA_SOURCE_NAME = "대법원"
+
+LOCAL_DATA_ROOT = Path(
+    os.environ.get("ALPHALAWVA_LOCAL_DATA_DIR", PROJECT_ROOT / "local_data")
+)
+if not LOCAL_DATA_ROOT.is_absolute():
+    LOCAL_DATA_ROOT = PROJECT_ROOT / LOCAL_DATA_ROOT
+
+PRECEDENT_DATA_ROOT = LOCAL_DATA_ROOT / "precedents"
+RAW_SEARCHES_DIR = PRECEDENT_DATA_ROOT / "raw" / "searches"
+RAW_DETAILS_DIR = PRECEDENT_DATA_ROOT / "raw" / "details"
+MANIFESTS_DIR = PRECEDENT_DATA_ROOT / "manifests"
+
+COLLECTION_MANIFEST_PATH = MANIFESTS_DIR / "collection_manifest.json"
+CANDIDATES_PATH = MANIFESTS_DIR / "candidates.jsonl"
+RETRY_QUEUE_PATH = MANIFESTS_DIR / "retry_queue.jsonl"
+
+DEFAULT_DISPLAY = 100
+DEFAULT_DELAY_SECONDS = float(
+    os.environ.get("PRECEDENT_COLLECTION_DELAY_SECONDS", "0.3")
+)
+DEFAULT_TIMEOUT_SECONDS = float(
+    os.environ.get("PRECEDENT_COLLECTION_TIMEOUT_SECONDS", "30")
+)
+DEFAULT_MAX_RETRIES = int(os.environ.get("PRECEDENT_COLLECTION_MAX_RETRIES", "3"))
+USER_AGENT = "AlphaLawVA-precedent-collector/0.1"
+
+
+def load_env_file(path: Path = ENV_FILE) -> None:
+    """간단한 .env 파일을 읽어서 현재 프로세스 환경변수에 넣는다."""
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def get_law_api_key(allow_test_key: bool = False) -> str:
+    """LAW_API_KEY를 가져오고, 테스트 모드면 공식 샘플 키를 허용한다."""
+    load_env_file()
+    api_key = os.environ.get("LAW_API_KEY", "").strip()
+    if api_key:
+        return api_key
+    if allow_test_key:
+        return "test"
+    raise RuntimeError(
+        "LAW_API_KEY 환경변수를 설정하세요. .env에 LAW_API_KEY=... 형태로 "
+        "넣거나, 테스트 포맷 확인만 할 때 --allow-test-key를 사용하세요."
+    )
+
+
+def ensure_collection_dirs() -> None:
+    """판례 수집 결과가 저장될 로컬 폴더들을 만든다."""
+    RAW_SEARCHES_DIR.mkdir(parents=True, exist_ok=True)
+    RAW_DETAILS_DIR.mkdir(parents=True, exist_ok=True)
+    MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def now_utc_iso() -> str:
+    """수집 시각 기록용 UTC ISO 문자열을 만든다."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")

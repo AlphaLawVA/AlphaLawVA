@@ -1,1 +1,7 @@
 .env
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local collection outputs and other large/generated data.
+local_data/
