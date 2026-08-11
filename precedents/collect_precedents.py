@@ -106,6 +106,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Refetch search page JSON even when local file already exists.",
     )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=100,
+        help="Print a progress summary every N detail candidates.",
+    )
     return parser.parse_args()
 
 
@@ -325,7 +331,8 @@ def collect_search_pages(
             break
 
         page += 1
-        time.sleep(args.delay)
+        if not loaded_from_cache:
+            time.sleep(args.delay)
 
     search_record["item_count"] = len(items)
     stats.searches.append(search_record)
@@ -366,13 +373,13 @@ def collect_detail(
     candidate: dict[str, Any],
     args: argparse.Namespace,
     stats: CollectionStats,
-) -> None:
+) -> tuple[str, str, str | None]:
     """후보 판례 하나의 본문조회 API 결과 전체를 저장한다."""
     precedent_id = str(candidate["precedent_id"])
     detail_path = RAW_DETAILS_DIR / f"{precedent_id}.json"
     if detail_path.exists() and not args.overwrite_details:
         stats.detail_skipped_existing_count += 1
-        return
+        return ("skipped", precedent_id, None)
 
     params = {
         "OC": api_key,
@@ -392,6 +399,7 @@ def collect_detail(
             },
         )
         stats.detail_success_count += 1
+        return ("saved", precedent_id, None)
     except Exception as exc:
         stats.detail_failure_count += 1
         append_jsonl(
@@ -404,6 +412,18 @@ def collect_detail(
                 "error": str(exc),
             },
         )
+        return ("failed", precedent_id, str(exc))
+
+
+def print_detail_progress(index: int, total: int, stats: CollectionStats) -> None:
+    """본문 수집 진행률을 터미널에 보기 좋게 출력한다."""
+    print(
+        f"진행 {index}/{total}: "
+        f"저장 {stats.detail_success_count}건, "
+        f"스킵 {stats.detail_skipped_existing_count}건, "
+        f"실패 {stats.detail_failure_count}건",
+        flush=True,
+    )
 
 
 def write_candidates(candidates: dict[str, dict[str, Any]]) -> None:
@@ -484,7 +504,6 @@ def main() -> int:
                 print(f"   목록 조회 실패 기록: query='{search_spec['query']}'")
                 continue
             merge_candidates(search_spec, items, candidates)
-            time.sleep(args.delay)
 
         stats.unique_candidate_count = len(candidates)
         write_candidates(candidates)
@@ -494,8 +513,25 @@ def main() -> int:
         for index, candidate in enumerate(candidates.values(), start=1):
             if detail_limit is not None and index > detail_limit:
                 break
-            collect_detail(api_key, candidate, args, stats)
-            time.sleep(args.delay)
+            status, precedent_id, error = collect_detail(api_key, candidate, args, stats)
+            if status == "saved":
+                print(
+                    f"저장 {index}/{len(candidates)}: precedent_id={precedent_id}",
+                    flush=True,
+                )
+                time.sleep(args.delay)
+            elif status == "failed":
+                print(
+                    f"실패 {index}/{len(candidates)}: "
+                    f"precedent_id={precedent_id} error={error}",
+                    flush=True,
+                )
+                time.sleep(args.delay)
+            elif (
+                args.progress_every > 0
+                and stats.detail_skipped_existing_count % args.progress_every == 0
+            ):
+                print_detail_progress(index, len(candidates), stats)
     except KeyboardInterrupt:
         stats.interrupted = True
         print("\n사용자 중단: 현재까지의 manifest를 저장합니다.")
