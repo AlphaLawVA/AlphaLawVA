@@ -55,6 +55,7 @@ class CollectionStats:
     detail_success_count: int = 0
     detail_skipped_existing_count: int = 0
     detail_failure_count: int = 0
+    interrupted: bool = False
     searches: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -444,6 +445,7 @@ def write_manifest(stats: CollectionStats, args: argparse.Namespace) -> None:
             "detail_success_count": stats.detail_success_count,
             "detail_skipped_existing_count": stats.detail_skipped_existing_count,
             "detail_failure_count": stats.detail_failure_count,
+            "interrupted": stats.interrupted,
         },
         "searches": stats.searches,
     }
@@ -459,42 +461,68 @@ def main() -> int:
     stats = CollectionStats(started_at=now_utc_iso(), query_count=len(searches))
     candidates: dict[str, dict[str, Any]] = {}
 
-    print(f"판례 목록 조회 시작: 검색어 {len(searches)}개")
-    for search_spec in searches:
-        print(
-            " - "
-            f"{search_spec['search_type']} search={search_spec['search']} "
-            f"query='{search_spec['query']}'"
-        )
-        try:
-            items = collect_search_pages(api_key, search_spec, args, stats)
-        except Exception as exc:
-            append_jsonl(
-                RETRY_QUEUE_PATH,
-                {
-                    "created_at": now_utc_iso(),
-                    "stage": "list",
-                    "search_spec": search_spec,
-                    "error": str(exc),
-                },
+    try:
+        print(f"판례 목록 조회 시작: 검색어 {len(searches)}개")
+        for search_spec in searches:
+            print(
+                " - "
+                f"{search_spec['search_type']} search={search_spec['search']} "
+                f"query='{search_spec['query']}'"
             )
-            print(f"   목록 조회 실패 기록: query='{search_spec['query']}'")
-            continue
-        merge_candidates(search_spec, items, candidates)
-        time.sleep(args.delay)
+            try:
+                items = collect_search_pages(api_key, search_spec, args, stats)
+            except Exception as exc:
+                append_jsonl(
+                    RETRY_QUEUE_PATH,
+                    {
+                        "created_at": now_utc_iso(),
+                        "stage": "list",
+                        "search_spec": search_spec,
+                        "error": str(exc),
+                    },
+                )
+                print(f"   목록 조회 실패 기록: query='{search_spec['query']}'")
+                continue
+            merge_candidates(search_spec, items, candidates)
+            time.sleep(args.delay)
 
-    stats.unique_candidate_count = len(candidates)
-    write_candidates(candidates)
-    print(f"본문 조회 시작: 고유 후보 {len(candidates)}건")
+        stats.unique_candidate_count = len(candidates)
+        write_candidates(candidates)
+        print(f"본문 조회 시작: 고유 후보 {len(candidates)}건")
 
-    detail_limit = 10 if args.smoke_test else None
-    for index, candidate in enumerate(candidates.values(), start=1):
-        if detail_limit is not None and index > detail_limit:
-            break
-        collect_detail(api_key, candidate, args, stats)
-        time.sleep(args.delay)
+        detail_limit = 10 if args.smoke_test else None
+        for index, candidate in enumerate(candidates.values(), start=1):
+            if detail_limit is not None and index > detail_limit:
+                break
+            collect_detail(api_key, candidate, args, stats)
+            time.sleep(args.delay)
+    except KeyboardInterrupt:
+        stats.interrupted = True
+        print("\n사용자 중단: 현재까지의 manifest를 저장합니다.")
+    finally:
+        if candidates:
+            stats.unique_candidate_count = len(candidates)
+            write_candidates(candidates)
+        else:
+            try:
+                stats.unique_candidate_count = sum(
+                    1 for _line in CANDIDATES_PATH.read_text(encoding="utf-8").splitlines()
+                )
+            except FileNotFoundError:
+                stats.unique_candidate_count = 0
+        write_manifest(stats, args)
 
-    write_manifest(stats, args)
+    if stats.interrupted:
+        print(
+            "중단 요약: "
+            f"목록요청 {stats.list_request_count}회, "
+            f"목록캐시 {stats.list_cached_page_count}회, "
+            f"고유후보 {stats.unique_candidate_count}건, "
+            f"본문성공 {stats.detail_success_count}건, "
+            f"본문실패 {stats.detail_failure_count}건"
+        )
+        return 130
+
     print(f"완료: manifest={COLLECTION_MANIFEST_PATH}")
     print(
         "요약: "
