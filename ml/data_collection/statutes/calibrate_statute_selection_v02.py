@@ -9,31 +9,15 @@ from calibrate_statute_selection import (
     write_review_queue,
 )
 from classify_statute_relevance import extract_article_units, find_terms
-from law_api_common import PROJECT_ROOT, read_json, write_json
+from law_api_common import STATUTE_CONFIG_DIR, STATUTE_DATA_DIR, read_json, write_json
 
-DEFAULT_CLASSIFICATION = (
-    PROJECT_ROOT
-    / "local_data"
-    / "statutes"
-    / "manifests"
-    / "relevance_classification.json"
-)
-DEFAULT_HUMAN_LABELS = (
-    PROJECT_ROOT / "local_data" / "statutes" / "reviews" / "human_labels_v01.json"
-)
-DEFAULT_RULES = PROJECT_ROOT / "config" / "statute_selection_rules_v02.json"
-DEFAULT_V01_SELECTION = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "selection_v01.json"
-)
-DEFAULT_OUTPUT = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "selection_v02.json"
-)
-DEFAULT_REVIEW_CSV = (
-    PROJECT_ROOT / "local_data" / "statutes" / "reports" / "selection_review_queue_v02.csv"
-)
-DEFAULT_COMPARISON_CSV = (
-    PROJECT_ROOT / "local_data" / "statutes" / "reports" / "selection_v01_to_v02.csv"
-)
+DEFAULT_CLASSIFICATION = STATUTE_DATA_DIR / "manifests/relevance_classification.json"
+DEFAULT_HUMAN_LABELS = STATUTE_DATA_DIR / "reviews/human_labels_v01.json"
+DEFAULT_RULES = STATUTE_CONFIG_DIR / "statute_selection_rules_v02.json"
+DEFAULT_V01_SELECTION = STATUTE_DATA_DIR / "manifests/selection_v01.json"
+DEFAULT_OUTPUT = STATUTE_DATA_DIR / "manifests/selection_v02.json"
+DEFAULT_REVIEW_CSV = STATUTE_DATA_DIR / "reports/selection_review_queue_v02.csv"
+DEFAULT_COMPARISON_CSV = STATUTE_DATA_DIR / "reports/selection_v01_to_v02.csv"
 
 
 def analyze_detail(detail_payload: dict, relevance_rules: dict, rules: dict) -> dict:
@@ -179,7 +163,7 @@ def main() -> None:
     classification = read_json(args.classification)
     human_payload = read_json(args.human_labels)
     rules = read_json(args.rules)
-    relevance_rules = read_json(PROJECT_ROOT / "config" / "statute_relevance_rules_v01.json")
+    relevance_rules = read_json(STATUTE_CONFIG_DIR / "statute_relevance_rules_v01.json")
     v01 = read_json(args.v01_selection)
 
     human_by_id = {item["law_id"]: item for item in human_payload["labels"]}
@@ -190,14 +174,7 @@ def main() -> None:
     selection_rows = []
     comparisons = []
     for result in classification["results"]:
-        detail_path = (
-            PROJECT_ROOT
-            / "local_data"
-            / "statutes"
-            / "raw"
-            / "details"
-            / f"{result['law_id']}.json"
-        )
+        detail_path = STATUTE_DATA_DIR / "raw_jsons/details" / f"{result['law_id']}.json"
         analysis = analyze_detail(read_json(detail_path), relevance_rules, rules)
         human = human_by_id.get(result["law_id"])
         suggestion, reason = suggest_decision_v02(

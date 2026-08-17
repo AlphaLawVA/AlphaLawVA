@@ -3,31 +3,19 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-from law_api_common import PROJECT_ROOT, read_json, write_json
+from law_api_common import (
+    PROJECT_ROOT,
+    STATUTE_CONFIG_DIR,
+    STATUTE_DATA_DIR,
+    read_json,
+    write_json,
+)
 
-DEFAULT_SELECTION = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "selection_v03.json"
-)
-DEFAULT_DECISIONS = (
-    PROJECT_ROOT / "config" / "statute_selection_decisions_v03.json"
-)
-DEFAULT_OUTPUT = (
-    PROJECT_ROOT
-    / "local_data"
-    / "statutes"
-    / "manifests"
-    / "final_selection_v01.json"
-)
-DEFAULT_REPORT = (
-    PROJECT_ROOT
-    / "local_data"
-    / "statutes"
-    / "reports"
-    / "final_selection_v01.csv"
-)
-DEFAULT_INCLUDED_LIST = (
-    PROJECT_ROOT / "config" / "statute_inclusion_list_v01.json"
-)
+DEFAULT_SELECTION = STATUTE_DATA_DIR / "manifests/selection_v03.json"
+DEFAULT_DECISIONS = STATUTE_CONFIG_DIR / "statute_selection_decisions_v03.json"
+DEFAULT_OUTPUT = STATUTE_DATA_DIR / "manifests/final_selection_v01.json"
+DEFAULT_REPORT = STATUTE_DATA_DIR / "reports/final_selection_v01.csv"
+DEFAULT_INCLUDED_LIST = STATUTE_DATA_DIR / "metadata/statute_inclusion_list_v01.json"
 
 
 def finalize_row(row: dict, decisions: dict) -> tuple[str, str]:
@@ -157,7 +145,7 @@ def main() -> None:
             "version": "0.1",
             "scope": decisions["scope"],
             "total": len(included),
-            "source_decisions": str(args.decisions.relative_to(PROJECT_ROOT)),
+            "source_decisions": args.decisions.relative_to(PROJECT_ROOT).as_posix(),
             "laws": included,
         },
     )

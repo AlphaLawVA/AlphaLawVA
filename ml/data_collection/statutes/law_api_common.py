@@ -6,7 +6,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote_plus, urlencode
 from urllib.request import Request, urlopen
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STATUTE_MODULE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = STATUTE_MODULE_DIR.parents[2]
+STATUTE_CONFIG_DIR = STATUTE_MODULE_DIR / "config"
+STATUTE_DATA_DIR = PROJECT_ROOT / "data" / "statutes"
 ENV_FILE = PROJECT_ROOT / ".env"
 
 

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from law_api_common import (
     PROJECT_ROOT,
+    STATUTE_CONFIG_DIR,
+    STATUTE_DATA_DIR,
     as_list,
     fetch_json,
     load_law_api_key,
@@ -18,8 +20,8 @@ from law_api_common import (
 
 SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do"
 SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do"
-DEFAULT_CANDIDATE_FILE = PROJECT_ROOT / "config/statute_candidates_v01.json"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "local_data/statutes"
+DEFAULT_CANDIDATE_FILE = STATUTE_CONFIG_DIR / "statute_candidates_v01.json"
+DEFAULT_OUTPUT_DIR = STATUTE_DATA_DIR
 
 
 def safe_name(value: str) -> str:
@@ -113,7 +115,7 @@ def collect_one(
 ) -> dict:
     law_name = candidate["law_name"]
     search_path = (
-        output_dir / "raw/list_searches/seed" / f"{safe_name(law_name)}.json"
+        output_dir / "raw_jsons/list_searches/seed" / f"{safe_name(law_name)}.json"
     )
     search_payload, search_source = load_or_fetch(
         search_path,
@@ -148,7 +150,7 @@ def collect_one(
             "collected_at": utc_timestamp(),
         }
 
-    detail_path = output_dir / "raw/details" / f"{law_id}.json"
+    detail_path = output_dir / "raw_jsons/details" / f"{law_id}.json"
     detail_payload, detail_source = load_or_fetch(
         detail_path,
         SERVICE_URL,

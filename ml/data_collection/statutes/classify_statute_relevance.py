@@ -5,24 +5,21 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from law_api_common import PROJECT_ROOT, as_list, read_json, write_json
+from law_api_common import (
+    PROJECT_ROOT,
+    STATUTE_CONFIG_DIR,
+    STATUTE_DATA_DIR,
+    as_list,
+    read_json,
+    write_json,
+)
 
-DEFAULT_RULES = PROJECT_ROOT / "config" / "statute_relevance_rules_v01.json"
-DEFAULT_SEED_MANIFEST = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "seed_collection.json"
-)
-DEFAULT_EXPANDED_MANIFEST = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "expanded_collection.json"
-)
-DEFAULT_DISCOVERY_MANIFEST = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "discovery_candidates.json"
-)
-DEFAULT_OUTPUT_MANIFEST = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "relevance_classification.json"
-)
-DEFAULT_OUTPUT_CSV = (
-    PROJECT_ROOT / "local_data" / "statutes" / "reports" / "relevance_review.csv"
-)
+DEFAULT_RULES = STATUTE_CONFIG_DIR / "statute_relevance_rules_v01.json"
+DEFAULT_SEED_MANIFEST = STATUTE_DATA_DIR / "manifests/seed_collection.json"
+DEFAULT_EXPANDED_MANIFEST = STATUTE_DATA_DIR / "manifests/expanded_collection.json"
+DEFAULT_DISCOVERY_MANIFEST = STATUTE_DATA_DIR / "manifests/discovery_candidates.json"
+DEFAULT_OUTPUT_MANIFEST = STATUTE_DATA_DIR / "manifests/relevance_classification.json"
+DEFAULT_OUTPUT_CSV = STATUTE_DATA_DIR / "reports/relevance_review.csv"
 
 
 def normalize_space(value: object) -> str:

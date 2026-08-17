@@ -1,13 +1,12 @@
 import argparse
 import re
 from datetime import datetime
-from pathlib import Path
 
-from law_api_common import fetch_json, load_law_api_key, write_json
+from law_api_common import STATUTE_DATA_DIR, fetch_json, load_law_api_key, write_json
 
 SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do"
 SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do"
-OUTPUT_DIR = Path("local_data/statutes/debug")
+OUTPUT_DIR = STATUTE_DATA_DIR / "raw_jsons/debug"
 
 
 def safe_name(value: str) -> str:

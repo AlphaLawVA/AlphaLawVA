@@ -6,6 +6,7 @@ from pathlib import Path
 from collect_statutes import file_sha256, validate_detail
 from law_api_common import (
     PROJECT_ROOT,
+    STATUTE_DATA_DIR,
     fetch_json,
     load_law_api_key,
     read_json,
@@ -14,11 +15,8 @@ from law_api_common import (
 )
 
 SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do"
-DEFAULT_DISCOVERY_MANIFEST = (
-    PROJECT_ROOT
-    / "local_data/statutes/manifests/discovery_candidates.json"
-)
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "local_data/statutes"
+DEFAULT_DISCOVERY_MANIFEST = STATUTE_DATA_DIR / "manifests/discovery_candidates.json"
+DEFAULT_OUTPUT_DIR = STATUTE_DATA_DIR
 
 
 def utc_timestamp() -> str:
@@ -47,7 +45,7 @@ def collect_candidate(
 ) -> dict:
     law_id = str(candidate["law_id"])
     law_name = candidate.get("law_name") or ""
-    detail_path = output_dir / "raw/details" / f"{law_id}.json"
+    detail_path = output_dir / "raw_jsons/details" / f"{law_id}.json"
 
     if detail_path.exists() and not refresh:
         detail_payload = read_json(detail_path)

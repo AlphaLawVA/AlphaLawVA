@@ -2,7 +2,7 @@
   "version": "0.1",
   "scope": "주거용 부동산 매매·전세·월세 계약",
   "total": 103,
-  "source_decisions": "config\\statute_selection_decisions_v03.json",
+  "source_decisions": "ml/data_collection/statutes/config/statute_selection_decisions_v03.json",
   "laws": [
     {
       "law_id": "001257",

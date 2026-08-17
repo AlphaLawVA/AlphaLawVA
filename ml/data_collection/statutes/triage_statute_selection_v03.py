@@ -4,29 +4,13 @@ import hashlib
 from collections import Counter
 from pathlib import Path
 
-from law_api_common import PROJECT_ROOT, read_json, write_json
+from law_api_common import STATUTE_CONFIG_DIR, STATUTE_DATA_DIR, read_json, write_json
 
-DEFAULT_SELECTION = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "selection_v02.json"
-)
-DEFAULT_RULES = PROJECT_ROOT / "config" / "statute_selection_rules_v03.json"
-DEFAULT_OUTPUT = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "selection_v03.json"
-)
-DEFAULT_REVIEW_CSV = (
-    PROJECT_ROOT
-    / "local_data"
-    / "statutes"
-    / "reports"
-    / "selection_review_queue_v03.csv"
-)
-DEFAULT_SAMPLE_CSV = (
-    PROJECT_ROOT
-    / "local_data"
-    / "statutes"
-    / "reports"
-    / "selection_auto_exclude_sample_v03.csv"
-)
+DEFAULT_SELECTION = STATUTE_DATA_DIR / "manifests/selection_v02.json"
+DEFAULT_RULES = STATUTE_CONFIG_DIR / "statute_selection_rules_v03.json"
+DEFAULT_OUTPUT = STATUTE_DATA_DIR / "manifests/selection_v03.json"
+DEFAULT_REVIEW_CSV = STATUTE_DATA_DIR / "reports/selection_review_queue_v03.csv"
+DEFAULT_SAMPLE_CSV = STATUTE_DATA_DIR / "reports/selection_auto_exclude_sample_v03.csv"
 
 
 def find_title_terms(law_name: str, terms: list[str]) -> list[str]:

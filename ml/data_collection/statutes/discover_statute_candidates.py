@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from law_api_common import (
-    PROJECT_ROOT,
+    STATUTE_CONFIG_DIR,
+    STATUTE_DATA_DIR,
     as_list,
     fetch_json,
     load_law_api_key,
@@ -17,11 +18,9 @@ from law_api_common import (
 )
 
 SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do"
-DEFAULT_KEYWORD_FILE = PROJECT_ROOT / "config/statute_discovery_keywords_v01.json"
-DEFAULT_BASE_MANIFEST = (
-    PROJECT_ROOT / "local_data/statutes/manifests/seed_collection.json"
-)
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "local_data/statutes"
+DEFAULT_KEYWORD_FILE = STATUTE_CONFIG_DIR / "statute_discovery_keywords_v01.json"
+DEFAULT_BASE_MANIFEST = STATUTE_DATA_DIR / "manifests/seed_collection.json"
+DEFAULT_OUTPUT_DIR = STATUTE_DATA_DIR
 PAGE_SIZE = 100
 
 
@@ -251,7 +250,7 @@ def main() -> None:
         search_directory = "law_name" if search_type == 1 else "body"
         query_dir = (
             output_dir
-            / "raw/list_searches"
+            / "raw_jsons/list_searches"
             / search_directory
             / safe_name(query)
         )

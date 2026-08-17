@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+SCRIPTS_DIR = PROJECT_ROOT / "ml" / "data_collection" / "statutes"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from collect_statutes import (  # noqa: E402

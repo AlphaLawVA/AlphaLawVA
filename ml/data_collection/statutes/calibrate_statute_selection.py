@@ -3,24 +3,12 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-from law_api_common import PROJECT_ROOT, read_json, write_json
+from law_api_common import STATUTE_DATA_DIR, read_json, write_json
 
-DEFAULT_CLASSIFICATION = (
-    PROJECT_ROOT
-    / "local_data"
-    / "statutes"
-    / "manifests"
-    / "relevance_classification.json"
-)
-DEFAULT_HUMAN_LABELS = (
-    PROJECT_ROOT / "local_data" / "statutes" / "reviews" / "human_labels_v01.json"
-)
-DEFAULT_OUTPUT = (
-    PROJECT_ROOT / "local_data" / "statutes" / "manifests" / "selection_v01.json"
-)
-DEFAULT_REVIEW_CSV = (
-    PROJECT_ROOT / "local_data" / "statutes" / "reports" / "selection_review_queue_v01.csv"
-)
+DEFAULT_CLASSIFICATION = STATUTE_DATA_DIR / "manifests/relevance_classification.json"
+DEFAULT_HUMAN_LABELS = STATUTE_DATA_DIR / "reviews/human_labels_v01.json"
+DEFAULT_OUTPUT = STATUTE_DATA_DIR / "manifests/selection_v01.json"
+DEFAULT_REVIEW_CSV = STATUTE_DATA_DIR / "reports/selection_review_queue_v01.csv"
 
 FAMILY_SUFFIXES = (
     " 시행령",
