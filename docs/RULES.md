@@ -265,6 +265,9 @@ Recommended branch prefixes:
 Use Korean or English commit messages consistently within the team. Prefer
 concise messages that state what changed.
 
+Before creating a commit, summarize the intended commit scope and ask the user
+for explicit approval. Do not create the commit until the user approves it.
+
 ## Do Not
 
 - Do not invent database schemas as final decisions when they are still experimental.

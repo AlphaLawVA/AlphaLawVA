@@ -1,1 +1,7 @@
 .env
+data/statutes/raw_jsons/
+data/statutes/manifests/
+data/statutes/reports/
+data/statutes/reviews/
+__pycache__/
+*.py[cod]

@@ -102,7 +102,11 @@ AlphaLawVA/
 │   ├── statutes/
 │   │   ├── raw_jsons/
 │   │   ├── filtered_hierarchical_jsons/
-│   │   └── chunks/
+│   │   ├── chunks/
+│   │   ├── metadata/
+│   │   ├── manifests/
+│   │   ├── reports/
+│   │   └── reviews/
 │   └── precedents/
 │       ├── raw_jsons/
 │       ├── filtered_jsons/
@@ -115,7 +119,11 @@ AlphaLawVA/
 │   ├── agent/
 │   ├── rag/
 │   ├── data_collection/
+│   │   └── statutes/
 │   └── embedding/
+├── tests/
+│   └── data_collection/
+│       └── statutes/
 ├── frontend/
 │   ├── package.json
 │   └── package-lock.json or pnpm-lock.yaml
@@ -133,8 +141,14 @@ AlphaLawVA/
 Expected responsibilities:
 
 - `data/`: raw, filtered, and chunked legal data.
+- `data/statutes/metadata/`: version-controlled statute selections and metadata.
+- `data/statutes/raw_jsons/`, `manifests/`, `reports/`, and `reviews/`: local
+  statute collection and review artifacts excluded from Git.
 - `api/`: FastAPI entrypoint, routers, request/response models, and backend API logic.
 - `ml/`: agent, RAG, data collection, embedding, evaluation, and ML-related logic.
+- `ml/data_collection/statutes/`: statute collection, classification, selection code,
+  and its version-controlled configuration.
+- `tests/data_collection/statutes/`: statute pipeline tests.
 - `frontend/`: Next.js frontend application.
 - `docs/`: project instructions for AI coding agents and team members.
 - `docker-compose.yml`: local service orchestration.
