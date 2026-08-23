@@ -65,6 +65,10 @@ def main() -> None:
         label = f"article_{args.id}_{args.jo}"
 
     result = fetch_json(url, params)
+    if result.get("msg") and "법령" not in result and "LawSearch" not in result:
+        raise RuntimeError(
+            f"OPEN API 조회 실패: {result.get('msg') or result.get('result')}"
+        )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

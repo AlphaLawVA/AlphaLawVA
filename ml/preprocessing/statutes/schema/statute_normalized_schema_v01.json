@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphalawva.local/schema/statute-normalized-v01.json",
+  "title": "AlphaLawVA normalized statute",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source", "law"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "source": {"$ref": "#/$defs/source"},
+    "law": {"$ref": "#/$defs/law"}
+  },
+  "$defs": {
+    "nullableString": {"type": ["string", "null"]},
+    "textFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_text", "normalized_text"],
+      "properties": {
+        "raw_text": {"type": ["string", "null"]},
+        "normalized_text": {"type": ["string", "null"]}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "format", "raw_file"],
+      "properties": {
+        "provider": {"const": "국가법령정보 공동활용 API"},
+        "format": {"const": "XML"},
+        "raw_file": {"type": "string"},
+        "raw_sha256": {"$ref": "#/$defs/nullableString"},
+        "collected_at": {"$ref": "#/$defs/nullableString"}
+      }
+    },
+    "codedValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "name"],
+      "properties": {
+        "code": {"$ref": "#/$defs/nullableString"},
+        "name": {"$ref": "#/$defs/nullableString"}
+      }
+    },
+    "lawName": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ko", "abbreviation", "previous", "hanja", "en"],
+      "properties": {
+        "ko": {"type": "string", "minLength": 1},
+        "abbreviation": {"$ref": "#/$defs/nullableString"},
+        "previous": {"$ref": "#/$defs/nullableString"},
+        "hanja": {"$ref": "#/$defs/nullableString"},
+        "en": {"$ref": "#/$defs/nullableString"}
+      }
+    },
+    "law": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "law_id", "source_law_key", "name", "law_type", "ministries", "effective_date", "headings", "articles"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "law_id": {"type": "string", "pattern": "^[0-9]+$"},
+        "source_law_key": {"$ref": "#/$defs/nullableString"},
+        "name": {"$ref": "#/$defs/lawName"},
+        "law_type": {"$ref": "#/$defs/codedValue"},
+        "ministries": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/codedValue"}
+        },
+        "promulgation_number": {"$ref": "#/$defs/nullableString"},
+        "promulgation_date": {"$ref": "#/$defs/nullableString"},
+        "effective_date": {"type": "string", "minLength": 1},
+        "amendment_type": {"$ref": "#/$defs/nullableString"},
+        "language": {"$ref": "#/$defs/nullableString"},
+        "headings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/heading"}
+        },
+        "articles": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/article"}
+        }
+      }
+    },
+    "heading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "parent_node_id", "order", "level", "label", "title"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "parent_node_id": {"type": "string"},
+        "order": {"type": "integer", "minimum": 0},
+        "level": {"enum": ["part", "chapter", "section", "subsection", "unknown"]},
+        "label": {"$ref": "#/$defs/nullableString"},
+        "title": {"type": "string"}
+      }
+    },
+    "article": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "parent_node_id", "source_article_key", "order", "article_no", "branch_no", "label", "title", "has_excluded_image", "text", "effective_date", "heading_path", "paragraphs", "source_status"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "parent_node_id": {"type": "string"},
+        "source_article_key": {"$ref": "#/$defs/nullableString"},
+        "order": {"type": "integer", "minimum": 0},
+        "article_no": {"type": "string", "minLength": 1},
+        "branch_no": {"$ref": "#/$defs/nullableString"},
+        "label": {"type": "string", "minLength": 1},
+        "title": {"$ref": "#/$defs/nullableString"},
+        "has_excluded_image": {"type": "boolean"},
+        "text": {"$ref": "#/$defs/textFields"},
+        "effective_date": {"$ref": "#/$defs/nullableString"},
+        "amendment_type": {"$ref": "#/$defs/nullableString"},
+        "reference_note": {"$ref": "#/$defs/nullableString"},
+        "heading_path": {"type": "array", "items": {"type": "string"}},
+        "paragraphs": {"type": "array", "items": {"$ref": "#/$defs/paragraph"}},
+        "source_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["changed", "moved_from", "moved_to"],
+          "properties": {
+            "changed": {"$ref": "#/$defs/nullableString"},
+            "moved_from": {"$ref": "#/$defs/nullableString"},
+            "moved_to": {"$ref": "#/$defs/nullableString"}
+          }
+        }
+      }
+    },
+    "paragraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "parent_node_id", "order", "label", "container_only", "text", "subparagraphs"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "parent_node_id": {"type": "string"},
+        "order": {"type": "integer", "minimum": 0},
+        "label": {"$ref": "#/$defs/nullableString"},
+        "container_only": {"type": "boolean"},
+        "text": {"$ref": "#/$defs/textFields"},
+        "subparagraphs": {"type": "array", "items": {"$ref": "#/$defs/subparagraph"}}
+      }
+    },
+    "subparagraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "parent_node_id", "order", "label", "text", "items"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "parent_node_id": {"type": "string"},
+        "order": {"type": "integer", "minimum": 0},
+        "label": {"$ref": "#/$defs/nullableString"},
+        "text": {"$ref": "#/$defs/textFields"},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/item"}}
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "parent_node_id", "order", "label", "text"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "parent_node_id": {"type": "string"},
+        "order": {"type": "integer", "minimum": 0},
+        "label": {"$ref": "#/$defs/nullableString"},
+        "text": {"$ref": "#/$defs/textFields"}
+      }
+    }
+  }
+}
