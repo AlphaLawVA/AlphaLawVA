@@ -120,9 +120,13 @@ AlphaLawVA/
 │   ├── rag/
 │   ├── data_collection/
 │   │   └── statutes/
+│   ├── preprocessing/
+│   │   └── statutes/
 │   └── embedding/
 ├── tests/
-│   └── data_collection/
+│   ├── data_collection/
+│   │   └── statutes/
+│   └── preprocessing/
 │       └── statutes/
 ├── frontend/
 │   ├── package.json
@@ -148,7 +152,10 @@ Expected responsibilities:
 - `ml/`: agent, RAG, data collection, embedding, evaluation, and ML-related logic.
 - `ml/data_collection/statutes/`: statute collection, classification, selection code,
   and its version-controlled configuration.
+- `ml/preprocessing/statutes/`: statute normalization, schema, and source-format
+  comparison logic.
 - `tests/data_collection/statutes/`: statute pipeline tests.
+- `tests/preprocessing/statutes/`: statute normalization and integrity tests.
 - `frontend/`: Next.js frontend application.
 - `docs/`: project instructions for AI coding agents and team members.
 - `docker-compose.yml`: local service orchestration.
