@@ -40,6 +40,16 @@ LLM_INPUTS_PATH = PROCESSED_DIR / "llm_inputs.jsonl"
 CLASSIFICATION_RESULTS_PATH = PROCESSED_DIR / "classification_results.jsonl"
 CLASSIFICATION_FAILURES_PATH = PROCESSED_DIR / "classification_failures.jsonl"
 CLASSIFICATION_MANIFEST_PATH = PROCESSED_DIR / "classification_manifest.json"
+BASIC_FIELD_CLASSIFICATION_INPUTS_PATH = PROCESSED_DIR / "basic_field_classification_inputs.jsonl"
+BASIC_FIELD_CLASSIFICATION_RESULTS_PATH = PROCESSED_DIR / "basic_field_classification_results.jsonl"
+BASIC_FIELD_CLASSIFICATION_FAILURES_PATH = PROCESSED_DIR / "basic_field_classification_failures.jsonl"
+BASIC_FIELD_CLASSIFICATION_MANIFEST_PATH = PROCESSED_DIR / "basic_field_classification_manifest.json"
+PROCESSED_CASES_DIR = PROCESSED_DIR / "cases"
+CLASSIFICATION_CASES_DIR = PROCESSED_DIR / "classification_cases"
+PROCESSED_EXCLUDED_OUTLIERS_DIR = PROCESSED_DIR / "excluded_outliers"
+PREPROCESS_INDEX_PATH = PROCESSED_DIR / "preprocess_index.json"
+PREPROCESS_REPORT_PATH = PROCESSED_DIR / "preprocess_report.json"
+KEYWORD_DIAGNOSIS_REPORT_PATH = PROCESSED_DIR / "keyword_diagnosis_report.json"
 
 DEFAULT_DISPLAY = 100
 DEFAULT_DELAY_SECONDS = float(
@@ -53,7 +63,11 @@ USER_AGENT = "AlphaLawVA-precedent-collector/0.1"
 DEFAULT_OLLAMA_BASE_URL = os.environ.get(
     "OLLAMA_BASE_URL", "http://127.0.0.1:11434"
 )
-DEFAULT_PRECEDENT_LLM_MODEL = os.environ.get("PRECEDENT_LLM_MODEL", "gemma3:4b")
+DEFAULT_PRECEDENT_LLM_MODEL = os.environ.get("PRECEDENT_LLM_MODEL", "gemma2:9b")
+DEFAULT_GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_GENERATE_URL_TEMPLATE = (
+    "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+)
 
 
 def load_env_file(path: Path = ENV_FILE) -> None:
@@ -92,6 +106,9 @@ def ensure_collection_dirs() -> None:
     RAW_DETAILS_DIR.mkdir(parents=True, exist_ok=True)
     MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_CASES_DIR.mkdir(parents=True, exist_ok=True)
+    CLASSIFICATION_CASES_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_EXCLUDED_OUTLIERS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def now_utc_iso() -> str:
