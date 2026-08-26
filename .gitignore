@@ -1,5 +1,12 @@
 .env
 .DS_Store
+.venv/
+data/statutes/raw_jsons/
+data/statutes/raw_xmls/
+data/statutes/filtered_hierarchical_jsons/
+data/statutes/manifests/
+data/statutes/reports/
+data/statutes/reviews/
 __pycache__/
 *.py[cod]
 
