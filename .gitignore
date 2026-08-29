@@ -1,5 +1,6 @@
 .env
 .venv/
+.DS_Store
 data/statutes/raw_jsons/
 data/statutes/raw_xmls/
 data/statutes/filtered_hierarchical_jsons/
@@ -8,3 +9,7 @@ data/statutes/reports/
 data/statutes/reviews/
 __pycache__/
 *.py[cod]
+.matplotlib_cache/
+
+# Local collection outputs and other large/generated data.
+local_data/
