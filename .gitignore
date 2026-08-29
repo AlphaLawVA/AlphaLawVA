@@ -7,5 +7,7 @@ data/statutes/chunks/
 data/statutes/manifests/
 data/statutes/reports/
 data/statutes/reviews/
+data/statutes/models/
+data/statutes/vectorstores/
 __pycache__/
 *.py[cod]
