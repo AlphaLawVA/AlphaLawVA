@@ -1,8 +1,14 @@
-#!/usr/bin/env python3
-"""판례 수집 키워드 설정 파일.
+# precedent_keywords.py
+"""
+Description: AlphaLawVA 판례 수집에 사용할 주거용 부동산 매매·임대차 키워드를 관리한다.
+회의에서 정한 키워드 묶음과 실제 판례 목록 API 요청용 검색어를 함께 둔다.
+Author: choeminju
+Date: 2026-08-11
+Before:
+    - 판례 수집 검색어가 코드 밖 자료에만 흩어져 있는 상태.
 
-KEYWORDS_V01은 회의에서 정한 원본 키워드 묶음이고, 아래 수집용 리스트는
-그중 실제 판례 목록 API 요청에 바로 쓸 검색어만 좁혀 둔 값이다.
+After:
+    - 사건명 검색어와 본문 검색어를 스크립트에서 재사용 가능한 상수로 제공.
 """
 
 from __future__ import annotations

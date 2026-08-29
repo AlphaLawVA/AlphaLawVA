@@ -1,31 +1,14 @@
-#!/usr/bin/env python3
-"""uncertain 판례를 이유까지 참고해서 related/unrelated로 최종 재분류한다.
-
-이 파일은 기존 1차 분류에서 `uncertain`으로 남은 판례만 골라 Gemini에
-다시 보낸다. 이번 단계에서는 `uncertain`을 허용하지 않고, AlphaLawVA
-판례 검색/RAG에 사용할지 여부를 `related` 또는 `unrelated` 둘 중 하나로
-분류한다. raw JSON과 전처리 JSON, 기존 1차 분류 결과는 수정하지 않는다.
-
+# resolve_uncertain_precedents.py
+"""
+Description: 1차 분류에서 uncertain으로 남은 판례를 이유까지 참고해 related/unrelated로 재분류한다.
+Gemini 입력 비용을 줄이기 위해 긴 이유는 핵심 구간만 발췌하고 결과를 JSONL에 즉시 저장한다.
+Author: choeminju
+Date: 2026-08-29
 Before:
-    local_data/precedents/processed/classification_results.jsonl
-    local_data/precedents/processed/basic_field_classification_results.jsonl
-    - 1차 분류 결과이며, 일부 판례가 uncertain으로 남아 있다.
-
-    local_data/precedents/processed/cases/{판례일련번호}.json
-    - 주문, 청구취지, 판시사항, 판결요지, 이유 등이 분리된 전처리 판례다.
+    - local_data/precedents/processed/에 1차 분류 결과와 전처리 판례 JSON이 있는 상태.
 
 After:
-    local_data/precedents/processed/uncertain_resolution_inputs.jsonl
-    - Gemini에 전달한 입력 기록이다.
-
-    local_data/precedents/processed/uncertain_resolution_results.jsonl
-    - Gemini가 반환한 related/unrelated 재분류 결과다.
-
-    local_data/precedents/processed/uncertain_resolution_failures.jsonl
-    - 실패한 판례와 오류 내용을 저장한다.
-
-    local_data/precedents/processed/uncertain_resolution_manifest.json
-    - 실행 조건, 중단 사유, 처리 통계를 저장한다.
+    - local_data/precedents/processed/uncertain_resolution_*.jsonl 파일과 manifest가 생성.
 """
 
 from __future__ import annotations

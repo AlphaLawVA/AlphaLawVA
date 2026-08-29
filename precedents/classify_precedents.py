@@ -1,19 +1,14 @@
-#!/usr/bin/env python3
-"""전처리된 판례 JSON을 LLM 분류용 데이터로 정리하고 LLM 분류를 실행한다.
-
-이 파일은 `local_data/precedents/processed/classification_cases/*.json`
-분류용 판례를 기준으로 관련성 분류 입력을 만든다. 원본 raw JSON과
-전처리 JSON은 삭제하거나 덮어쓰지 않는다.
-
+# classify_precedents.py
+"""
+Description: 판시사항 또는 판결요지가 있는 판례를 LLM 분류용 입력으로 만들고 관련성을 1차 분류한다.
+사건명, 판시사항, 판결요지만 LLM에 전달하고 키워드 진단은 후검수용으로만 저장한다.
+Author: choeminju
+Date: 2026-08-12
 Before:
-    local_data/precedents/processed/classification_cases/{판례일련번호}.json
-    - 사건명, 판시사항, 판결요지와 후검수용 keyword_diagnosis를 담은 분류용 파일이다.
+    - local_data/precedents/processed/classification_cases/에 분류용 판례 JSON이 있는 상태.
 
 After:
-    local_data/precedents/processed/llm_inputs.jsonl
-    - LLM이 사건명, 판시사항, 판결요지만 보고 관련성 3분류를 판단할 입력 데이터다.
-    local_data/precedents/processed/classification_results.jsonl
-    - `--mode classify` 실행 시 Ollama 또는 Gemini가 반환한 분류 결과다.
+    - local_data/precedents/processed/llm_inputs.jsonl과 classification_results.jsonl이 생성.
 """
 
 from __future__ import annotations

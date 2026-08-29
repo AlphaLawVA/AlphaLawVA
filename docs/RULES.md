@@ -5,6 +5,38 @@ reporting rules. Follow these rules unless the user explicitly changes them.
 
 ## Coding Principles
 
+### Python File Header
+
+Add a header in the following format at the top of every newly created Python
+code file.
+
+```python
+# normalize_statute_xmls.py
+"""
+Description: 국가법령정보 공동활용 API로 수집한 XML 원본을
+조·항·호·목 계층을 보존한 JSON으로 정규화하고 데이터 무결성을 검증한다.
+Author: ooheunsu
+Date: 2026-08-17
+Before:
+    - 선정된 법령의 XML 원본이 있지만 DB 구축용 계층형 구조로 정리되지 않은 상태.
+
+After:
+    - data/statutes/filtered_hierarchical_jsons/에 법령별 JSON이, data/statutes/manifests/normalization_v01.json에 검증 결과가 생성.
+"""
+```
+
+- On the first line, write the actual filename in the `# filename.py` format.
+- In `Description`, describe the file's purpose and main processing in no more
+  than two sentences.
+- In `Author`, write the nickname of the team member who created the file. For
+  example, use `ooheunsu` for a file created by `ooheunsu`.
+- In `Date`, write the file's creation date in `YYYY-MM-DD` format. Do not
+  change it when modifying the file later.
+- In `Before`, describe the required input or data state before execution.
+- In `After`, describe the result created or changed after execution.
+- Write the contents of `Before` and `After` as indented hyphen list items.
+  Keep each item to one direct and concise line.
+
 ### 1. Think Before Coding
 
 - Explain the approach before making non-trivial code changes.
@@ -154,7 +186,6 @@ Create local `.env` files from `.env.example`.
 Required keys:
 
 - `LAW_API_KEY`: Korean Ministry of Government Legislation Open API for statutes and precedents
-- `GEMINI_API_KEY`: Gemini API for longer precedent classification experiments
 - `ANTHROPIC_API_KEY`: Claude API
 - `OPENAI_API_KEY`: OpenAI API
 - `MYSQL_PASSWORD`: MySQL

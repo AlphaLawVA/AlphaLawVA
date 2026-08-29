@@ -1,23 +1,14 @@
-#!/usr/bin/env python3
-"""판시사항/판결요지가 없는 판례를 기본정보·주문·청구취지만으로 1차 분류한다.
-
-이 파일은 판시사항과 판결요지가 모두 없는 전처리 판례 중에서, `청구취지`가
-있는 판례만 골라 로컬 LLM 또는 Gemini로 1차 관련성 분류를 실행한다.
-기존 raw JSON, 전처리 JSON, 판시사항/판결요지 기반 분류 결과는 수정하지 않는다.
-
+# classify_basic_fields.py
+"""
+Description: 판시사항과 판결요지가 모두 없는 판례를 기본정보·주문·청구취지만으로 1차 분류한다.
+청구취지가 있는 판례만 골라 로컬 LLM 또는 Gemini에 전달하고 중단 후 재실행을 지원한다.
+Author: choeminju
+Date: 2026-08-26
 Before:
-    local_data/precedents/processed/cases/{판례일련번호}.json
-    - 주문, 청구취지, 이유, 판시사항, 판결요지 등이 분리된 전처리 판례다.
+    - local_data/precedents/processed/cases/에 판시사항과 판결요지가 없는 전처리 판례가 있는 상태.
 
 After:
-    local_data/precedents/processed/basic_field_classification_inputs.jsonl
-    - LLM에 전달한 기본정보·주문·청구취지 입력 기록이다.
-    local_data/precedents/processed/basic_field_classification_results.jsonl
-    - 로컬 LLM 또는 Gemini가 반환한 1차 분류 결과다.
-    local_data/precedents/processed/basic_field_classification_failures.jsonl
-    - 실패한 판례와 오류 내용을 저장한다.
-    local_data/precedents/processed/basic_field_classification_manifest.json
-    - 실행 조건과 처리 통계를 저장한다.
+    - local_data/precedents/processed/basic_field_classification_*.jsonl 파일과 manifest가 생성.
 """
 
 from __future__ import annotations
@@ -43,7 +34,6 @@ from precedent_config import (
     BASIC_FIELD_CLASSIFICATION_RESULTS_PATH,
     DEFAULT_GEMINI_MODEL,
     DEFAULT_OLLAMA_BASE_URL,
-    DEFAULT_PRECEDENT_LLM_MODEL,
     GEMINI_GENERATE_URL_TEMPLATE,
     PROCESSED_CASES_DIR,
     PROJECT_ROOT,

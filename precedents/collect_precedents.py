@@ -1,8 +1,14 @@
-#!/usr/bin/env python3
-"""국가법령정보 공동활용 API 판례 원본 수집기.
+# collect_precedents.py
+"""
+Description: 국가법령정보 공동활용 API에서 판례 목록과 상세 원본 JSON을 수집한다.
+키워드 목록 조회 결과의 판례일련번호를 중복 제거한 뒤 본문조회 API로 상세 데이터를 저장한다.
+Author: choeminju
+Date: 2026-08-11
+Before:
+    - 판례 수집 키워드는 있지만 공식 API 원본 JSON이 로컬에 저장되지 않은 상태.
 
-키워드로 판례 목록을 조회하고, 목록에서 얻은 판례일련번호로 본문조회 API를
-호출해 raw JSON을 local_data/precedents 아래에 저장한다.
+After:
+    - local_data/precedents/raw/와 manifests/에 목록, 상세, 후보, 실패 기록이 생성.
 """
 
 from __future__ import annotations

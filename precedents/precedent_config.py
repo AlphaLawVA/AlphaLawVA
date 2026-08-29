@@ -1,8 +1,14 @@
-#!/usr/bin/env python3
-"""판례 수집 공통 설정 파일.
+# precedent_config.py
+"""
+Description: 판례 수집·전처리·분류 스크립트가 공유하는 API 주소, 경로, 환경변수 기본값을 정의한다.
+로컬 데이터 저장 위치와 manifest/result 파일 경로를 한 곳에서 관리한다.
+Author: choeminju
+Date: 2026-08-11
+Before:
+    - 판례 파이프라인 스크립트마다 API 주소와 저장 경로를 개별 관리해야 하는 상태.
 
-API 주소, 로컬 저장 경로, 환경변수 이름처럼 여러 수집 스크립트가 같이
-써야 하는 값을 한 곳에 모아둔다.
+After:
+    - 판례 파이프라인 공통 설정과 디렉터리 생성 함수가 제공.
 """
 
 from __future__ import annotations

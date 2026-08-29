@@ -1,20 +1,14 @@
-#!/usr/bin/env python3
-"""판례 LLM 분류 전에 사용할 분류용 JSON을 생성한다.
-
-이 파일은 `local_data/precedents/processed/cases/*.json` 전처리본을 읽어서
-`local_data/precedents/processed/classification_cases/*.json` 분류용 파일을 만든다.
-원본 raw JSON과 기존 전처리 JSON은 수정하지 않는다.
-
+# prepare_classification_cases.py
+"""
+Description: 전처리 판례에서 판시사항·판결요지 기반 LLM 1차 분류용 JSON을 생성한다.
+키워드 진단 결과는 LLM 입력이 아니라 후검수용 데이터로만 함께 저장한다.
+Author: choeminju
+Date: 2026-08-26
 Before:
-    local_data/precedents/processed/cases/{판례일련번호}.json
-    - 주문, 청구취지, 이유 등 청킹 전 전처리 필드까지 포함한 판례 전처리본이다.
+    - local_data/precedents/processed/cases/에 청킹 전 판례 전처리본이 있는 상태.
 
 After:
-    local_data/precedents/processed/classification_cases/{판례일련번호}.json
-    - LLM 분류에 사용할 사건명, 판시사항, 판결요지 중심의 데이터다.
-    - 키워드 진단 결과는 후검수용 필드로 저장하되, LLM 프롬프트에는 넣지 않는다.
-    local_data/precedents/processed/keyword_diagnosis_report.json
-    - 분류용 파일 생성 개수와 키워드 라벨 통계를 기록한다.
+    - local_data/precedents/processed/classification_cases/와 keyword_diagnosis_report.json이 생성.
 """
 
 from __future__ import annotations

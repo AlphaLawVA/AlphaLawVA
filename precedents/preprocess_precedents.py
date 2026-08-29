@@ -1,16 +1,14 @@
-#!/usr/bin/env python3
-"""수집된 판례 상세 JSON을 청킹 전 전처리본으로 변환한다.
-
+# preprocess_precedents.py
+"""
+Description: 수집된 판례 상세 JSON을 청킹 전 전처리본으로 변환한다.
+판례내용에서 주문, 청구취지, 원심판결, 이유를 분리하고 사건번호와 선고일자를 정리한다.
+Author: choeminju
+Date: 2026-08-29
 Before:
-    local_data/precedents/raw/details/{판례일련번호}.json
-    - 국가법령정보 API 상세 응답 원본이다.
-    - `판례내용` 안에 주문, 청구취지, 원심판결, 이유 등이 한 덩어리로 섞여 있다.
+    - local_data/precedents/raw/details/에 국가법령정보 API 상세 응답 원본이 있는 상태.
 
 After:
-    local_data/precedents/processed/cases/{판례일련번호}.json
-    - 원본 파일은 수정하지 않고, 청킹 전 단계에서 보기 쉬운 flat 한글 필드로 저장한다.
-    - 판례내용에서 주문, 청구취지, 원심판결, 이유를 분리해 별도 필드로 둔다.
-    - 원문 전체를 복사하지 않고 `원본파일경로`로 raw 파일을 추적한다.
+    - local_data/precedents/processed/cases/에 flat 한글 필드의 판례 전처리 JSON이 생성.
 """
 
 from __future__ import annotations
