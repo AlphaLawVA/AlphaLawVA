@@ -1,7 +1,7 @@
 # create_statute_article_chunks.py
 """
 Description: 정규화된 법령 JSON의 조·항·호·목을 조문 단위 검색 텍스트로
-결합하고, 청크 누락과 길이 분포를 검증하는 1차 기준선 청크를 생성한다.
+결합하고, 입력 한도 초과 조문은 항 경계로 분할해 기준선 청크를 생성한다.
 Author: ooheunsu
 Date: 2026-08-25
 Before:
@@ -27,8 +27,13 @@ from ml.data_collection.statutes.law_api_common import (
 DEFAULT_INPUT_DIR = PROJECT_ROOT / "data/statutes/filtered_hierarchical_jsons"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data/statutes/chunks"
 DEFAULT_MANIFEST = PROJECT_ROOT / "data/statutes/manifests/chunking_v01.json"
-CHUNK_SCHEMA_VERSION = "0.1"
-CHUNKING_STRATEGY = "article_v01"
+CHUNK_SCHEMA_VERSION = "0.2"
+CHUNKING_STRATEGY = "article_with_overflow_split_v01"
+
+# 후보 모델 토큰 분석에서 공통 입력 한도를 초과한 조문만 명시적으로 분할한다.
+ARTICLE_PARAGRAPH_SPLITS = {
+    "law:002118:article:0186": ((1,), (2, 3, 4, 5)),
+}
 
 
 def utc_timestamp() -> str:
@@ -80,33 +85,57 @@ def article_body_text(article: dict) -> str | None:
     return value or None
 
 
-def article_text_nodes(article: dict) -> list[str]:
+def paragraph_text_nodes(paragraph: dict) -> list[str]:
+    texts: list[str] = []
+    paragraph_value = normalized_text(paragraph)
+    if paragraph_value:
+        texts.append(paragraph_value)
+
+    for subparagraph in ordered_nodes(paragraph.get("subparagraphs")):
+        subparagraph_value = normalized_text(subparagraph)
+        if subparagraph_value:
+            texts.append(subparagraph_value)
+
+        for item in ordered_nodes(subparagraph.get("items")):
+            item_value = normalized_text(item)
+            if item_value:
+                texts.append(item_value)
+    return texts
+
+
+def article_text_nodes(
+    article: dict,
+    paragraph_orders: set[int] | None = None,
+    include_article_body: bool = True,
+) -> list[str]:
     texts: list[str] = []
 
-    article_value = article_body_text(article)
-    if article_value:
-        texts.append(article_value)
+    if include_article_body:
+        article_value = article_body_text(article)
+        if article_value:
+            texts.append(article_value)
 
     for paragraph in ordered_nodes(article.get("paragraphs")):
-        paragraph_value = normalized_text(paragraph)
-        if paragraph_value:
-            texts.append(paragraph_value)
-
-        for subparagraph in ordered_nodes(paragraph.get("subparagraphs")):
-            subparagraph_value = normalized_text(subparagraph)
-            if subparagraph_value:
-                texts.append(subparagraph_value)
-
-            for item in ordered_nodes(subparagraph.get("items")):
-                item_value = normalized_text(item)
-                if item_value:
-                    texts.append(item_value)
+        if paragraph_orders is not None and paragraph.get("order") not in (
+            paragraph_orders
+        ):
+            continue
+        texts.extend(paragraph_text_nodes(paragraph))
 
     return texts
 
 
-def article_structure_counts(article: dict) -> dict[str, int]:
+def article_structure_counts(
+    article: dict,
+    paragraph_orders: set[int] | None = None,
+) -> dict[str, int]:
     paragraphs = ordered_nodes(article.get("paragraphs"))
+    if paragraph_orders is not None:
+        paragraphs = [
+            paragraph
+            for paragraph in paragraphs
+            if paragraph.get("order") in paragraph_orders
+        ]
     subparagraphs = [
         subparagraph
         for paragraph in paragraphs
@@ -145,12 +174,22 @@ def heading_titles(document: dict, article: dict) -> list[str]:
     return titles
 
 
-def create_article_chunk(document: dict, article: dict) -> dict:
+def create_article_chunk(
+    document: dict,
+    article: dict,
+    paragraph_orders: set[int] | None = None,
+    part_index: int | None = None,
+    part_count: int | None = None,
+) -> dict:
     law = document["law"]
     law_id = law["law_id"]
     law_name = law["name"]["ko"]
     headings = heading_titles(document, article)
-    body_nodes = article_text_nodes(article)
+    body_nodes = article_text_nodes(
+        article,
+        paragraph_orders=paragraph_orders,
+        include_article_body=part_index in (None, 1),
+    )
 
     lines = [f"법령: {law_name}"]
     if headings:
@@ -165,22 +204,70 @@ def create_article_chunk(document: dict, article: dict) -> dict:
         if text not in retrieval_text:
             raise ValueError(f"청크에서 계층 텍스트가 누락됐습니다: {article['node_id']}")
 
-    return {
-        "chunk_id": article["node_id"],
-        "source_node_id": article["node_id"],
-        "chunk_type": "article",
-        "retrieval_text": retrieval_text,
-        "metadata": {
-            "law_id": law_id,
-            "law_name": law_name,
-            "article_label": article["label"],
-            "article_title": article.get("title"),
-            "heading_path": headings,
-            "effective_date": article.get("effective_date")
-            or law["effective_date"],
-            "contains_excluded_image": article["has_excluded_image"],
-        },
+    is_split = part_index is not None and part_count is not None
+    chunk_id = article["node_id"]
+    if is_split:
+        chunk_id = f"{chunk_id}:part:{part_index:02d}"
+    metadata = {
+        "law_id": law_id,
+        "law_name": law_name,
+        "article_label": article["label"],
+        "article_title": article.get("title"),
+        "heading_path": headings,
+        "effective_date": article.get("effective_date")
+        or law["effective_date"],
+        "contains_excluded_image": article["has_excluded_image"],
     }
+    if is_split:
+        metadata.update(
+            {
+                "part_index": part_index,
+                "part_count": part_count,
+                "paragraph_orders": sorted(paragraph_orders or set()),
+            }
+        )
+
+    return {
+        "chunk_id": chunk_id,
+        "source_node_id": article["node_id"],
+        "chunk_type": "article_part" if is_split else "article",
+        "retrieval_text": retrieval_text,
+        "metadata": metadata,
+    }
+
+
+def create_split_article_chunks(
+    document: dict,
+    article: dict,
+    paragraph_groups: tuple[tuple[int, ...], ...],
+) -> list[dict]:
+    actual_orders = [
+        paragraph.get("order")
+        for paragraph in ordered_nodes(article.get("paragraphs"))
+    ]
+    configured_orders = [
+        order for group in paragraph_groups for order in group
+    ]
+    if any(not group for group in paragraph_groups):
+        raise ValueError(f"빈 조문 분할 그룹: {article['node_id']}")
+    if sorted(configured_orders) != sorted(actual_orders) or len(
+        configured_orders
+    ) != len(set(configured_orders)):
+        raise ValueError(
+            f"조문 분할 항 구성이 실제 항과 다릅니다: {article['node_id']}"
+        )
+
+    part_count = len(paragraph_groups)
+    return [
+        create_article_chunk(
+            document,
+            article,
+            paragraph_orders=set(group),
+            part_index=index,
+            part_count=part_count,
+        )
+        for index, group in enumerate(paragraph_groups, start=1)
+    ]
 
 
 def create_law_chunks(
@@ -202,7 +289,17 @@ def create_law_chunks(
                 }
             )
             continue
-        chunks.append(create_article_chunk(document, article))
+        paragraph_groups = ARTICLE_PARAGRAPH_SPLITS.get(article["node_id"])
+        if paragraph_groups:
+            chunks.extend(
+                create_split_article_chunks(
+                    document,
+                    article,
+                    paragraph_groups,
+                )
+            )
+        else:
+            chunks.append(create_article_chunk(document, article))
 
     return chunks, dict(counts), excluded_articles
 
@@ -279,7 +376,22 @@ def build_manifest(
     hierarchy_counts: Counter,
     excluded_articles: list[dict],
 ) -> dict:
-    expected_chunks = hierarchy_counts["articles"] - len(excluded_articles)
+    chunks_per_article = Counter(
+        chunk["source_node_id"] for chunk in all_chunks
+    )
+    split_articles = {
+        source_node_id: count
+        for source_node_id, count in chunks_per_article.items()
+        if count > 1
+    }
+    split_extra_chunk_count = sum(
+        count - 1 for count in split_articles.values()
+    )
+    expected_chunks = (
+        hierarchy_counts["articles"]
+        - len(excluded_articles)
+        + split_extra_chunk_count
+    )
     validation = validate_all_chunks(all_chunks, expected_chunks)
     lengths = [len(chunk["retrieval_text"]) for chunk in all_chunks]
     longest_articles = sorted(
@@ -309,6 +421,9 @@ def build_manifest(
         "chunk_count": len(all_chunks),
         "excluded_article_count": len(excluded_articles),
         "excluded_articles": excluded_articles,
+        "split_article_count": len(split_articles),
+        "split_extra_chunk_count": split_extra_chunk_count,
+        "split_articles": split_articles,
         "hierarchy_counts": dict(hierarchy_counts),
         "validation": validation,
         "character_count": length_summary(lengths),
@@ -374,10 +489,14 @@ def process_directory(input_dir: Path, output_dir: Path, manifest_path: Path) ->
         }
         for chunk in chunks:
             article = article_by_id[chunk["source_node_id"]]
+            paragraph_orders = chunk["metadata"].get("paragraph_orders")
             all_chunks.append(
                 {
                     **chunk,
-                    "hierarchy_counts": article_structure_counts(article),
+                    "hierarchy_counts": article_structure_counts(
+                        article,
+                        set(paragraph_orders) if paragraph_orders else None,
+                    ),
                 }
             )
 

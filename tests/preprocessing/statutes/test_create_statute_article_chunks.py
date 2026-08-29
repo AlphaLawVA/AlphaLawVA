@@ -17,6 +17,7 @@ import unittest
 from ml.preprocessing.statutes.create_statute_article_chunks import (
     create_article_chunk,
     create_law_chunks,
+    create_split_article_chunks,
     validate_all_chunks,
 )
 
@@ -110,6 +111,50 @@ class CreateStatuteArticleChunksTests(unittest.TestCase):
                 "items": 1,
             },
         )
+
+    def test_splits_oversized_article_without_body_overlap(self):
+        document = copy.deepcopy(SAMPLE_DOCUMENT)
+        article = document["law"]["articles"][0]
+        article["paragraphs"].extend(
+            [
+                {
+                    "order": 2,
+                    "text": text("② 두 번째 항이다."),
+                    "subparagraphs": [],
+                },
+                {
+                    "order": 3,
+                    "text": text("③ 세 번째 항이다."),
+                    "subparagraphs": [],
+                },
+            ]
+        )
+
+        chunks = create_split_article_chunks(
+            document,
+            article,
+            ((1,), (2, 3)),
+        )
+
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(
+            chunks[0]["chunk_id"],
+            "law:001248:article:0003:part:01",
+        )
+        self.assertEqual(chunks[0]["chunk_type"], "article_part")
+        self.assertEqual(chunks[0]["metadata"]["paragraph_orders"], [1])
+        self.assertEqual(chunks[1]["metadata"]["paragraph_orders"], [2, 3])
+        self.assertIn("① 임차인이", chunks[0]["retrieval_text"])
+        self.assertNotIn("② 두 번째", chunks[0]["retrieval_text"])
+        self.assertIn("② 두 번째", chunks[1]["retrieval_text"])
+        self.assertIn("③ 세 번째", chunks[1]["retrieval_text"])
+
+    def test_rejects_split_that_omits_a_paragraph(self):
+        document = copy.deepcopy(SAMPLE_DOCUMENT)
+        article = document["law"]["articles"][0]
+
+        with self.assertRaisesRegex(ValueError, "실제 항과 다릅니다"):
+            create_split_article_chunks(document, article, ((2,),))
 
     def test_rejects_missing_heading_reference(self):
         article = dict(SAMPLE_DOCUMENT["law"]["articles"][0])
