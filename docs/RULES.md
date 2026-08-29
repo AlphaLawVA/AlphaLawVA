@@ -154,6 +154,7 @@ Create local `.env` files from `.env.example`.
 Required keys:
 
 - `LAW_API_KEY`: Korean Ministry of Government Legislation Open API for statutes and precedents
+- `GEMINI_API_KEY`: Gemini API for longer precedent classification experiments
 - `ANTHROPIC_API_KEY`: Claude API
 - `OPENAI_API_KEY`: OpenAI API
 - `MYSQL_PASSWORD`: MySQL
