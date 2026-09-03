@@ -254,6 +254,12 @@ def normalize_text(value: Any) -> str:
     return text.strip()
 
 
+def normalize_summary_text(value: Any) -> str:
+    """생성요약을 프론트 표시와 요약 청크에 쓰기 좋은 한 문단으로 정리한다."""
+    text = normalize_text(value)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def truncate_text(value: str, max_chars: int) -> tuple[str, bool]:
     """문자열을 최대 글자 수로 자르고 잘림 여부를 반환한다."""
     if len(value) <= max_chars:
@@ -556,7 +562,8 @@ def build_prompt(llm_input: dict[str, Any], args: argparse.Namespace) -> str:
 요약 규칙:
 - 생성요약은 기본적으로 {MIN_SUMMARY_CHARS}~{STANDARD_MAX_SUMMARY_CHARS}자 사이로 작성한다.
 - 판례 내용이 길거나 핵심 쟁점이 여러 개라서 기본 길이로 담기 어려울 때만 최대 {EXTENDED_MAX_SUMMARY_CHARS}자까지 작성할 수 있다.
-- 필요한 경우 2문단까지 나눌 수 있지만, 전체 길이는 {EXTENDED_MAX_SUMMARY_CHARS}자를 넘기지 않는다.
+- 생성요약은 줄바꿈 없이 한 문단으로 작성한다.
+- 전체 길이는 {EXTENDED_MAX_SUMMARY_CHARS}자를 넘기지 않는다.
 - 모든 문장은 평서형 "~다"체로 끝낸다.
 - "~입니다", "~했습니다", "~합니다" 체를 쓰지 않는다.
 - 사건번호, 법원명, 선고일자는 요약문에 쓰지 않는다.
@@ -773,7 +780,7 @@ def validate_summary(payload: dict[str, Any], llm_input: dict[str, Any]) -> tupl
         warnings.append("판례일련번호가 입력과 달라서 입력값으로 보정함")
         precedent_id = expected_id
 
-    summary = normalize_text(payload.get("생성요약"))
+    summary = normalize_summary_text(payload.get("생성요약"))
     if not summary:
         raise ValueError("생성요약이 비어 있음")
 
