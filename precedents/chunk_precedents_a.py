@@ -30,8 +30,8 @@ DEFAULT_OUTPUT_DIR = LOCAL_DATA_ROOT / "precedents" / "chunks" / "A_reason_summa
 
 SCHEMA_VERSION = "precedent_chunks.v1"
 CHUNKING_STRATEGY = "A_reason_summary_v1"
-DEFAULT_CHUNK_SIZE = 1200
-DEFAULT_OVERLAP_SIZE = 150
+DEFAULT_CHUNK_SIZE = 800
+DEFAULT_OVERLAP_SIZE = 120
 
 SECTION_TO_ID_PART = {
     "이유": "reason",
