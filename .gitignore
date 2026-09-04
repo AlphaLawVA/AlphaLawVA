@@ -9,5 +9,9 @@ data/statutes/reports/
 data/statutes/reviews/
 data/statutes/models/
 data/statutes/vectorstores/
+data/statutes/evaluation/runs/
+data/statutes/evaluation/reviews/
+.tmp/
+outputs/
 __pycache__/
 *.py[cod]

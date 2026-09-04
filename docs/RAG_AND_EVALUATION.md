@@ -49,6 +49,8 @@ are product requirements.
 ## Evaluation Rules
 
 - Use RAGAS where applicable for RAG evaluation.
+- Follow `docs/STATUTE_RETRIEVAL_EVALUATION_DATASET.md` when creating or
+  changing the statute retrieval gold dataset.
 - For legal AI outputs, include retrieval-grounding or source-metadata checks when practical.
 - Track evaluation assumptions such as dataset, model, embedding model, chunking strategy, retrieval method, and prompt version.
 - Compare model or retrieval changes against the same evaluation set when practical.

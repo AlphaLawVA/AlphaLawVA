@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphalawva.local/schemas/statute-retrieval-evaluation-v01.json",
+  "title": "AlphaLawVA statute retrieval evaluation case v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "query_id",
+    "purpose",
+    "question",
+    "category",
+    "legal_domain",
+    "difficulty",
+    "critical",
+    "source",
+    "required_concepts",
+    "judgments",
+    "dataset_snapshot",
+    "review"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "query_id": {
+      "type": "string",
+      "pattern": "^statute_retrieval_v01_q[0-9]{3}$"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "variant_group": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "category": {
+      "enum": [
+        "direct_fact",
+        "natural_paraphrase",
+        "condition_exception",
+        "multi_article",
+        "confusable_concept"
+      ]
+    },
+    "legal_domain": {
+      "enum": [
+        "housing_lease",
+        "sale_brokerage",
+        "registration_property_rights",
+        "building_land",
+        "auction_enforcement",
+        "cross_domain"
+      ]
+    },
+    "difficulty": {
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ]
+    },
+    "critical": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "reference",
+        "synthetic"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "user_log",
+            "user_interview",
+            "domain_expert",
+            "public_reference",
+            "synthetic"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "synthetic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "required_concepts": {
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "judgments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "chunk_id",
+          "relevance",
+          "reason"
+        ],
+        "properties": {
+          "chunk_id": {
+            "type": "string",
+            "pattern": "^law:[0-9]{6}:article:[0-9]{4}(?::part:[0-9]{2})?$"
+          },
+          "relevance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "dataset_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "built_at",
+        "chunking_strategy",
+        "source_sha256"
+      ],
+      "properties": {
+        "built_at": {
+          "type": "string",
+          "format": "date"
+        },
+        "chunking_strategy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "created_by",
+        "reviewed_by",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "draft",
+            "reviewed",
+            "approved"
+          ]
+        },
+        "created_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    }
+  }
+}
