@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.1",
+  "query_id": "statute_retrieval_v01_q000",
+  "purpose": "이 문항이 확인할 검색 능력을 한 문장으로 작성",
+  "question": "사용자 질문을 작성",
+  "variant_group": "same_intent_variant",
+  "category": "direct_fact",
+  "legal_domain": "housing_lease",
+  "difficulty": "easy",
+  "critical": false,
+  "source": {
+    "type": "synthetic",
+    "reference": "질문을 만든 근거 또는 시나리오",
+    "synthetic": true
+  },
+  "required_concepts": [
+    "보조 진단용 개념"
+  ],
+  "judgments": [
+    {
+      "chunk_id": "law:000000:article:0000",
+      "relevance": 3,
+      "reason": "관련도 판정 근거"
+    }
+  ],
+  "dataset_snapshot": {
+    "built_at": "2026-08-29",
+    "chunking_strategy": "article_with_overflow_split_v01",
+    "source_sha256": "fc97c961f96f4643af0f05330ca072bfe8a1a6cd7bfba3166da02f079e635ed4"
+  },
+  "review": {
+    "status": "draft",
+    "created_by": "작성자",
+    "reviewed_by": null,
+    "created_at": "2026-08-31",
+    "updated_at": "2026-08-31"
+  }
+}

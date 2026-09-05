@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.1",
+  "review_status": "completed",
+  "reviewer": "ooheunsu",
+  "reviewed_at": "2026-09-04",
+  "source_workbook": "outputs/2026-09-03-pilot-v01-final-review/statute_retrieval_pilot_v01_final_review.xlsx",
+  "review_scope": {
+    "question_count": 11,
+    "positive_judgment_count": 38,
+    "changed_binary_label_count": 42
+  },
+  "question_resolutions": [
+    {
+      "query_id": "statute_retrieval_v01_q003",
+      "final_question": "전세계약이 끝났는데 보증금을 못 돌려받은 상태로 이사해야합니다. 보증금을 돌려받기 전까지 계약했었던 내 권리를 계속 유지하려면 어떻게 해야하나요?",
+      "reason": "사람 최종 검수에서 사용자 표현으로 수정"
+    }
+  ],
+  "judgment_resolutions": [
+    {
+      "query_id": "statute_retrieval_v01_q002",
+      "chunk_id": "law:001248:article:0017",
+      "final_relevance": 2,
+      "reason": "소액보증금 최우선변제의 보조 근거로 정답 복원"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q003",
+      "chunk_id": "law:001248:article:0010",
+      "final_relevance": 2,
+      "reason": "임대차관계 존속 효과는 보조 근거이며 이사 후 권리 유지 절차를 직접 설명하지 않아 2점 유지"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q008",
+      "chunk_id": "law:011320:article:0003",
+      "final_relevance": 1,
+      "reason": "확정일자 신청 방법은 부여기관을 직접 답하지 않아 1점 유지"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q008",
+      "chunk_id": "law:011947:article:0007",
+      "final_relevance": 1,
+      "reason": "확정일자 표시 방법은 부여기관을 직접 답하지 않아 1점 유지"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q009",
+      "chunk_id": "law:001585:article:0114",
+      "final_relevance": 3,
+      "reason": "임차인의 미납국세 열람 권리와 절차를 직접 규정하므로 핵심 근거로 확정"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q009",
+      "chunk_id": "law:002891:article:0102",
+      "final_relevance": 2,
+      "reason": "미납국세 열람 신청의 서류와 기준을 제공하는 보조 근거로 확정"
+    }
+  ]
+}

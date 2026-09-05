@@ -1,0 +1,98 @@
+{
+  "schema_version": "0.1",
+  "status": "approved",
+  "approved_at": "2026-09-04",
+  "reviewer": "ooheunsu",
+  "source_draft": "data\\statutes\\evaluation\\datasets\\pilot_v01_evidence_rechecked.jsonl",
+  "source_draft_sha256": "6b1ceb1893aeb3530da8d92039505f35f43e31b8fdd8a884b246f39d8eaadde0",
+  "decisions": "data\\statutes\\evaluation\\approvals\\pilot_v01_final_human_decisions.json",
+  "decisions_sha256": "4a861bf8a916c4ecd213209a164df9d5595c48c9a1d28025dc6dc66bad89c478",
+  "approved_dataset": "data\\statutes\\evaluation\\datasets\\pilot_v01_approved.jsonl",
+  "approved_dataset_sha256": "e475bfb3661149ff1224ee5c0d284abd7feeb8e91e4af41a54a282ffceee4e2c",
+  "summary": {
+    "question_count": 11,
+    "judgment_count": 242,
+    "positive_count": 39,
+    "relevance_counts": {
+      "0": 126,
+      "1": 77,
+      "2": 24,
+      "3": 15
+    },
+    "question_changes": [
+      {
+        "query_id": "statute_retrieval_v01_q003",
+        "before": "전세계약이 끝났는데 보증금을 못 받은 상태로 이사해야 합니다. 보증금을 돌려받기 전까지 계약 효력을 주장하려면 어떻게 해야 하나요?",
+        "after": "전세계약이 끝났는데 보증금을 못 돌려받은 상태로 이사해야합니다. 보증금을 돌려받기 전까지 계약했었던 내 권리를 계속 유지하려면 어떻게 해야하나요?",
+        "reason": "사람 최종 검수에서 사용자 표현으로 수정"
+      }
+    ],
+    "judgment_resolutions": [
+      {
+        "query_id": "statute_retrieval_v01_q002",
+        "chunk_id": "law:001248:article:0017",
+        "before": 1,
+        "after": 2,
+        "reason": "소액보증금 최우선변제의 보조 근거로 정답 복원"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q003",
+        "chunk_id": "law:001248:article:0010",
+        "before": 2,
+        "after": 2,
+        "reason": "임대차관계 존속 효과는 보조 근거이며 이사 후 권리 유지 절차를 직접 설명하지 않아 2점 유지"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q008",
+        "chunk_id": "law:011320:article:0003",
+        "before": 1,
+        "after": 1,
+        "reason": "확정일자 신청 방법은 부여기관을 직접 답하지 않아 1점 유지"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q008",
+        "chunk_id": "law:011947:article:0007",
+        "before": 1,
+        "after": 1,
+        "reason": "확정일자 표시 방법은 부여기관을 직접 답하지 않아 1점 유지"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q009",
+        "chunk_id": "law:001585:article:0114",
+        "before": 2,
+        "after": 3,
+        "reason": "임차인의 미납국세 열람 권리와 절차를 직접 규정하므로 핵심 근거로 확정"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q009",
+        "chunk_id": "law:002891:article:0102",
+        "before": 3,
+        "after": 2,
+        "reason": "미납국세 열람 신청의 서류와 기준을 제공하는 보조 근거로 확정"
+      }
+    ],
+    "changed_scores": [
+      {
+        "query_id": "statute_retrieval_v01_q002",
+        "chunk_id": "law:001248:article:0017",
+        "before": 1,
+        "after": 2,
+        "reason": "소액보증금 최우선변제의 보조 근거로 정답 복원"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q009",
+        "chunk_id": "law:001585:article:0114",
+        "before": 2,
+        "after": 3,
+        "reason": "임차인의 미납국세 열람 권리와 절차를 직접 규정하므로 핵심 근거로 확정"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q009",
+        "chunk_id": "law:002891:article:0102",
+        "before": 3,
+        "after": 2,
+        "reason": "미납국세 열람 신청의 서류와 기준을 제공하는 보조 근거로 확정"
+      }
+    ]
+  }
+}

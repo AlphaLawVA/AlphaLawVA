@@ -10,9 +10,17 @@ LLM candidates by role:
 - User-facing generation and agent responses: Claude or GPT-4o, TBD after testing
 - Offline filtering and classification: local LLM candidate, TBD
 
-Embedding candidate:
+Statute embedding decision:
 
-- `text-embedding-3-large`, provisional until comparison results are available
+- `BGE-M3` is selected for statute dense retrieval v0.1 from the approved
+  50-question comparison.
+- `KURE-v1` remains the close alternative because it led MRR@10 and nDCG@10.
+- The selected chunking strategy is `article_with_overflow_split_v01`. In the
+  same 50-question evaluation, paragraph-child/article-parent retrieval lowered
+  Recall@10 from 61.53% to 55.53% for BGE-M3 and from 60.53% to 53.01% for
+  KURE-v1, without improving critical-question completeness.
+- The decision applies to statute retrieval only. Precedent retrieval requires
+  a separate comparison because its document and query characteristics differ.
 
 Do not lock in a model, embedding model, vector DB strategy, prompt, retrieval
 strategy, or chunking strategy as a final decision without comparison results.
@@ -49,6 +57,8 @@ are product requirements.
 ## Evaluation Rules
 
 - Use RAGAS where applicable for RAG evaluation.
+- Follow `docs/STATUTE_RETRIEVAL_EVALUATION_DATASET.md` when creating or
+  changing the statute retrieval gold dataset.
 - For legal AI outputs, include retrieval-grounding or source-metadata checks when practical.
 - Track evaluation assumptions such as dataset, model, embedding model, chunking strategy, retrieval method, and prompt version.
 - Compare model or retrieval changes against the same evaluation set when practical.

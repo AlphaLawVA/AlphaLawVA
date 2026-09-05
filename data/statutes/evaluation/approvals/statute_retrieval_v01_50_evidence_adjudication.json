@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.1",
+  "status": "approved",
+  "reviewed_at": "2026-09-05",
+  "approved_by": "ooheunsu",
+  "policy": "사람 검수와 보정 AI의 정답 여부가 다른 5건은 법령 원문과 질문의 정보 요구를 다시 비교해 더 타당한 판정을 채택한다.",
+  "decisions": [
+    {
+      "query_id": "statute_retrieval_v01_q023",
+      "candidate_id": "C06",
+      "chunk_id": "law:001706:article:0584",
+      "human_relevance": 1,
+      "ai_relevance": 2,
+      "final_relevance": 1,
+      "selected_basis": "human",
+      "reason": "민법 제575조는 제한물권 일반의 담보책임을 다루지만 질문의 핵심인 저당권·전세권 실행으로 소유권을 잃은 경우는 제576조가 직접 답하므로 참고 근거로 본다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q025",
+      "candidate_id": "C12",
+      "chunk_id": "law:003673:article:0035",
+      "human_relevance": 1,
+      "ai_relevance": 2,
+      "final_relevance": 1,
+      "selected_basis": "human",
+      "reason": "공인중개사의 보증 설정 의무는 관련 주제지만 피해자가 누구에게 어떤 절차로 배상을 요구하는지 직접 설명하지 않아 참고 근거로 본다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q040",
+      "candidate_id": "C02",
+      "chunk_id": "law:009325:article:0068",
+      "human_relevance": 2,
+      "ai_relevance": 0,
+      "final_relevance": 0,
+      "selected_basis": "ai_evidence_recheck",
+      "reason": "민사집행규칙 제64조는 매수신청보증 제공방법만 규정하고 매수인이 인수하거나 소멸하는 권리와 보증금 위험을 설명하지 않는다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q046",
+      "candidate_id": "C17",
+      "chunk_id": "law:009724:article:0051",
+      "human_relevance": 2,
+      "ai_relevance": 0,
+      "final_relevance": 0,
+      "selected_basis": "ai_evidence_recheck",
+      "reason": "공공주택 매입신청의 첨부서류 규정일 뿐 건축물대장 소유자 변경과 등기에 의한 소유권 변동의 차이를 설명하지 않는다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q050",
+      "candidate_id": "C01",
+      "chunk_id": "law:001706:article:0599",
+      "human_relevance": 2,
+      "ai_relevance": 0,
+      "final_relevance": 0,
+      "selected_basis": "ai_evidence_recheck",
+      "reason": "민법 제590조의 환매는 환매권을 유보한 특수한 매매이고 질문의 일반적인 계약 해제·해약금·거래 신고 절차와 무관하다."
+    }
+  ]
+}
