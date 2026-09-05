@@ -1,0 +1,288 @@
+{
+  "schema_version": "0.1",
+  "review_status": "completed",
+  "reviewer": "ooheunsu",
+  "source_workbook": "outputs/statute-50-v01-calibrated-human-review/statute_retrieval_v01_50_calibrated_human_review.xlsx",
+  "decisions": [
+    {
+      "query_id": "statute_retrieval_v01_q012",
+      "candidate_id": "C12",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q013",
+      "candidate_id": "C15",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q015",
+      "candidate_id": "C06",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q015",
+      "candidate_id": "C08",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q015",
+      "candidate_id": "C09",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q016",
+      "candidate_id": "C13",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q017",
+      "candidate_id": "C06",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q017",
+      "candidate_id": "C15",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q018",
+      "candidate_id": "C01",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q023",
+      "candidate_id": "C03",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q025",
+      "candidate_id": "C12",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q026",
+      "candidate_id": "C05",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q026",
+      "candidate_id": "C20",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q027",
+      "candidate_id": "C04",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q030",
+      "candidate_id": "C19",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q031",
+      "candidate_id": "C07",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q031",
+      "candidate_id": "C11",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q031",
+      "candidate_id": "C17",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q032",
+      "candidate_id": "C03",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q033",
+      "candidate_id": "C20",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q036",
+      "candidate_id": "C14",
+      "final_relevance": 3,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q036",
+      "candidate_id": "C18",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q045",
+      "candidate_id": "C02",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q045",
+      "candidate_id": "C07",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q045",
+      "candidate_id": "C13",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q047",
+      "candidate_id": "C05",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q049",
+      "candidate_id": "C12",
+      "final_relevance": 2,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q049",
+      "candidate_id": "C21",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "필수"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q023",
+      "candidate_id": "C06",
+      "final_relevance": 1,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q023",
+      "candidate_id": "C13",
+      "final_relevance": 3,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q025",
+      "candidate_id": "C07",
+      "final_relevance": 2,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q029",
+      "candidate_id": "C13",
+      "final_relevance": 3,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q034",
+      "candidate_id": "C06",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q034",
+      "candidate_id": "C22",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q035",
+      "candidate_id": "C20",
+      "final_relevance": 0,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q040",
+      "candidate_id": "C02",
+      "final_relevance": 2,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q043",
+      "candidate_id": "C02",
+      "final_relevance": 2,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q046",
+      "candidate_id": "C17",
+      "final_relevance": 2,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q048",
+      "candidate_id": "C16",
+      "final_relevance": 3,
+      "reason": "",
+      "review_tier": "품질 표본"
+    },
+    {
+      "query_id": "statute_retrieval_v01_q050",
+      "candidate_id": "C01",
+      "final_relevance": 2,
+      "reason": "",
+      "review_tier": "품질 표본"
+    }
+  ]
+}

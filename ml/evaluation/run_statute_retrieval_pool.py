@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gc
 import hashlib
 import importlib.metadata
 import json
@@ -221,6 +222,7 @@ def load_sentence_model(config: RetrievalModel, cache_dir: Path, device: str) ->
         revision=config.revision,
         cache_folder=str(cache_dir),
         device=selected_device,
+        local_files_only=True,
     )
 
 
@@ -239,6 +241,9 @@ def sentence_embeddings(
         show_progress_bar=False,
     )
     rows = encoded.tolist()
+    del encoded
+    del model
+    gc.collect()
     if any(len(row) != config.dimension for row in rows):
         raise ValueError(f"{config.display_name} 질의 임베딩 차원이 다릅니다.")
     return rows
@@ -393,6 +398,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--review-root", type=Path, default=DEFAULT_REVIEW_ROOT)
+    parser.add_argument(
+        "--review-prefix",
+        help="블라인드 검수표 파일명 접두사(기본값: 데이터셋 파일명)",
+    )
     parser.add_argument("--model-cache", type=Path, default=DEFAULT_MODEL_CACHE)
     parser.add_argument("--models", nargs="+", default=list(SUPPORTED_MODELS))
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
@@ -434,6 +443,7 @@ def main() -> None:
 
     run_dir = args.output_root.resolve() / args.run_id
     review_root = args.review_root.resolve()
+    review_prefix = args.review_prefix or dataset.stem
     blind_rows = build_blind_pool(cases, rankings)
     write_json(run_dir / "rankings.json", rankings)
     write_json(
@@ -450,8 +460,8 @@ def main() -> None:
             "package_versions": package_versions(),
         },
     )
-    jsonl_path = review_root / f"pilot_v01_{args.run_id}_blind.jsonl"
-    csv_path = review_root / f"pilot_v01_{args.run_id}_blind.csv"
+    jsonl_path = review_root / f"{review_prefix}_{args.run_id}_blind.jsonl"
+    csv_path = review_root / f"{review_prefix}_{args.run_id}_blind.csv"
     write_jsonl(jsonl_path, blind_rows)
     write_review_csv(csv_path, blind_rows)
     print(f"블라인드 후보 JSONL: {jsonl_path}")

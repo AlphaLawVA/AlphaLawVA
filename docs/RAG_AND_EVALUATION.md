@@ -10,9 +10,13 @@ LLM candidates by role:
 - User-facing generation and agent responses: Claude or GPT-4o, TBD after testing
 - Offline filtering and classification: local LLM candidate, TBD
 
-Embedding candidate:
+Statute embedding decision:
 
-- `text-embedding-3-large`, provisional until comparison results are available
+- `BGE-M3` is selected for statute dense retrieval v0.1 from the approved
+  50-question comparison.
+- `KURE-v1` remains the close alternative because it led MRR@10 and nDCG@10.
+- The decision applies to statute retrieval only. Precedent retrieval requires
+  a separate comparison because its document and query characteristics differ.
 
 Do not lock in a model, embedding model, vector DB strategy, prompt, retrieval
 strategy, or chunking strategy as a final decision without comparison results.

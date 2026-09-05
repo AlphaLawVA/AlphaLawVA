@@ -46,6 +46,7 @@ DEFAULT_TEAM_SELECTION = (
 )
 DEFAULT_MODEL = "gpt-5.4"
 PROMPT_VERSION = "statute-relevance-v0.1"
+DEFAULT_VALIDATION_ATTEMPTS = 3
 
 
 class CandidateAssessment(BaseModel):
@@ -231,6 +232,27 @@ def review_case(client: Any, case: dict[str, Any], model: str) -> tuple[dict, di
     return result, usage
 
 
+def review_case_with_validation_retry(
+    client: Any,
+    case: dict[str, Any],
+    model: str,
+    attempts: int = DEFAULT_VALIDATION_ATTEMPTS,
+) -> tuple[dict, dict]:
+    if attempts < 1:
+        raise ValueError("검증 시도 횟수는 1 이상이어야 합니다.")
+    for attempt in range(1, attempts + 1):
+        try:
+            return review_case(client, case, model)
+        except ValueError:
+            if attempt == attempts:
+                raise
+            print(
+                "AI 응답 구조 재시도: "
+                f"{case['query_id']} ({attempt}/{attempts})"
+            )
+    raise AssertionError("도달할 수 없는 검증 재시도 상태입니다.")
+
+
 def run_ai_review(
     blind_pool_path: Path,
     output_path: Path,
@@ -253,7 +275,11 @@ def run_ai_review(
             validate_assessment(case, QuestionAssessment.model_validate(completed[query_id]))
             print(f"AI 검수 재사용: {index}/{len(cases)} {query_id}")
             continue
-        assessment, usage = review_case(api_client, case, model)
+        assessment, usage = review_case_with_validation_retry(
+            api_client,
+            case,
+            model,
+        )
         assessment["review_metadata"] = {
             "model": model,
             "prompt_version": PROMPT_VERSION,
@@ -436,6 +462,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--comparison", type=Path, default=DEFAULT_COMPARISON)
     parser.add_argument("--team-selection", type=Path, default=DEFAULT_TEAM_SELECTION)
     parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument(
+        "--ai-only",
+        action="store_true",
+        help="사람 검수 파일 비교 없이 블라인드 AI 판정까지만 실행합니다.",
+    )
     return parser.parse_args()
 
 
@@ -443,12 +474,19 @@ def main() -> None:
     args = parse_args()
     blind_pool = args.blind_pool.resolve()
     ai_output = args.output.resolve()
-    run_ai_review(
+    ai_rows = run_ai_review(
         blind_pool,
         ai_output,
         args.manifest.resolve(),
         args.model,
     )
+    if args.ai_only:
+        candidate_count = sum(len(row["assessments"]) for row in ai_rows)
+        print(
+            "AI 블라인드 검수 완료: "
+            f"문항={len(ai_rows)}, 후보={candidate_count}"
+        )
+        return
     comparisons, selected = write_comparison_outputs(
         blind_pool,
         args.human_review.resolve(),

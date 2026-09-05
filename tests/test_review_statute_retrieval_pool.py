@@ -1,11 +1,13 @@
 """Tests for blind AI review validation and cross-review sampling."""
 
 import unittest
+from unittest.mock import patch
 
 from ml.evaluation.review_statute_retrieval_pool import (
     CandidateAssessment,
     QuestionAssessment,
     compare_reviews,
+    review_case_with_validation_retry,
     select_team_review,
     validate_assessment,
     validate_blind_pool,
@@ -136,6 +138,24 @@ class ReviewStatuteRetrievalPoolTests(unittest.TestCase):
             "critical_query_control_sample",
             by_id["C03"]["selection_reasons"],
         )
+
+    def test_validation_retry_retries_value_error(self):
+        with patch(
+            "ml.evaluation.review_statute_retrieval_pool.review_case",
+            side_effect=[
+                ValueError("invalid structure"),
+                ({"query_id": "q1"}, {"total_tokens": 1}),
+            ],
+        ) as mocked_review:
+            result = review_case_with_validation_retry(
+                object(),
+                {"query_id": "q1"},
+                "model",
+                attempts=2,
+            )
+
+        self.assertEqual(mocked_review.call_count, 2)
+        self.assertEqual(result[0]["query_id"], "q1")
 
 
 if __name__ == "__main__":

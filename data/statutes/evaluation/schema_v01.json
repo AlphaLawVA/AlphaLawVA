@@ -128,6 +128,10 @@
           "reason": {
             "type": "string",
             "minLength": 1
+          },
+          "label_source": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }
