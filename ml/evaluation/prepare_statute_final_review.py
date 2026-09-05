@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -144,7 +144,7 @@ def build_review_package(
     return {
         "schema_version": "0.1",
         "status": "human_approval_pending",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "label_policy": {
             "draft_source": "AI evidence recheck",
             "positive_threshold": POSITIVE_THRESHOLD,

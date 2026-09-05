@@ -6,7 +6,7 @@ import argparse
 import hashlib
 import json
 import os
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -284,7 +284,7 @@ def run_ai_review(
             "model": model,
             "prompt_version": PROMPT_VERSION,
             "reasoning_effort": "medium",
-            "reviewed_at": datetime.now(UTC).isoformat(),
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
             "usage": usage,
         }
         completed[query_id] = assessment
@@ -302,7 +302,7 @@ def run_ai_review(
         "blind_pool_sha256": file_sha256(blind_pool_path),
         "question_count": len(cases),
         "candidate_count": sum(len(case["candidates"]) for case in cases),
-        "completed_at": datetime.now(UTC).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
         "request_usage": [
             {
                 "query_id": row["query_id"],

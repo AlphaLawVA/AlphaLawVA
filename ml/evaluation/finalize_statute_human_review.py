@@ -17,7 +17,7 @@ import hashlib
 import json
 from collections import Counter
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -235,7 +235,7 @@ def main() -> None:
     result = evaluate_approved(approved, read_json(args.rankings.resolve()))
     metrics = {
         "schema_version": "0.1",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "dataset": str(args.approved.resolve().relative_to(PROJECT_ROOT)),
         "dataset_sha256": file_sha256(args.approved.resolve()),
         "query_count": len(approved),

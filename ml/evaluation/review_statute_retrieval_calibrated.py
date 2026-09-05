@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -309,7 +309,7 @@ def run_review(
             "model": model,
             "prompt_version": PROMPT_VERSION,
             "reasoning_effort": "medium",
-            "reviewed_at": datetime.now(UTC).isoformat(),
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
             "usage": usage,
         }
         completed[query_id] = assessment
@@ -328,7 +328,7 @@ def run_review(
         "question_count": len(cases),
         "candidate_count": sum(len(case["candidates"]) for case in cases),
         "output_sha256": file_sha256(output_path),
-        "completed_at": datetime.now(UTC).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
         "request_usage": [
             {
                 "query_id": row["query_id"],

@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -320,7 +320,7 @@ def main() -> None:
     baseline_path = args.baseline_metrics.resolve()
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     baseline_comparison = compare_with_baseline(evaluated, baseline)
-    created_at = datetime.now(UTC).isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     metrics = {
         "schema_version": "0.1",
         "created_at": created_at,

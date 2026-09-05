@@ -20,7 +20,7 @@ import math
 import os
 import re
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -571,7 +571,7 @@ def run_adjudication(
             "model": model,
             "prompt_version": PROMPT_VERSION,
             "reasoning_effort": "medium",
-            "reviewed_at": datetime.now(UTC).isoformat(),
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
             "response_id": response.id,
             "usage": response.usage.model_dump() if response.usage else {},
         }
@@ -588,7 +588,7 @@ def run_adjudication(
         "target_sha256": file_sha256(target_path),
         "question_count": len(targets),
         "candidate_count": sum(len(row["candidates"]) for row in targets),
-        "completed_at": datetime.now(UTC).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
         "request_usage": [
             {
                 "query_id": row["query_id"],
@@ -693,7 +693,7 @@ def finalize_provisional_dataset(
             **case["review"],
             "status": "draft",
             "reviewed_by": "annotator_a, annotator_b, AI evidence adjudication",
-            "updated_at": datetime.now(UTC).date().isoformat(),
+            "updated_at": datetime.now(timezone.utc).date().isoformat(),
         }
         output.append(provisional)
     summary = {
@@ -810,7 +810,7 @@ def build_readiness_report(
     blockers = summary["majority_class_conflicts"]
     return {
         "schema_version": "0.1",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "gold_dataset": str(provisional_path.relative_to(PROJECT_ROOT)),
         "gold_dataset_sha256": file_sha256(provisional_path),
         "status": {

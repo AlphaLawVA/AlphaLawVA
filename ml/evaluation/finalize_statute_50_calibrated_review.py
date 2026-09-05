@@ -18,7 +18,7 @@ import hashlib
 import json
 from collections import Counter
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -184,7 +184,7 @@ def build_datasets(
             **hybrid_lookup[query_id]["review"],
             "status": "provisional",
             "reviewed_by": "human 40; calibrated AI; first AI",
-            "updated_at": datetime.now(UTC).date().isoformat(),
+            "updated_at": datetime.now(timezone.utc).date().isoformat(),
         }
 
         conservative_judgments = {
@@ -210,7 +210,7 @@ def build_datasets(
             **conservative_lookup[query_id]["review"],
             "status": "provisional",
             "reviewed_by": "approved seed evidence; human 40",
-            "updated_at": datetime.now(UTC).date().isoformat(),
+            "updated_at": datetime.now(timezone.utc).date().isoformat(),
         }
 
     if seen_human != set(human):
@@ -409,7 +409,7 @@ def main() -> None:
     result = evaluate_dataset(approved, rankings)
     metrics = {
         "schema_version": "0.1",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "dataset": repository_path(args.approved),
         "dataset_sha256": file_sha256(args.approved.resolve()),
         "positive_threshold": POSITIVE_THRESHOLD,

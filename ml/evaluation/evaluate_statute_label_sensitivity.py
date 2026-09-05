@@ -17,7 +17,7 @@ import argparse
 import hashlib
 import json
 import math
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -325,7 +325,7 @@ def main() -> None:
     result = evaluate(gold_cases, adjudication_rows, rankings)
     result = {
         "schema_version": "0.1",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "query_count": len(gold_cases),
         "top_k": 10,
         "metric_definition": {

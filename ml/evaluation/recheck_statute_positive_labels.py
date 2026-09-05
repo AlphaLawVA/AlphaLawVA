@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -157,7 +157,7 @@ def apply_independent_labels(
             **case["review"],
             "status": "draft",
             "reviewed_by": "AI evidence recheck; human approval pending",
-            "updated_at": datetime.now(UTC).date().isoformat(),
+            "updated_at": datetime.now(timezone.utc).date().isoformat(),
         }
         output.append(revised)
     return output
