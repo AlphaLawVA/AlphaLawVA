@@ -71,6 +71,26 @@ class BuildKureStatuteChromaTests(unittest.TestCase):
         self.assertEqual(metadata["paragraph_orders"], "1")
         self.assertNotIn("unused", metadata)
 
+    def test_flattens_parent_child_metadata(self):
+        chunk = {
+            **SAMPLE_CHUNK,
+            "metadata": {
+                **SAMPLE_CHUNK["metadata"],
+                "parent_article_id": "law:001248:article:0003",
+                "paragraph_order": 4,
+                "paragraph_label": "④",
+            },
+        }
+
+        metadata = chroma_metadata(chunk)
+
+        self.assertEqual(
+            metadata["parent_article_id"],
+            "law:001248:article:0003",
+        )
+        self.assertEqual(metadata["paragraph_order"], 4)
+        self.assertEqual(metadata["paragraph_label"], "④")
+
     def test_rejects_collection_from_another_corpus(self):
         expected = {"model_name": "nlpai-lab/KURE-v1", "source_sha256": "a"}
         actual = {"model_name": "nlpai-lab/KURE-v1", "source_sha256": "b"}

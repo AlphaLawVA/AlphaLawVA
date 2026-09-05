@@ -48,10 +48,16 @@ class EmbeddingModelSpec:
     max_tokens: int
     collection_name: str
     db_dir_name: str
+    chunking_strategy: str = EXPECTED_CHUNKING_STRATEGY
+    input_dir_name: str = "chunks"
 
     @property
     def default_db_dir(self) -> Path:
         return PROJECT_ROOT / "data/statutes/vectorstores" / self.db_dir_name
+
+    @property
+    def default_input_dir(self) -> Path:
+        return PROJECT_ROOT / "data/statutes" / self.input_dir_name
 
 
 def utc_timestamp() -> str:
@@ -66,7 +72,10 @@ def project_path(path: Path) -> str:
         return resolved.as_posix()
 
 
-def validate_chunk_headers(input_dir: Path) -> None:
+def validate_chunk_headers(
+    input_dir: Path,
+    expected_strategy: str = EXPECTED_CHUNKING_STRATEGY,
+) -> None:
     input_files = sorted(input_dir.glob("*.json"))
     if not input_files:
         raise FileNotFoundError(f"법령 청크 JSON이 없습니다: {input_dir}")
@@ -80,7 +89,7 @@ def validate_chunk_headers(input_dir: Path) -> None:
                 f"지원하지 않는 청크 스키마: {input_file} "
                 f"({schema_version})"
             )
-        if strategy != EXPECTED_CHUNKING_STRATEGY:
+        if strategy != expected_strategy:
             raise ValueError(
                 f"지원하지 않는 청킹 방식: {input_file} ({strategy})"
             )
@@ -124,6 +133,14 @@ def chroma_metadata(chunk: dict) -> dict[str, str | int | bool | float]:
         value = source.get(key)
         if isinstance(value, (str, int, bool, float)):
             result[key] = value
+    for key in (
+        "parent_article_id",
+        "paragraph_order",
+        "paragraph_label",
+    ):
+        value = source.get(key)
+        if isinstance(value, (str, int, bool, float)):
+            result[key] = value
     paragraph_orders = source.get("paragraph_orders")
     if isinstance(paragraph_orders, list):
         result["paragraph_orders"] = ",".join(
@@ -145,7 +162,7 @@ def expected_collection_metadata(
         "embedding_dimension": model_spec.dimension,
         "normalize_embeddings": True,
         "chunk_schema_version": EXPECTED_SCHEMA_VERSION,
-        "chunking_strategy": EXPECTED_CHUNKING_STRATEGY,
+        "chunking_strategy": model_spec.chunking_strategy,
         "source_sha256": source_digest,
         "source_chunk_count": chunk_count,
     }
@@ -377,6 +394,8 @@ def build_manifest(
         "model_revision": args.revision,
         "embedding_dimension": model_spec.dimension,
         "normalize_embeddings": True,
+        "chunk_schema_version": EXPECTED_SCHEMA_VERSION,
+        "chunking_strategy": model_spec.chunking_strategy,
         "source_sha256": source_digest,
         "source_chunk_count": source_chunk_count,
         "stored_count": stored_count,
@@ -389,13 +408,18 @@ def build_manifest(
     }
 
 
-def parse_args(model_spec: EmbeddingModelSpec) -> argparse.Namespace:
+def parse_args(
+    model_spec: EmbeddingModelSpec,
+    argv: list[str] | None = None,
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             f"{model_spec.display_name} 법령 임베딩 ChromaDB를 구축합니다."
         )
     )
-    parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
+    parser.add_argument(
+        "--input-dir", type=Path, default=model_spec.default_input_dir
+    )
     parser.add_argument("--db-dir", type=Path, default=model_spec.default_db_dir)
     parser.add_argument("--model-cache", type=Path, default=DEFAULT_MODEL_CACHE)
     parser.add_argument("--collection-name", default=model_spec.collection_name)
@@ -404,7 +428,7 @@ def parse_args(model_spec: EmbeddingModelSpec) -> argparse.Namespace:
     parser.add_argument("--device", choices=("auto", "cuda"), default="auto")
     parser.add_argument("--rebuild", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def run_build(
@@ -418,7 +442,7 @@ def run_build(
     if args.batch_size < 1:
         raise ValueError("batch_size는 1 이상이어야 합니다.")
 
-    validate_chunk_headers(args.input_dir)
+    validate_chunk_headers(args.input_dir, model_spec.chunking_strategy)
     chunks = load_chunks(args.input_dir)
     source_digest = corpus_sha256(chunks)
     print(f"청크 검증 완료: {len(chunks)}개, SHA-256={source_digest}")

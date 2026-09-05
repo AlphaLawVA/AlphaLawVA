@@ -15,6 +15,10 @@ Statute embedding decision:
 - `BGE-M3` is selected for statute dense retrieval v0.1 from the approved
   50-question comparison.
 - `KURE-v1` remains the close alternative because it led MRR@10 and nDCG@10.
+- The selected chunking strategy is `article_with_overflow_split_v01`. In the
+  same 50-question evaluation, paragraph-child/article-parent retrieval lowered
+  Recall@10 from 61.53% to 55.53% for BGE-M3 and from 60.53% to 53.01% for
+  KURE-v1, without improving critical-question completeness.
 - The decision applies to statute retrieval only. Precedent retrieval requires
   a separate comparison because its document and query characteristics differ.
 
