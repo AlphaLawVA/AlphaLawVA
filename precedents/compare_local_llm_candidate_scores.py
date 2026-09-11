@@ -133,6 +133,18 @@ def parse_args() -> argparse.Namespace:
         help="Ollama 응답 최대 토큰 옵션.",
     )
     parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=2,
+        help="모델 응답이 비거나 JSON 파싱에 실패했을 때 추가 재시도 횟수.",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=3.0,
+        help="재시도 전 대기 초.",
+    )
+    parser.add_argument(
         "--temperature",
         type=float,
         default=0.0,
@@ -409,6 +421,35 @@ def call_ollama(
     return score, reason, raw_response
 
 
+def call_ollama_with_retry(
+    model: str,
+    prompt: str,
+    args: argparse.Namespace,
+) -> tuple[int | None, str, str, str, int]:
+    """빈 응답이나 JSON 파싱 실패가 발생하면 지정 횟수만큼 재시도한다."""
+    last_error = ""
+    last_raw_response = ""
+    attempts = args.max_retries + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            score, reason, raw_response = call_ollama(
+                model=model,
+                prompt=prompt,
+                ollama_url=args.ollama_url,
+                timeout=args.timeout,
+                num_ctx=args.num_ctx,
+                num_predict=args.num_predict,
+                temperature=args.temperature,
+            )
+            return score, reason, raw_response, "", attempt
+        except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+            last_error = str(exc)
+            last_raw_response = ""
+            if attempt < attempts:
+                time.sleep(args.retry_delay)
+    return None, "", last_raw_response, last_error, attempts
+
+
 def result_key(row: dict[str, str]) -> tuple[str, str, str, str]:
     """재실행 시 이미 저장된 모델 판정인지 식별하는 키를 만든다."""
     return (
@@ -469,6 +510,7 @@ def score_candidates(
         "raw_response",
         "error",
         "elapsed_seconds",
+        "attempts",
         "created_at",
     ]
     existing = load_existing_results(result_path)
@@ -490,18 +532,11 @@ def score_candidates(
             model_reason = ""
             raw_response = ""
             error = ""
-            try:
-                model_score, model_reason, raw_response = call_ollama(
-                    model=model,
-                    prompt=prompt,
-                    ollama_url=args.ollama_url,
-                    timeout=args.timeout,
-                    num_ctx=args.num_ctx,
-                    num_predict=args.num_predict,
-                    temperature=args.temperature,
-                )
-            except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-                error = str(exc)
+            model_score, model_reason, raw_response, error, attempts = call_ollama_with_retry(
+                model=model,
+                prompt=prompt,
+                args=args,
+            )
 
             elapsed = round(time.time() - started, 2)
             done += 1
@@ -531,6 +566,7 @@ def score_candidates(
                     "raw_response": raw_response,
                     "error": error,
                     "elapsed_seconds": elapsed,
+                    "attempts": attempts,
                     "created_at": now_utc_iso(),
                 },
             )
