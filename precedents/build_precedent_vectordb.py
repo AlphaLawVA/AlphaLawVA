@@ -30,6 +30,7 @@ DEFAULT_CHUNKS_PATH = (
 )
 DEFAULT_OUTPUT_ROOT = LOCAL_DATA_ROOT / "precedents" / "vector_dbs"
 DEFAULT_BATCH_SIZE = 64
+DEFAULT_CHUNKING_STRATEGY = "A_reason_summary_v1"
 
 MODEL_CONFIGS = {
     "kure": {
@@ -72,6 +73,11 @@ def parse_args() -> argparse.Namespace:
         help="벡터DB 출력 루트 폴더.",
     )
     parser.add_argument(
+        "--chunking-strategy",
+        default=None,
+        help="청킹 전략명. 기본값은 chunks-path의 상위 폴더명.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=DEFAULT_BATCH_SIZE,
@@ -84,6 +90,26 @@ def parse_args() -> argparse.Namespace:
         help="테스트용 처리 개수 제한.",
     )
     return parser.parse_args()
+
+
+def resolve_chunking_strategy(args: argparse.Namespace) -> str:
+    """명령행 옵션이나 chunks-path 위치에서 청킹 전략명을 결정한다."""
+    if args.chunking_strategy:
+        return args.chunking_strategy
+    inferred = args.chunks_path.parent.name
+    return inferred or DEFAULT_CHUNKING_STRATEGY
+
+
+def safe_name(value: str) -> str:
+    """Chroma 컬렉션명에 쓰기 좋은 영문·숫자·밑줄 문자열로 바꾼다."""
+    return "".join(char if char.isalnum() else "_" for char in value.lower()).strip("_")
+
+
+def collection_name(config: dict[str, str], chunking_strategy: str, embedding: str) -> str:
+    """청킹 전략과 임베딩 모델에 맞는 Chroma 컬렉션명을 만든다."""
+    if chunking_strategy == DEFAULT_CHUNKING_STRATEGY:
+        return config["collection"]
+    return f"precedents_{safe_name(chunking_strategy)}_{safe_name(embedding)}"
 
 
 def now_utc_iso() -> str:
@@ -184,6 +210,8 @@ def write_manifest(
     output_dir: Path,
     args: argparse.Namespace,
     config: dict[str, str],
+    chunking_strategy: str,
+    collection: str,
     total_chunks: int,
     collection_count: int,
     elapsed_seconds: float,
@@ -194,10 +222,11 @@ def write_manifest(
         "created_at": now_utc_iso(),
         "chunks_path": str(args.chunks_path),
         "output_dir": str(output_dir),
+        "chunking_strategy": chunking_strategy,
         "embedding": args.embedding,
         "embedding_provider": config["provider"],
         "embedding_model": config["model"],
-        "collection": config["collection"],
+        "collection": collection,
         "total_input_chunks": total_chunks,
         "stored_chunks": collection_count,
         "batch_size": args.batch_size,
@@ -216,7 +245,9 @@ def main() -> None:
 
     args = parse_args()
     config = MODEL_CONFIGS[args.embedding]
-    output_dir = args.output_root / f"A_reason_summary_v1__{args.embedding}"
+    chunking_strategy = resolve_chunking_strategy(args)
+    collection = collection_name(config, chunking_strategy, args.embedding)
+    output_dir = args.output_root / f"{chunking_strategy}__{args.embedding}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     chunks = read_chunks(args.chunks_path, args.limit)
@@ -224,15 +255,18 @@ def main() -> None:
 
     client = chromadb.PersistentClient(path=str(output_dir / "chroma"))
     collection = client.get_or_create_collection(
-        name=config["collection"],
+        name=collection,
         metadata={
-            "chunking_strategy": "A_reason_summary_v1",
+            "chunking_strategy": chunking_strategy,
             "embedding_model": config["model"],
         },
     )
     existing_ids = existing_id_set(collection)
 
-    print(f"벡터DB 생성 시작: embedding={args.embedding} model={config['model']}")
+    print(
+        f"벡터DB 생성 시작: strategy={chunking_strategy} "
+        f"embedding={args.embedding} model={config['model']}"
+    )
     print(f"입력 청크 {len(ids)}개, 이미 저장된 청크 {len(existing_ids)}개")
 
     embedding_client: Any
@@ -292,7 +326,16 @@ def main() -> None:
 
     total_elapsed = time.time() - start_time
     collection_count = collection.count()
-    write_manifest(output_dir, args, config, len(ids), collection_count, total_elapsed)
+    write_manifest(
+        output_dir,
+        args,
+        config,
+        chunking_strategy,
+        collection.name,
+        len(ids),
+        collection_count,
+        total_elapsed,
+    )
     print(f"완료: {output_dir}")
     print(f"저장 청크 수: {collection_count}")
 

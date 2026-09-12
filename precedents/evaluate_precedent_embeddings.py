@@ -28,11 +28,11 @@ from pool_precedent_candidates import (
     DEFAULT_VECTOR_DB_ROOT,
     compact_text,
     embed_query,
-    load_chroma_collection,
     load_dotenv,
     load_openai_client,
     load_sentence_transformer,
     parse_embedding_keys,
+    read_json,
     search_collection,
 )
 
@@ -47,6 +47,7 @@ DEFAULT_OUTPUT_ROOT = (
 )
 DEFAULT_CHUNK_TOP_K = 10
 DEFAULT_METRIC_KS = (5, 10)
+DEFAULT_CHUNKING_STRATEGY = "A_reason_summary_v1"
 RELEVANT_THRESHOLD = 2
 
 
@@ -113,6 +114,11 @@ def parse_args() -> argparse.Namespace:
         help="A_reason_summary_v1__* 벡터DB 폴더들이 들어 있는 루트.",
     )
     parser.add_argument(
+        "--chunking-strategy",
+        default=DEFAULT_CHUNKING_STRATEGY,
+        help="평가할 벡터DB 청킹 전략명. 예: A_reason_summary_v1, B_reason_summary_issue_holding_v1",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
@@ -154,7 +160,18 @@ def make_output_dir(base_dir: Path | None) -> Path:
         output_dir = base_dir
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = DEFAULT_OUTPUT_ROOT / f"A_reason_summary_v1_goldset_v01_{timestamp}"
+        output_dir = DEFAULT_OUTPUT_ROOT / f"{DEFAULT_CHUNKING_STRATEGY}_goldset_v01_{timestamp}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def make_strategy_output_dir(base_dir: Path | None, chunking_strategy: str) -> Path:
+    """청킹 전략명이 포함된 평가 결과 폴더를 만들고 반환한다."""
+    if base_dir is not None:
+        output_dir = base_dir
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = DEFAULT_OUTPUT_ROOT / f"{chunking_strategy}_goldset_v01_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -217,6 +234,30 @@ def load_gold_labels(path: Path) -> dict[str, dict[str, int]]:
             relevance = 0
         labels[query_id][precedent_id] = relevance
     return dict(labels)
+
+
+def load_eval_chroma_collection(
+    vector_db_root: Path,
+    chunking_strategy: str,
+    embedding_key: str,
+) -> tuple[Any, dict[str, Any]]:
+    """청킹 전략명과 임베딩 이름으로 Chroma 컬렉션과 manifest를 연다."""
+    try:
+        import chromadb
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "벡터DB 검색에는 chromadb가 필요합니다. 설치 뒤 다시 실행해주세요."
+        ) from exc
+
+    db_dir = vector_db_root / f"{chunking_strategy}__{embedding_key}"
+    manifest_path = db_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"벡터DB manifest를 찾지 못했습니다: {manifest_path}")
+
+    manifest = read_json(manifest_path)
+    manifest["db_dir"] = str(db_dir)
+    client = chromadb.PersistentClient(path=str(db_dir / "chroma"))
+    return client.get_collection(manifest["collection"]), manifest
 
 
 def rank_precedents(search_result: dict[str, Any]) -> list[RetrievedPrecedent]:
@@ -361,7 +402,7 @@ def write_manifest(
         "labels_csv": str(args.labels_csv),
         "vector_db_root": str(args.vector_db_root),
         "output_dir": str(output_dir),
-        "chunking_strategy": "A_reason_summary_v1",
+        "chunking_strategy": args.chunking_strategy,
         "embeddings": embeddings,
         "chunk_top_k": args.chunk_top_k,
         "metric_ks": metric_ks,
@@ -381,7 +422,7 @@ def main() -> None:
 
     embeddings = parse_embedding_keys(args.embeddings)
     metric_ks = parse_metric_ks(args.metric_ks)
-    output_dir = make_output_dir(args.output_dir)
+    output_dir = make_strategy_output_dir(args.output_dir, args.chunking_strategy)
 
     questions = load_questions(args.questions_csv, args.query_limit)
     gold_labels = load_gold_labels(args.labels_csv)
@@ -390,7 +431,8 @@ def main() -> None:
 
     print(
         f"판례 임베딩 평가 시작: 질문 {len(questions)}개, "
-        f"chunk_top_k={args.chunk_top_k}, metrics={metric_ks}",
+        f"strategy={args.chunking_strategy}, chunk_top_k={args.chunk_top_k}, "
+        f"metrics={metric_ks}",
         flush=True,
     )
 
@@ -399,7 +441,11 @@ def main() -> None:
     summary_rows: list[dict[str, Any]] = []
 
     for model_index, embedding_key in enumerate(embeddings, start=1):
-        collection, manifest = load_chroma_collection(args.vector_db_root, embedding_key)
+        collection, manifest = load_eval_chroma_collection(
+            args.vector_db_root,
+            args.chunking_strategy,
+            embedding_key,
+        )
         provider = manifest["embedding_provider"]
         model_name = manifest["embedding_model"]
         embedder = (
