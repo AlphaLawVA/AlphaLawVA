@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -160,6 +161,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-workbook",
         action="store_true",
         help="CSV만 만들고 엑셀 시트 갱신은 하지 않는다.",
+    )
+    parser.add_argument(
+        "--only-errors",
+        action="store_true",
+        help="기존 CSV의 최신 결과 기준 실패한 후보만 다시 평가한다.",
     )
     return parser.parse_args()
 
@@ -343,6 +349,9 @@ AlphaLawVA 판례 검색 후보를 0~3점으로 평가하세요.
 상가·영업장·형사·독립 토지거래 중심이면 낮게 보세요.
 reason은 질문과 판례를 비교한 판단 근거로 쓰고, 생성요약 문장을 그대로 반복하지 마세요.
 JSON만 출력하세요: {{"score": 0, "reason": "한국어 한 문장"}}
+첫 글자는 반드시 {{ 이고 마지막 글자는 반드시 }} 이어야 합니다.
+마크다운 코드블록, 인사말, 설명문, 번호 목록, "점수:" 형식은 절대 쓰지 마세요.
+reason 값은 80자 이내의 한국어 한 문장으로만 쓰세요.
 {extra_guidance}
 
 [질문]
@@ -379,6 +388,57 @@ def extract_json_object(text: str) -> dict[str, Any]:
     return json.loads(stripped[start : end + 1])
 
 
+def normalize_score_reason(parsed: dict[str, Any]) -> tuple[int, str]:
+    """파싱된 객체에서 score와 reason을 엄격하게 검증해 반환한다."""
+    score = int(parsed.get("score"))
+    if score not in {0, 1, 2, 3}:
+        raise ValueError(f"score가 0~3 범위를 벗어났습니다: {score}")
+    reason = compact_text(parsed.get("reason", ""))
+    if not reason:
+        raise ValueError("reason이 비어 있습니다.")
+    return score, reason
+
+
+def fallback_parse_score_reason(text: str) -> tuple[int, str, str]:
+    """JSON이 아닌 응답에서 명확한 0~3점과 근거 문장을 보수적으로 추출한다."""
+    compacted = compact_text(text)
+    score_patterns = [
+        r'"score"\s*:\s*([0-3])',
+        r"'score'\s*:\s*([0-3])",
+        r"score\s*[:=]\s*([0-3])",
+        r"점수\s*[:=]?\s*([0-3])",
+        r"([0-3])\s*점",
+    ]
+    score: int | None = None
+    for pattern in score_patterns:
+        match = re.search(pattern, compacted, flags=re.IGNORECASE)
+        if match:
+            score = int(match.group(1))
+            break
+    if score is None:
+        raise ValueError("JSON 객체와 점수 패턴을 찾지 못했습니다.")
+
+    reason = ""
+    reason_patterns = [
+        r'"reason"\s*:\s*"([^"]+)"',
+        r"'reason'\s*:\s*'([^']+)'",
+        r"reason\s*[:=]\s*(.+)",
+        r"근거\s*[:=]\s*(.+)",
+        r"이유\s*[:=]\s*(.+)",
+    ]
+    for pattern in reason_patterns:
+        match = re.search(pattern, compacted, flags=re.IGNORECASE)
+        if match:
+            reason = compact_text(match.group(1))
+            break
+    if not reason:
+        sentences = re.split(r"(?:다\.|[.!?。])\s+", compacted)
+        reason = compact_text(next((sentence for sentence in sentences if sentence), compacted))
+
+    reason = reason[:220]
+    return score, reason, "fallback_parser"
+
+
 def call_ollama(
     model: str,
     prompt: str,
@@ -411,13 +471,12 @@ def call_ollama(
         body = json.loads(response.read().decode("utf-8"))
 
     raw_response = compact_text(body.get("response", ""))
-    parsed = extract_json_object(raw_response)
-    score = int(parsed.get("score"))
-    if score not in {0, 1, 2, 3}:
-        raise ValueError(f"score가 0~3 범위를 벗어났습니다: {score}")
-    reason = compact_text(parsed.get("reason", ""))
-    if not reason:
-        raise ValueError("reason이 비어 있습니다.")
+    try:
+        parsed = extract_json_object(raw_response)
+        score, reason = normalize_score_reason(parsed)
+    except (ValueError, json.JSONDecodeError):
+        score, reason, parse_note = fallback_parse_score_reason(raw_response)
+        reason = f"{reason} [{parse_note}]"
     return score, reason, raw_response
 
 
@@ -444,7 +503,6 @@ def call_ollama_with_retry(
             return score, reason, raw_response, "", attempt
         except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             last_error = str(exc)
-            last_raw_response = ""
             if attempt < attempts:
                 time.sleep(args.retry_delay)
     return None, "", last_raw_response, last_error, attempts
@@ -467,6 +525,40 @@ def load_existing_results(path: Path) -> dict[tuple[str, str, str, str], dict[st
     with path.open("r", encoding="utf-8-sig", newline="") as file:
         rows = list(csv.DictReader(file))
     return {result_key(row): row for row in rows if not row.get("error")}
+
+
+def load_latest_error_keys(path: Path) -> set[tuple[str, str, str, str]]:
+    """기존 CSV에서 최신 결과가 실패인 후보 키만 골라낸다."""
+    if not path.exists():
+        return set()
+    with path.open("r", encoding="utf-8-sig", newline="") as file:
+        rows = list(csv.DictReader(file))
+
+    latest: dict[tuple[str, str, str, str], dict[str, str]] = {}
+    for row in rows:
+        latest[result_key(row)] = row
+    return {key for key, row in latest.items() if row.get("error")}
+
+
+def filter_error_candidates(
+    candidates: list[CandidateRow],
+    models: list[str],
+    result_path: Path,
+) -> list[CandidateRow]:
+    """기존 결과에서 실패한 모델 호출이 있는 후보만 남긴다."""
+    error_keys = load_latest_error_keys(result_path)
+    if not error_keys:
+        return []
+
+    return [
+        candidate
+        for candidate in candidates
+        if any(
+            (candidate.query_id, candidate.precedent_id, candidate.candidate_rank, model)
+            in error_keys
+            for model in models
+        )
+    ]
 
 
 def append_result(path: Path, fieldnames: list[str], row: dict[str, Any]) -> None:
@@ -800,6 +892,12 @@ def main() -> None:
     output_dir = make_output_dir(args.output_dir)
     candidates = read_candidates(args.workbook, args.candidate_sheet)
     selected_candidates = select_sample(candidates, args.sample_size)
+    if args.only_errors:
+        selected_candidates = filter_error_candidates(
+            selected_candidates,
+            models,
+            result_csv_path(output_dir),
+        )
 
     print(f"로컬 LLM 후보 점수 비교 시작: 후보 {len(selected_candidates)}건, 모델 {len(models)}개")
     print(f"모델: {', '.join(models)}")
