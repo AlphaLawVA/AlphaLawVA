@@ -13,11 +13,16 @@ After:
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from chunk_precedents_a import (
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from ml.preprocessing.precedents.chunk_precedents_a import (  # noqa: E402
     DEFAULT_CHUNK_SIZE,
     DEFAULT_OVERLAP_SIZE,
     FINAL_CASES_DIR,
@@ -37,7 +42,6 @@ from chunk_precedents_a import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_DATA_ROOT = PROJECT_ROOT / "local_data"
 DEFAULT_OUTPUT_DIR = (
     LOCAL_DATA_ROOT / "precedents" / "chunks" / "B_reason_summary_issue_holding_v1"

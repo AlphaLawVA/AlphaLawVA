@@ -17,6 +17,7 @@ import argparse
 import csv
 import json
 import math
+import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -24,7 +25,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pool_precedent_candidates import (
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from ml.evaluation.precedents.pool_precedent_candidates import (  # noqa: E402
     DEFAULT_VECTOR_DB_ROOT,
     compact_text,
     embed_query,
@@ -37,7 +42,6 @@ from pool_precedent_candidates import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_DATA_ROOT = PROJECT_ROOT / "local_data"
 DEFAULT_GOLDSET_DIR = LOCAL_DATA_ROOT / "precedents" / "evaluation" / "goldset_v01"
 DEFAULT_QUESTIONS_CSV = DEFAULT_GOLDSET_DIR / "precedent_retrieval_gold_questions_v01.csv"

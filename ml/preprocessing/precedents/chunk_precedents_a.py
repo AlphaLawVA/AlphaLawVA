@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LOCAL_DATA_ROOT = PROJECT_ROOT / "local_data"
 FINAL_CASES_DIR = LOCAL_DATA_ROOT / "precedents" / "processed" / "final_cases"
 DEFAULT_OUTPUT_DIR = LOCAL_DATA_ROOT / "precedents" / "chunks" / "A_reason_summary_v1"

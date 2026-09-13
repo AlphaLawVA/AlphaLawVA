@@ -19,8 +19,14 @@ import sys
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-COMPARE_SCRIPT = PROJECT_ROOT / "precedents" / "compare_local_llm_candidate_scores.py"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+COMPARE_SCRIPT = (
+    PROJECT_ROOT
+    / "ml"
+    / "evaluation"
+    / "precedents"
+    / "compare_local_llm_candidate_scores.py"
+)
 OUTPUT_DIR = (
     PROJECT_ROOT
     / "local_data"

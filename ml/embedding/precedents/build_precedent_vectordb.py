@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LOCAL_DATA_ROOT = PROJECT_ROOT / "local_data"
 DEFAULT_CHUNKS_PATH = (
     LOCAL_DATA_ROOT / "precedents" / "chunks" / "A_reason_summary_v1" / "chunks.jsonl"
@@ -241,9 +241,9 @@ def write_manifest(
 
 def main() -> None:
     """청크 JSONL을 선택한 임베딩 모델로 변환해 Chroma 벡터DB에 저장한다."""
+    args = parse_args()
     import chromadb
 
-    args = parse_args()
     config = MODEL_CONFIGS[args.embedding]
     chunking_strategy = resolve_chunking_strategy(args)
     collection = collection_name(config, chunking_strategy, args.embedding)

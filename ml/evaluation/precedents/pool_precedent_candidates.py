@@ -29,7 +29,7 @@ from typing import Any
 # 병렬 처리 경고가 반복될 수 있어 평가 스크립트에서는 기본적으로 끈다.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LOCAL_DATA_ROOT = PROJECT_ROOT / "local_data"
 DEFAULT_VECTOR_DB_ROOT = LOCAL_DATA_ROOT / "precedents" / "vector_dbs"
 DEFAULT_FINAL_CASES_DIR = (
