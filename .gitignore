@@ -13,3 +13,9 @@ __pycache__/
 
 # Local collection outputs and other large/generated data.
 local_data/
+
+# Local-only precedent samples and generated review artifacts.
+data/precedents/raw_jsons/
+docs/ui-mockups/
+docs/Codex*.png
+llama_retry*
