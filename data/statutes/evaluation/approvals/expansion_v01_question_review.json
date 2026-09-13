@@ -1,0 +1,114 @@
+{
+  "artifact_type": "human_question_review",
+  "schema_version": "0.1",
+  "review_id": "expansion_v01_question_review_20260904",
+  "dataset": "datasets/expansion_v01_seed.jsonl",
+  "review_scope": "question_naturalness_only",
+  "reviewer": "project_owner",
+  "reviewed_at": "2026-09-04T17:32:22+09:00",
+  "source_workbook": "outputs/statute-expansion-v01/statute_retrieval_expansion_v01_natural_review.xlsx",
+  "submitted_summary": {
+    "total": 39,
+    "approved": 30,
+    "revision_requested": 8,
+    "excluded": 1
+  },
+  "approved_without_change": [
+    "statute_retrieval_v01_q012",
+    "statute_retrieval_v01_q013",
+    "statute_retrieval_v01_q015",
+    "statute_retrieval_v01_q017",
+    "statute_retrieval_v01_q018",
+    "statute_retrieval_v01_q020",
+    "statute_retrieval_v01_q021",
+    "statute_retrieval_v01_q022",
+    "statute_retrieval_v01_q023",
+    "statute_retrieval_v01_q025",
+    "statute_retrieval_v01_q026",
+    "statute_retrieval_v01_q027",
+    "statute_retrieval_v01_q028",
+    "statute_retrieval_v01_q030",
+    "statute_retrieval_v01_q031",
+    "statute_retrieval_v01_q032",
+    "statute_retrieval_v01_q033",
+    "statute_retrieval_v01_q034",
+    "statute_retrieval_v01_q035",
+    "statute_retrieval_v01_q036",
+    "statute_retrieval_v01_q037",
+    "statute_retrieval_v01_q038",
+    "statute_retrieval_v01_q039",
+    "statute_retrieval_v01_q040",
+    "statute_retrieval_v01_q043",
+    "statute_retrieval_v01_q045",
+    "statute_retrieval_v01_q047",
+    "statute_retrieval_v01_q048",
+    "statute_retrieval_v01_q049",
+    "statute_retrieval_v01_q050"
+  ],
+  "resolved_changes": [
+    {
+      "query_id": "statute_retrieval_v01_q014",
+      "submitted_decision": "exclude",
+      "submitted_comment": "별로임. 다른질문.",
+      "resolution": "replace_question_and_seed",
+      "resolution_note": "등록임대사업자 보증 질문을 임대주택 보일러 고장과 수리비 부담 질문으로 교체했다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q016",
+      "submitted_decision": "revise",
+      "submitted_comment": "질문이 너무 어렵고 생소함.",
+      "resolution": "simplify_wording",
+      "resolution_note": "상속인 조건을 질문에서 제거하고 사실혼 배우자가 계약을 이어받을 수 있는지를 묻는 상황형 질문으로 단순화했다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q019",
+      "submitted_decision": "revise",
+      "submitted_comment": "구매자, 판매자 대신 제가, 집주인 표현 사용.",
+      "resolution": "replace_terms",
+      "resolution_note": "구매자를 제가로, 판매자를 집주인으로 바꿨다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q024",
+      "submitted_decision": "revise",
+      "submitted_comment": "토지 매매가 서비스 범위인지 확인 필요.",
+      "resolution": "replace_question_and_seed",
+      "resolution_note": "부동산 매매는 범위에 포함되지만 토지는 우선순위가 낮으므로 타인 소유 주택을 계약한 상황으로 교체했다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q029",
+      "submitted_decision": "revise",
+      "submitted_comment": "판매자, 구매자 표현 변경.",
+      "resolution": "replace_terms",
+      "resolution_note": "판매자와 구매자를 집주인과 저로 바꿨다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q041",
+      "submitted_decision": "revise",
+      "submitted_comment": "질문이 어렵고 사용자 대부분이 겪을 상황인지 의문.",
+      "resolution": "simplify_and_retain",
+      "resolution_note": "빈도는 낮지만 경매 피해 후 실제 이의 절차를 검증하는 어려운 문항으로 유지하고 상황 중심으로 단순화했다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q042",
+      "submitted_decision": "revise",
+      "submitted_comment": "질문이 어렵고 사용자 대부분이 겪을 상황인지 의문.",
+      "resolution": "simplify_and_retain",
+      "resolution_note": "전세사기 피해 상황의 서로 다른 권리를 구별하는 문항으로 유지하고 질문을 상황 중심으로 단순화했다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q044",
+      "submitted_decision": "revise",
+      "submitted_comment": "일반 사용자가 건축물대장이라는 표현을 쓰는지 의문.",
+      "resolution": "remove_legal_term",
+      "resolution_note": "건축물대장을 공식 서류로 바꿔 질문자가 전문용어를 알지 못해도 검색하도록 했다."
+    },
+    {
+      "query_id": "statute_retrieval_v01_q046",
+      "submitted_decision": "revise",
+      "submitted_comment": "일반 사용자가 건축물대장이라는 표현을 쓰는지 의문.",
+      "resolution": "remove_legal_term",
+      "resolution_note": "건축물대장을 구청의 집 관련 서류로 바꿔 대장과 등기의 구별 의도는 유지했다."
+    }
+  ],
+  "status": "resolved_pending_seed_evidence_review"
+}

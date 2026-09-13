@@ -1,0 +1,95 @@
+{
+  "schema_version": "0.1",
+  "status": "approved_distribution",
+  "base_dataset": "datasets/pilot_v01_approved.jsonl",
+  "base_question_count": 11,
+  "new_question_count": 39,
+  "final_question_count": 50,
+  "final_targets": {
+    "category": {
+      "direct_fact": 10,
+      "natural_paraphrase": 12,
+      "condition_exception": 10,
+      "multi_article": 10,
+      "confusable_concept": 8
+    },
+    "difficulty": {
+      "easy": 15,
+      "medium": 25,
+      "hard": 10
+    },
+    "legal_domain": {
+      "housing_lease": 18,
+      "sale_brokerage": 10,
+      "registration_property_rights": 9,
+      "auction_enforcement": 6,
+      "building_land": 2,
+      "cross_domain": 5
+    },
+    "critical": 10
+  },
+  "new_targets": {
+    "category": {
+      "direct_fact": 8,
+      "natural_paraphrase": 7,
+      "condition_exception": 7,
+      "multi_article": 9,
+      "confusable_concept": 8
+    },
+    "difficulty": {
+      "easy": 8,
+      "medium": 23,
+      "hard": 8
+    },
+    "legal_domain": {
+      "housing_lease": 7,
+      "sale_brokerage": 10,
+      "registration_property_rights": 9,
+      "auction_enforcement": 6,
+      "building_land": 2,
+      "cross_domain": 5
+    },
+    "critical": 5
+  },
+  "slots": [
+    {"query_id": "statute_retrieval_v01_q012", "category": "direct_fact", "difficulty": "easy", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q013", "category": "natural_paraphrase", "difficulty": "easy", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q014", "category": "natural_paraphrase", "difficulty": "medium", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q015", "category": "condition_exception", "difficulty": "medium", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q016", "category": "condition_exception", "difficulty": "medium", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q017", "category": "multi_article", "difficulty": "hard", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q018", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "housing_lease", "critical": false},
+    {"query_id": "statute_retrieval_v01_q019", "category": "direct_fact", "difficulty": "easy", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q020", "category": "direct_fact", "difficulty": "medium", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q021", "category": "natural_paraphrase", "difficulty": "easy", "legal_domain": "sale_brokerage", "critical": true},
+    {"query_id": "statute_retrieval_v01_q022", "category": "natural_paraphrase", "difficulty": "medium", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q023", "category": "condition_exception", "difficulty": "medium", "legal_domain": "sale_brokerage", "critical": true},
+    {"query_id": "statute_retrieval_v01_q024", "category": "condition_exception", "difficulty": "hard", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q025", "category": "multi_article", "difficulty": "medium", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q026", "category": "multi_article", "difficulty": "hard", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q027", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q028", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "sale_brokerage", "critical": false},
+    {"query_id": "statute_retrieval_v01_q029", "category": "direct_fact", "difficulty": "easy", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q030", "category": "direct_fact", "difficulty": "medium", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q031", "category": "natural_paraphrase", "difficulty": "easy", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q032", "category": "condition_exception", "difficulty": "medium", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q033", "category": "multi_article", "difficulty": "medium", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q034", "category": "multi_article", "difficulty": "hard", "legal_domain": "registration_property_rights", "critical": true},
+    {"query_id": "statute_retrieval_v01_q035", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q036", "category": "confusable_concept", "difficulty": "hard", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q037", "category": "direct_fact", "difficulty": "easy", "legal_domain": "auction_enforcement", "critical": false},
+    {"query_id": "statute_retrieval_v01_q038", "category": "natural_paraphrase", "difficulty": "medium", "legal_domain": "auction_enforcement", "critical": false},
+    {"query_id": "statute_retrieval_v01_q039", "category": "condition_exception", "difficulty": "medium", "legal_domain": "auction_enforcement", "critical": false},
+    {"query_id": "statute_retrieval_v01_q040", "category": "multi_article", "difficulty": "hard", "legal_domain": "auction_enforcement", "critical": true},
+    {"query_id": "statute_retrieval_v01_q041", "category": "multi_article", "difficulty": "hard", "legal_domain": "auction_enforcement", "critical": false},
+    {"query_id": "statute_retrieval_v01_q042", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "auction_enforcement", "critical": false},
+    {"query_id": "statute_retrieval_v01_q043", "category": "direct_fact", "difficulty": "easy", "legal_domain": "registration_property_rights", "critical": false},
+    {"query_id": "statute_retrieval_v01_q044", "category": "natural_paraphrase", "difficulty": "medium", "legal_domain": "building_land", "critical": false},
+    {"query_id": "statute_retrieval_v01_q045", "category": "condition_exception", "difficulty": "medium", "legal_domain": "building_land", "critical": false},
+    {"query_id": "statute_retrieval_v01_q046", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "cross_domain", "critical": false},
+    {"query_id": "statute_retrieval_v01_q047", "category": "direct_fact", "difficulty": "medium", "legal_domain": "cross_domain", "critical": false},
+    {"query_id": "statute_retrieval_v01_q048", "category": "multi_article", "difficulty": "medium", "legal_domain": "cross_domain", "critical": true},
+    {"query_id": "statute_retrieval_v01_q049", "category": "multi_article", "difficulty": "hard", "legal_domain": "cross_domain", "critical": false},
+    {"query_id": "statute_retrieval_v01_q050", "category": "confusable_concept", "difficulty": "medium", "legal_domain": "cross_domain", "critical": false}
+  ]
+}

@@ -1,0 +1,4 @@
+chromadb==1.5.9
+sentence-transformers==3.3.1
+transformers==4.47.0
+hf-xet==1.6.0

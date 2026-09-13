@@ -1,0 +1,63 @@
+{
+  "schema_version": "0.1",
+  "status": "approved_internal_evaluation",
+  "created_at": "2026-09-05T07:15:19.901892+00:00",
+  "source_workbook": "outputs/statute-50-v01-calibrated-human-review/statute_retrieval_v01_50_calibrated_human_review.xlsx",
+  "human_decision_count": 40,
+  "adjudication": "data/statutes/evaluation/approvals/statute_retrieval_v01_50_evidence_adjudication.json",
+  "adjudication_sha256": "156fdebffcb88f7b0c21008b3d6aa7b4514c960aa027c1a3ee34369671001af2",
+  "approved_dataset": "data/statutes/evaluation/datasets/statute_retrieval_v01_50_approved.jsonl",
+  "approved_sha256": "29540eb0fb7b1f1f84bf42c48585fd589cc659887e17980560e1333334d7f084",
+  "metrics": "data/statutes/evaluation/runs/statute-50-v01-initial/metrics_approved.json",
+  "control_sample": {
+    "count": 12,
+    "exact_agreement_count": 7,
+    "exact_agreement_rate": 0.5833333333333334,
+    "binary_agreement_count": 8,
+    "binary_agreement_rate": 0.6666666666666666
+  },
+  "model_order": [
+    "bge_m3",
+    "kure_v1",
+    "openai_3_large"
+  ],
+  "selected_embedding_model": "bge_m3",
+  "selection_status": "selected_for_statute_retrieval_v0.1",
+  "adjudication_summary": {
+    "decision_count": 5,
+    "selected_basis_counts": {
+      "human": 2,
+      "ai_evidence_recheck": 3
+    },
+    "changed_scores": [
+      {
+        "query_id": "statute_retrieval_v01_q040",
+        "chunk_id": "law:009325:article:0068",
+        "before": 2,
+        "after": 0,
+        "selected_basis": "ai_evidence_recheck"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q046",
+        "chunk_id": "law:009724:article:0051",
+        "before": 2,
+        "after": 0,
+        "selected_basis": "ai_evidence_recheck"
+      },
+      {
+        "query_id": "statute_retrieval_v01_q050",
+        "chunk_id": "law:001706:article:0599",
+        "before": 2,
+        "after": 0,
+        "selected_basis": "ai_evidence_recheck"
+      }
+    ]
+  },
+  "label_source_counts": {
+    "approved_pilot": 242,
+    "first_ai_high_confidence": 640,
+    "human_review": 40,
+    "calibrated_ai": 106,
+    "seed_evidence": 35
+  }
+}

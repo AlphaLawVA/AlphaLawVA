@@ -195,6 +195,26 @@ Required keys:
 it to a more explicit name such as `OPEN_LAW_API_KEY` or `MOLEG_API_KEY`, do
 that before implementation or update every usage in one intentional change.
 
+## Paid External Service Rules
+
+Treat Codex work in the current task and calls made with a project API key as
+different execution paths. Do not label both of them only as `AI review` in
+reports or user-facing updates.
+
+Before every paid API call, hosted model run, or GPU deployment:
+
+1. State the provider, exact model, record count, data sent, and estimated cost
+   or maximum approved spend.
+2. Obtain explicit user approval for that specific paid execution. Possession
+   of an API key or approval of an earlier call is not approval for a new call.
+3. Prefer existing local results, Codex analysis, or an already approved local
+   or RunPod workflow when it meets the quality requirement.
+4. Record actual model, token usage, retries, and estimated cost in a manifest.
+5. Stop and ask again before exceeding the approved estimate or changing the
+   model, provider, scope, or execution method.
+
+If approval is ambiguous, do not start the paid operation.
+
 ## OS Compatibility Rules
 
 Developers use both Windows and macOS.
@@ -294,8 +314,16 @@ Recommended branch prefixes:
 - `docs/`: documentation-only changes
 - `chore/`: maintenance work that does not fit the above categories
 
-Use Korean or English commit messages consistently within the team. Prefer
-concise messages that state what changed.
+Use an English Conventional Commit type and scope, and write the subject and
+body in Korean. Keep this format consistent across the team.
+
+```text
+feat(evaluation): 법령 검색 평가 파일럿 추가
+
+법령 검색용 평가 파이프라인과 승인 골드 라벨을 추가한다.
+```
+
+Prefer concise messages that state what changed.
 
 Before creating a commit, summarize the intended commit scope and ask the user
 for explicit approval. Do not create the commit until the user approves it.

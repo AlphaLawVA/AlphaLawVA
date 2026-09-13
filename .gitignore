@@ -4,9 +4,17 @@
 data/statutes/raw_jsons/
 data/statutes/raw_xmls/
 data/statutes/filtered_hierarchical_jsons/
+data/statutes/chunks/
+data/statutes/parent_child_chunks/
 data/statutes/manifests/
 data/statutes/reports/
 data/statutes/reviews/
+data/statutes/models/
+data/statutes/vectorstores/
+data/statutes/evaluation/runs/
+data/statutes/evaluation/reviews/
+.tmp/
+outputs/
 __pycache__/
 *.py[cod]
 .matplotlib_cache/
