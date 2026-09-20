@@ -8,7 +8,8 @@ Before:
     - 공식 법령용어 카탈로그와 final_cases 판례 JSON이 수집되어 있는 상태.
 
 After:
-    - local_data/precedents/legal_terms/matched_candidates/에 매칭 결과와 통계가 생성.
+    - local_data/precedents/legal_terms/matched_candidates_filtered/에 명확한
+      짧은 부분문자열 오탐을 제거한 매칭 결과와 통계가 생성.
 """
 
 from __future__ import annotations
@@ -40,7 +41,10 @@ DEFAULT_CATALOG_PATH = (
     / "official_legal_terms.jsonl"
 )
 DEFAULT_OUTPUT_DIR = (
-    LOCAL_DATA_ROOT / "precedents" / "legal_terms" / "matched_candidates"
+    LOCAL_DATA_ROOT
+    / "precedents"
+    / "legal_terms"
+    / "matched_candidates_filtered"
 )
 MATCH_FIELDS = (
     "사건명",
@@ -50,9 +54,10 @@ MATCH_FIELDS = (
     "주문",
     "청구취지",
 )
-SCHEMA_VERSION = "precedent_legal_term_candidates.v0.1"
+SCHEMA_VERSION = "precedent_legal_term_candidates.v0.2"
 MIN_MATCH_KEY_LENGTH = 2
 HANGUL_RE = re.compile(r"[가-힣]")
+TWO_HANGUL_SYLLABLES_RE = re.compile(r"[가-힣]{2}")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 WHITESPACE_RE = re.compile(r"\s+")
 
@@ -258,16 +263,28 @@ class AhoCorasickMatcher:
                 if inherited:
                     self.outputs[next_state].extend(inherited)
 
-    def count(self, text: str) -> Counter[str]:
-        """겹치는 위치에서는 가장 긴 공식 용어만 골라 등장 횟수를 반환한다."""
+    @staticmethod
+    def _is_clear_short_internal_match(text: str, start: int, match_key: str) -> bool:
+        """두 글자 용어가 다른 한글 단어 중간에서 시작하면 명확한 오탐으로 본다."""
+        if not TWO_HANGUL_SYLLABLES_RE.fullmatch(match_key):
+            return False
+        return start > 0 and bool(HANGUL_RE.fullmatch(text[start - 1]))
+
+    def count_with_stats(self, text: str) -> tuple[Counter[str], Counter[str]]:
+        """용어 등장 횟수와 규칙별 제외 횟수를 반환한다."""
         matches: list[tuple[int, int, str]] = []
+        excluded = Counter()
         state = 0
         for end, character in enumerate(text, start=1):
             while state and character not in self.transitions[state]:
                 state = self.failures[state]
             state = self.transitions[state].get(character, 0)
             for match_key, pattern_length in self.outputs[state]:
-                matches.append((end - pattern_length, end, match_key))
+                start = end - pattern_length
+                if self._is_clear_short_internal_match(text, start, match_key):
+                    excluded["short_internal_substring"] += 1
+                    continue
+                matches.append((start, end, match_key))
 
         selected: list[tuple[int, int, str]] = []
         for start, end, match_key in sorted(
@@ -275,9 +292,15 @@ class AhoCorasickMatcher:
             key=lambda match: (-(match[1] - match[0]), match[0], match[2]),
         ):
             if any(start < chosen_end and end > chosen_start for chosen_start, chosen_end, _ in selected):
+                excluded["overlapping_shorter_or_later"] += 1
                 continue
             selected.append((start, end, match_key))
-        return Counter(match_key for _, _, match_key in selected)
+        return Counter(match_key for _, _, match_key in selected), excluded
+
+    def count(self, text: str) -> Counter[str]:
+        """오탐과 겹침을 정리한 공식 용어 등장 횟수를 반환한다."""
+        counts, _ = self.count_with_stats(text)
+        return counts
 
 
 def build_match_patterns(term_groups: dict[str, dict[str, Any]]) -> dict[str, str]:
@@ -316,6 +339,7 @@ def build_candidate_rows(
     all_cases: dict[str, set[str]] = {key: set() for key in term_groups}
     nonempty_field_case_counts = Counter()
     matched_field_case_counts = Counter()
+    excluded_match_counts = Counter()
     case_match_rows: list[dict[str, Any]] = []
 
     for index, case_path in enumerate(case_paths, start=1):
@@ -328,7 +352,8 @@ def build_candidate_rows(
             if not text:
                 continue
             nonempty_field_case_counts[field] += 1
-            counts = matcher.count(text)
+            counts, excluded_counts = matcher.count_with_stats(text)
+            excluded_match_counts.update(excluded_counts)
             if not counts:
                 continue
             matched_field_case_counts[field] += 1
@@ -396,6 +421,7 @@ def build_candidate_rows(
         "matched_field_case_counts": dict(matched_field_case_counts),
         "matched_case_count": len(case_match_rows),
         "automaton_state_count": len(matcher.transitions),
+        "excluded_match_counts": dict(excluded_match_counts),
     }
     return candidate_rows, case_match_rows, stats
 
@@ -506,7 +532,7 @@ def main() -> None:
         "minimum_match_key_length": MIN_MATCH_KEY_LENGTH,
         "matching_method": (
             "Aho-Corasick exact substring with official whitespace variants; "
-            "longest non-overlapping matches"
+            "two-syllable internal substring filter; longest non-overlapping matches"
         ),
         "catalog_path": project_relative_path(catalog_path),
         "final_cases_dir": project_relative_path(final_cases_dir),
@@ -526,7 +552,10 @@ def main() -> None:
             case_matches_path.name: file_sha256(case_matches_path),
             review_csv_path.name: file_sha256(review_csv_path),
         },
-        "notice": "부분 문자열 일치 결과는 공식 용어 후보이며 최종 용어 DB가 아니다.",
+        "notice": (
+            "공식 용어 후보에서 두 글자 내부 문자열과 겹침 오탐만 "
+            "보수적으로 제외한 결과이며 최종 정의 DB가 아니다."
+        ),
     }
     write_json(manifest_path, manifest)
     print(

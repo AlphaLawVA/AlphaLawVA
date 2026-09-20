@@ -74,6 +74,18 @@ class ExtractLegalTermCandidatesTest(unittest.TestCase):
         self.assertEqual(counts["임대차계약"], 1)
         self.assertEqual(counts["보증금"], 1)
 
+    def test_aho_corasick_rejects_two_syllable_internal_substrings(self) -> None:
+        matcher = AhoCorasickMatcher(["지가", "수인"])
+        counts, excluded = matcher.count_with_stats("토지가 문제였고 지가가 상승했다. 매수인이 다투었다.")
+        self.assertEqual(counts["지가"], 1)
+        self.assertNotIn("수인", counts)
+        self.assertEqual(excluded["short_internal_substring"], 2)
+
+    def test_aho_corasick_keeps_three_or_more_syllable_internal_terms(self) -> None:
+        matcher = AhoCorasickMatcher(["근저당권"])
+        counts = matcher.count("공동근저당권이 설정되었다.")
+        self.assertEqual(counts["근저당권"], 1)
+
     def test_build_candidate_rows_counts_cases_and_fields(self) -> None:
         term_groups = {
             "근저당권": {
