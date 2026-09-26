@@ -270,8 +270,11 @@ class AhoCorasickMatcher:
             return False
         return start > 0 and bool(HANGUL_RE.fullmatch(text[start - 1]))
 
-    def count_with_stats(self, text: str) -> tuple[Counter[str], Counter[str]]:
-        """용어 등장 횟수와 규칙별 제외 횟수를 반환한다."""
+    def find_with_stats(
+        self,
+        text: str,
+    ) -> tuple[list[tuple[int, int, str]], Counter[str]]:
+        """겹침 정리 전 용어 위치와 명확한 내부 문자열 제외 통계를 반환한다."""
         matches: list[tuple[int, int, str]] = []
         excluded = Counter()
         state = 0
@@ -285,8 +288,15 @@ class AhoCorasickMatcher:
                     excluded["short_internal_substring"] += 1
                     continue
                 matches.append((start, end, match_key))
+        return matches, excluded
 
+    @staticmethod
+    def select_non_overlapping(
+        matches: Iterable[tuple[int, int, str]],
+    ) -> tuple[list[tuple[int, int, str]], Counter[str]]:
+        """겹친 후보 중 가장 긴 용어와 앞선 용어를 우선해 선택한다."""
         selected: list[tuple[int, int, str]] = []
+        excluded = Counter()
         for start, end, match_key in sorted(
             matches,
             key=lambda match: (-(match[1] - match[0]), match[0], match[2]),
@@ -295,6 +305,13 @@ class AhoCorasickMatcher:
                 excluded["overlapping_shorter_or_later"] += 1
                 continue
             selected.append((start, end, match_key))
+        return selected, excluded
+
+    def count_with_stats(self, text: str) -> tuple[Counter[str], Counter[str]]:
+        """용어 등장 횟수와 규칙별 제외 횟수를 반환한다."""
+        matches, excluded = self.find_with_stats(text)
+        selected, overlap_excluded = self.select_non_overlapping(matches)
+        excluded.update(overlap_excluded)
         return Counter(match_key for _, _, match_key in selected), excluded
 
     def count(self, text: str) -> Counter[str]:
