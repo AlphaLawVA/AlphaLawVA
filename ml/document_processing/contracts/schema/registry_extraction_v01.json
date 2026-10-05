@@ -1,0 +1,587 @@
+{
+  "$defs": {
+    "ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0)])]]",
+      "type": "object"
+    },
+    "ExtractedField_date_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[date]",
+      "type": "object"
+    },
+    "ExtractedField_datetime_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[datetime]",
+      "type": "object"
+    },
+    "ExtractedField_str_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[str]",
+      "type": "object"
+    },
+    "ExtractionStatus": {
+      "enum": [
+        "extracted",
+        "missing",
+        "ambiguous",
+        "low_confidence",
+        "user_confirmed",
+        "user_corrected",
+        "not_applicable"
+      ],
+      "title": "ExtractionStatus",
+      "type": "string"
+    },
+    "NormalizedBoundingBox": {
+      "additionalProperties": false,
+      "properties": {
+        "x_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X Min",
+          "type": "number"
+        },
+        "y_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y Min",
+          "type": "number"
+        },
+        "x_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X Max",
+          "type": "number"
+        },
+        "y_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_min",
+        "y_min",
+        "x_max",
+        "y_max"
+      ],
+      "title": "NormalizedBoundingBox",
+      "type": "object"
+    },
+    "RegistryEncumbranceExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "section": {
+          "$ref": "#/$defs/RegistrySection"
+        },
+        "rank_number": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "registration_purpose": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "registration_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "holder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "debtor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maximum_claim_amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "raw_text": {
+          "minLength": 1,
+          "title": "Raw Text",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "status": {
+          "$ref": "#/$defs/RegistryEntryStatus"
+        }
+      },
+      "required": [
+        "section",
+        "rank_number",
+        "registration_purpose",
+        "raw_text",
+        "source",
+        "status"
+      ],
+      "title": "RegistryEncumbranceExtraction",
+      "type": "object"
+    },
+    "RegistryEntryStatus": {
+      "enum": [
+        "active",
+        "cancelled",
+        "unknown"
+      ],
+      "title": "RegistryEntryStatus",
+      "type": "string"
+    },
+    "RegistryOwnerExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "ownership_share": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "registration_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "registration_cause": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "$ref": "#/$defs/RegistryEntryStatus"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "title": "RegistryOwnerExtraction",
+      "type": "object"
+    },
+    "RegistrySection": {
+      "enum": [
+        "title",
+        "gapgu",
+        "eulgu"
+      ],
+      "title": "RegistrySection",
+      "type": "string"
+    },
+    "SourceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "bounding_box": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NormalizedBoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "page_number"
+      ],
+      "title": "SourceLocation",
+      "type": "object"
+    },
+    "TextBlockExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "item_order": {
+          "minimum": 1,
+          "title": "Item Order",
+          "type": "integer"
+        },
+        "original_text": {
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "item_order",
+        "original_text",
+        "source"
+      ],
+      "title": "TextBlockExtraction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "registry_extraction.v0.1",
+      "default": "registry_extraction.v0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "document_type": {
+      "const": "registry",
+      "default": "registry",
+      "title": "Document Type",
+      "type": "string"
+    },
+    "issued_at": {
+      "$ref": "#/$defs/ExtractedField_datetime_"
+    },
+    "unique_property_number": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "address": {
+      "$ref": "#/$defs/ExtractedField_str_"
+    },
+    "detail_address": {
+      "$ref": "#/$defs/ExtractedField_str_"
+    },
+    "property_description": {
+      "items": {
+        "$ref": "#/$defs/TextBlockExtraction"
+      },
+      "title": "Property Description",
+      "type": "array"
+    },
+    "owners": {
+      "items": {
+        "$ref": "#/$defs/RegistryOwnerExtraction"
+      },
+      "title": "Owners",
+      "type": "array"
+    },
+    "encumbrances": {
+      "items": {
+        "$ref": "#/$defs/RegistryEncumbranceExtraction"
+      },
+      "title": "Encumbrances",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "issued_at",
+    "address",
+    "detail_address"
+  ],
+  "title": "RegistryExtraction",
+  "type": "object"
+}
