@@ -1,0 +1,176 @@
+{
+  "schema_version": "contract_extraction.v0.1",
+  "document_type": "contract",
+  "contract_type": {
+    "value": "sale",
+    "raw_text": "부동산 매매 계약서",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "contract_date": {
+    "value": "2026-10-10",
+    "raw_text": "2026년 10월 10일",
+    "source": { "page_number": 3 },
+    "status": "user_confirmed"
+  },
+  "delivery_date": {
+    "value": "2027-01-15",
+    "raw_text": "2027년 1월 15일",
+    "source": { "page_number": 2 },
+    "status": "user_confirmed"
+  },
+  "ownership_transfer_date": {
+    "value": "2027-01-15",
+    "raw_text": "2027년 1월 15일",
+    "source": { "page_number": 2 },
+    "status": "user_confirmed"
+  },
+  "property": {
+    "address": {
+      "value": "서울특별시 마포구 감마로 88",
+      "raw_text": "서울특별시 마포구 감마로 88",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "detail_address": {
+      "value": "감마아파트 203동 1502호",
+      "raw_text": "감마아파트 203동 1502호",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_area_m2": {
+      "value": 84.62,
+      "raw_text": "84.62",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "parties": [
+    {
+      "role": "seller",
+      "name": {
+        "value": "최은호",
+        "raw_text": "최은호",
+        "source": { "page_number": 1 },
+        "status": "user_confirmed"
+      }
+    },
+    {
+      "role": "buyer",
+      "name": {
+        "value": "윤하린",
+        "raw_text": "윤하린",
+        "source": { "page_number": 1 },
+        "status": "user_confirmed"
+      }
+    }
+  ],
+  "payment": {
+    "sale_price": {
+      "value": 780000000,
+      "raw_text": "780,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "down_payment": {
+      "value": 78000000,
+      "raw_text": "칠천팔백만원",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "intermediate_payments": [
+      {
+        "label": "1차중도금",
+        "amount": {
+          "value": 122000000,
+          "raw_text": "일억이천이백만원",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        },
+        "due_date": {
+          "value": "2026-11-10",
+          "raw_text": "2026년 11월 10일",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        }
+      },
+      {
+        "label": "2차중도금",
+        "amount": {
+          "value": 200000000,
+          "raw_text": "이억원",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        },
+        "due_date": {
+          "value": "2026-12-10",
+          "raw_text": "2026년 12월 10일",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        }
+      }
+    ],
+    "remaining_balance": {
+      "value": 380000000,
+      "raw_text": "삼억팔천만원",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "remaining_balance_date": {
+      "value": "2027-01-15",
+      "raw_text": "2027년 1월 15일",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "articles": [
+    {
+      "item_order": 1,
+      "clause_number": "제3조 제2항",
+      "clause_title": "부동산에 대한 부담의 소멸 등",
+      "original_text": "관리비, 전기·수도·도시가스 요금은 2027년 1월 15일을 기준으로 정산한다.",
+      "source": { "page_number": 2 }
+    },
+    {
+      "item_order": 2,
+      "clause_number": "제4조 제1항",
+      "clause_title": "하자의 부담",
+      "original_text": "매도인이 책임지는 기간은 부동산을 넘겨준 날로부터 6개월로 한다.",
+      "source": { "page_number": 2 }
+    },
+    {
+      "item_order": 3,
+      "clause_number": "제5조 제2항",
+      "clause_title": "계약의 해제",
+      "original_text": "손해배상액은 매매대금의 10%로 한다.",
+      "source": { "page_number": 2 }
+    }
+  ],
+  "special_terms": [
+    {
+      "item_order": 1,
+      "original_text": "매도인은 잔금일까지 새로운 근저당권·가압류 등 권리를 설정하지 않는다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 2,
+      "original_text": "에어컨·붙박이장·인덕션은 매매대금에 포함하며 인도일까지 현재 상태를 유지한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 3,
+      "original_text": "본 계약은 현 시설 상태의 매매이며, 인도 후 발견되는 모든 하자에 대해 매도인은 책임지지 않는다.",
+      "source": { "page_number": 3 }
+    }
+  ],
+  "disclosures": {
+    "registry_checked": {
+      "value": true,
+      "raw_text": "등기부등본(2026년 10월 9일자) 및 건축물대장, 토지대장 확인",
+      "source": { "page_number": 2 },
+      "status": "user_confirmed"
+    }
+  },
+  "brokers": [],
+  "warnings": []
+}

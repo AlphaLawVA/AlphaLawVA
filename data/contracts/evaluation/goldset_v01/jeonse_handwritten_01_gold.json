@@ -1,0 +1,244 @@
+{
+  "schema_version": "contract_extraction.v0.1",
+  "document_type": "contract",
+  "contract_type": {
+    "value": "jeonse",
+    "raw_text": "전세",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "contract_date": {
+    "value": "2026-10-05",
+    "raw_text": "2026년 10월 5일",
+    "source": { "page_number": 3 },
+    "status": "user_confirmed"
+  },
+  "start_date": {
+    "value": "2026-10-31",
+    "raw_text": "2026년 10월 31일",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "end_date": {
+    "value": "2028-10-30",
+    "raw_text": "2028년 10월 30일",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "delivery_date": {
+    "value": "2026-10-31",
+    "raw_text": "2026년 10월 31일",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "property": {
+    "address": {
+      "value": "서울특별시 성동구 알파로 27",
+      "raw_text": "서울특별시 성동구 알파로 27",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "detail_address": {
+      "value": "알파아파트 101동 1203호",
+      "raw_text": "알파아파트 101동 1203호",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "leased_part_description": {
+      "value": "101동 1203호 전부",
+      "raw_text": "101동 1203호 전부",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "leased_area_m2": {
+      "value": 84.97,
+      "raw_text": "84.97",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "land_category": {
+      "value": "대",
+      "raw_text": "대",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "land_area_m2": {
+      "value": 3215.4,
+      "raw_text": "3215.40",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_structure": {
+      "value": "철근콘크리트조",
+      "raw_text": "철근콘크리트조",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_use": {
+      "value": "아파트",
+      "raw_text": "아파트",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_area_m2": {
+      "value": 84.97,
+      "raw_text": "84.97",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "parties": [
+    {
+      "role": "lessor",
+      "name": {
+        "value": "박도윤",
+        "raw_text": "박도윤",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    },
+    {
+      "role": "lessee",
+      "name": {
+        "value": "김서연",
+        "raw_text": "김서연",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    }
+  ],
+  "payment": {
+    "deposit": {
+      "value": 250000000,
+      "raw_text": "250,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "maintenance_fee": {
+      "value": 180000,
+      "raw_text": "180,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "down_payment": {
+      "value": 25000000,
+      "raw_text": "25,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "intermediate_payments": [
+      {
+        "label": "중도금",
+        "amount": {
+          "value": 25000000,
+          "raw_text": "25,000,000",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        },
+        "due_date": {
+          "value": "2026-10-20",
+          "raw_text": "2026년 10월 20일",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        }
+      }
+    ],
+    "remaining_balance": {
+      "value": 200000000,
+      "raw_text": "200,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "remaining_balance_date": {
+      "value": "2026-10-31",
+      "raw_text": "2026년 10월 31일",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "articles": [],
+  "special_terms": [
+    {
+      "item_order": 1,
+      "original_text": "임대인은 잔금 지급일 다음 날까지 근저당권 등 새로운 권리를 설정하지 않는다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 2,
+      "original_text": "임대인은 임차인의 전세보증금반환보증 가입에 필요한 서류 제출에 협조한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 3,
+      "original_text": "옵션인 에어컨, 세탁기, 냉장고의 노후 고장은 임대인이 수리한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 4,
+      "original_text": "임차인은 통상적인 사용으로 발생한 손모를 포함하여 퇴거 시 모든 시설을 원상복구한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 5,
+      "original_text": "임대차 종료 후 신규 임차인이 입주한 때에 보증금을 반환한다.",
+      "source": { "page_number": 3 }
+    }
+  ],
+  "disclosures": {
+    "tax_arrears": {
+      "value": "없음",
+      "raw_text": "없음",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "senior_deposit_status": {
+      "value": "해당 없음",
+      "raw_text": "해당 없음",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "brokers": [
+    {
+      "office_name": {
+        "value": "알파공인중개사사무소",
+        "raw_text": "알파공인중개사사무소",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "office_registration_number": {
+        "value": "가상-성동-2026-001",
+        "raw_text": "가상-성동-2026-001",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "signature_present": {
+        "value": false,
+        "raw_text": "서명 또는 날인 없음",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    },
+    {
+      "office_name": {
+        "value": "알파공인중개사사무소",
+        "raw_text": "알파공인중개사사무소",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "office_registration_number": {
+        "value": "가상-성동-2026-001",
+        "raw_text": "가상-성동-2026-001",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "signature_present": {
+        "value": false,
+        "raw_text": "서명 또는 날인 없음",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    }
+  ],
+  "warnings": []
+}

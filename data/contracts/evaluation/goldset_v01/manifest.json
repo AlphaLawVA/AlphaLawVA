@@ -1,0 +1,42 @@
+{
+  "dataset_version": "contract-handwritten-goldset.v0.1",
+  "description": "손글씨로 작성한 전세·월세·매매 합성 계약서의 개발용 정답셋",
+  "scope": [
+    "계약 유형",
+    "계약일과 이행 기간",
+    "부동산 표시",
+    "당사자 성명",
+    "금액과 지급일",
+    "사용자 작성 특약",
+    "중개사무소 정보"
+  ],
+  "excluded_from_gold": [
+    "주민등록번호",
+    "전화번호",
+    "서명 이미지",
+    "표준 양식에 미리 인쇄된 일반 조항 전문"
+  ],
+  "documents": [
+    {
+      "source_filename": "전세_손글씨_01.pdf",
+      "source_sha256": "ed46855e68e071e5c51dc29993ff34c9ba56cdac1c57f4fe2d202c2db097e50f",
+      "page_count": 3,
+      "contract_type": "jeonse",
+      "gold_filename": "jeonse_handwritten_01_gold.json"
+    },
+    {
+      "source_filename": "월세_손글씨_01.pdf",
+      "source_sha256": "6cf7c1067b4ea2e1925bae2a71e0af849b5e2e3e00471138d76a925e6091458d",
+      "page_count": 3,
+      "contract_type": "monthly_rent",
+      "gold_filename": "monthly_rent_handwritten_01_gold.json"
+    },
+    {
+      "source_filename": "매매_손글씨_01.pdf",
+      "source_sha256": "3e24fcf0ecf6b96408df3d3cd18de3f4583b5d750ef3fc04969f5edbd117b2e4",
+      "page_count": 3,
+      "contract_type": "sale",
+      "gold_filename": "sale_handwritten_01_gold.json"
+    }
+  ]
+}

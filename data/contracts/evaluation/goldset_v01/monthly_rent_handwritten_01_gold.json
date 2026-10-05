@@ -1,0 +1,251 @@
+{
+  "schema_version": "contract_extraction.v0.1",
+  "document_type": "contract",
+  "contract_type": {
+    "value": "monthly_rent",
+    "raw_text": "보증금 있는 월세",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "contract_date": {
+    "value": "2026-10-07",
+    "raw_text": "2026년 10월 7일",
+    "source": { "page_number": 3 },
+    "status": "user_confirmed"
+  },
+  "start_date": {
+    "value": "2026-11-01",
+    "raw_text": "2026년 11월 1일",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "end_date": {
+    "value": "2028-10-31",
+    "raw_text": "2028년 10월 31일",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "delivery_date": {
+    "value": "2026-11-01",
+    "raw_text": "2026년 11월 1일",
+    "source": { "page_number": 1 },
+    "status": "user_confirmed"
+  },
+  "property": {
+    "address": {
+      "value": "서울특별시 관악구 베타로 54",
+      "raw_text": "서울특별시 관악구 베타로 54",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "detail_address": {
+      "value": "베타빌 302호",
+      "raw_text": "베타빌 302호",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "leased_part_description": {
+      "value": "3층 302호 전부",
+      "raw_text": "3층 302호 전부",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "leased_area_m2": {
+      "value": 58.32,
+      "raw_text": "58.32",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "land_category": {
+      "value": "대",
+      "raw_text": "대",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "land_area_m2": {
+      "value": 426.8,
+      "raw_text": "426.80",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_structure": {
+      "value": "철근콘크리트구조",
+      "raw_text": "철근콘크리트구조",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_use": {
+      "value": "다세대주택",
+      "raw_text": "다세대주택",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "building_area_m2": {
+      "value": 58.32,
+      "raw_text": "58.32",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "parties": [
+    {
+      "role": "lessor",
+      "name": {
+        "value": "정하늘",
+        "raw_text": "정하늘",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    },
+    {
+      "role": "lessee",
+      "name": {
+        "value": "오민준",
+        "raw_text": "오민준",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    }
+  ],
+  "payment": {
+    "deposit": {
+      "value": 30000000,
+      "raw_text": "30,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "monthly_rent": {
+      "value": 900000,
+      "raw_text": "900,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "maintenance_fee": {
+      "value": 120000,
+      "raw_text": "120,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "down_payment": {
+      "value": 3000000,
+      "raw_text": "3,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "intermediate_payments": [
+      {
+        "label": "중도금",
+        "amount": {
+          "value": 7000000,
+          "raw_text": "7,000,000",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        },
+        "due_date": {
+          "value": "2026-10-20",
+          "raw_text": "2026년 10월 20일",
+          "source": { "page_number": 1 },
+          "status": "user_confirmed"
+        }
+      }
+    ],
+    "remaining_balance": {
+      "value": 20000000,
+      "raw_text": "20,000,000",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "remaining_balance_date": {
+      "value": "2026-11-01",
+      "raw_text": "2026년 11월 1일",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "monthly_rent_payment_day": {
+      "value": "매월 1일",
+      "raw_text": "매월 1일",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "payment_timing": {
+      "value": "unspecified",
+      "status": "user_confirmed"
+    }
+  },
+  "articles": [],
+  "special_terms": [
+    {
+      "item_order": 1,
+      "original_text": "계약기간 중 월 차임은 당사자 합의 없이 인상하지 않는다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 2,
+      "original_text": "보일러·배관 등 주요 설비의 노후 고장은 임대인이 수리한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 3,
+      "original_text": "임차인의 고의·과실로 발생한 파손과 소모품 교체는 임차인이 부담한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 4,
+      "original_text": "실내 흡연과 반려동물 사육을 금지한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 5,
+      "original_text": "퇴실 청소비 150,000원은 오염 여부와 관계없이 임차인이 부담한다.",
+      "source": { "page_number": 3 }
+    },
+    {
+      "item_order": 6,
+      "original_text": "임차인이 중도 퇴실할 경우 새 임차인을 구하고 임대인 측 중개보수까지 부담해야 보증금을 반환한다.",
+      "source": { "page_number": 3 }
+    }
+  ],
+  "disclosures": {
+    "tax_arrears": {
+      "value": "없음",
+      "raw_text": "없음",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    },
+    "senior_deposit_status": {
+      "value": "해당 없음",
+      "raw_text": "해당 없음",
+      "source": { "page_number": 1 },
+      "status": "user_confirmed"
+    }
+  },
+  "brokers": [
+    {
+      "office_name": {
+        "value": "베타공인중개사사무소",
+        "raw_text": "베타공인중개사사무소",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "office_registration_number": {
+        "value": "가상-관악-2026-002",
+        "raw_text": "가상-관악-2026-002",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "broker_in_charge": {
+        "value": "한유진",
+        "raw_text": "한유진",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      },
+      "signature_present": {
+        "value": true,
+        "raw_text": "한유진 서명",
+        "source": { "page_number": 3 },
+        "status": "user_confirmed"
+      }
+    }
+  ],
+  "warnings": []
+}
