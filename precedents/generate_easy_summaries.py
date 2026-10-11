@@ -41,6 +41,12 @@ PROMPT_VERSION = (
     "precedent_easy_summary_no_db_natural.v19_definition_in_context_clear_structure"
 )
 PROMPT_CACHE_TTL = "1h"
+OUTPUT_RETRY_REMINDER = """
+
+[재시도 출력 형식 확인]
+- precedent_id에는 위 입력의 판례일련번호를 한 글자도 바꾸지 말고 그대로 쓴다.
+- easy_summary는 비워 두지 말고 완성된 쉬운요약을 쓴다.
+""".rstrip()
 MAX_EASY_SUMMARY_CHARS = 700
 REVIEW_MIN_EASY_SUMMARY_CHARS = 80
 ANTHROPIC_PRICING_USD_PER_MILLION = {
@@ -119,6 +125,11 @@ def parse_args() -> argparse.Namespace:
         help="완료된 Batch 결과를 수집하고 검증한다.",
     )
     parser.add_argument("--batch-id", default=None)
+    parser.add_argument(
+        "--output-retry-reminder",
+        action="store_true",
+        help="출력 ID 오류나 빈 요약 재시도 시 판례별 입력 뒤에 형식 확인 문구를 추가한다.",
+    )
     parser.add_argument(
         "--write-final",
         action="store_true",
@@ -428,6 +439,16 @@ def build_input_rows(paths: list[Path]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def add_output_retry_reminder(input_rows: list[dict[str, Any]]) -> None:
+    """재시도 대상의 가변 입력에만 ID와 빈 요약 방지 문구를 추가한다."""
+    for row in input_rows:
+        row["prompt_case_input"] = (
+            f"{row['prompt_case_input']}{OUTPUT_RETRY_REMINDER}"
+        )
+        row["prompt"] = f"{row['prompt_cache_prefix']}{row['prompt_case_input']}"
+        row["output_retry_reminder"] = True
 
 
 def get_anthropic_api_key() -> str:
@@ -833,6 +854,9 @@ def write_manifest(
         "dry_run": args.dry_run,
         "write_final": args.write_final,
         "overwrite": args.overwrite,
+        "output_retry_reminder": any(
+            bool(row.get("output_retry_reminder")) for row in input_rows
+        ),
         "case_ids": [row["판례일련번호"] for row in input_rows],
         "total_targets": stats.total_targets,
         "generated_count": stats.generated_count,
@@ -886,6 +910,8 @@ def main() -> None:
     else:
         target_paths = collect_target_paths(args)
         input_rows = build_input_rows(target_paths)
+        if args.output_retry_reminder:
+            add_output_retry_reminder(input_rows)
         write_jsonl(paths.inputs, input_rows)
 
     stats = RunStats(started_at=now_utc_iso(), total_targets=len(input_rows))
