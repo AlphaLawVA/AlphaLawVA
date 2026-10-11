@@ -36,10 +36,11 @@ DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5"
 ANTHROPIC_BATCHES_URL = "https://api.anthropic.com/v1/messages/batches"
 ANTHROPIC_API_VERSION = "2023-06-01"
 SCHEMA_VERSION = "precedent_easy_summary.v3"
-MANIFEST_SCHEMA_VERSION = "precedent_easy_summary_manifest.v2"
+MANIFEST_SCHEMA_VERSION = "precedent_easy_summary_manifest.v3"
 PROMPT_VERSION = (
     "precedent_easy_summary_no_db_natural.v19_definition_in_context_clear_structure"
 )
+PROMPT_CACHE_TTL = "1h"
 MAX_EASY_SUMMARY_CHARS = 700
 REVIEW_MIN_EASY_SUMMARY_CHARS = 80
 ANTHROPIC_PRICING_USD_PER_MILLION = {
@@ -62,6 +63,9 @@ class RunStats:
     generated_count: int = 0
     failure_count: int = 0
     input_token_count: int = 0
+    uncached_input_token_count: int = 0
+    cache_creation_input_token_count: int = 0
+    cache_read_input_token_count: int = 0
     output_token_count: int = 0
     total_token_count: int = 0
     stopped_reason: str | None = None
@@ -300,9 +304,9 @@ def build_length_balanced_sample(paths: list[Path], sample_size: int) -> list[Pa
     return [ranked[index] for index in sorted(indexes)]
 
 
-def build_prompt(case: dict[str, Any]) -> str:
-    """용어 DB 없이 생성요약을 자연스럽게 다시 쓰는 프롬프트를 만든다."""
-    input_json = json.dumps(
+def build_prompt_input(case: dict[str, Any]) -> str:
+    """판례마다 달라지는 프롬프트 입력 JSON을 만든다."""
+    return json.dumps(
         {
             "판례일련번호": str(case.get("판례일련번호") or ""),
             "사건명": normalize_text(case.get("사건명")),
@@ -311,6 +315,11 @@ def build_prompt(case: dict[str, Any]) -> str:
         ensure_ascii=False,
         indent=2,
     )
+
+
+def build_prompt(case: dict[str, Any]) -> str:
+    """용어 DB 없이 생성요약을 자연스럽게 다시 쓰는 프롬프트를 만든다."""
+    input_json = build_prompt_input(case)
     return f"""
 너는 AlphaLawVA에서 법과 부동산 거래에 익숙하지 않은 20대 사회초년생을 위한 판례 쉬운요약을 작성하는 리걸 에디터다.
 
@@ -388,19 +397,34 @@ def build_prompt(case: dict[str, Any]) -> str:
 """.strip()
 
 
+def split_prompt_for_cache(case: dict[str, Any]) -> tuple[str, str]:
+    """완성 프롬프트를 동일한 공통 접두부와 판례별 입력으로 나눈다."""
+    prompt = build_prompt(case)
+    prompt_input = build_prompt_input(case)
+    if not prompt.endswith(prompt_input):
+        raise ValueError("프롬프트 끝에서 판례별 입력을 찾을 수 없습니다.")
+    return prompt[: -len(prompt_input)], prompt_input
+
+
 def build_input_rows(paths: list[Path]) -> list[dict[str, Any]]:
     """배치 제출과 결과 결합에 사용할 입력 행을 만든다."""
     rows = []
     for path in paths:
         case = load_final_case(path)
         case_id = str(case.get("판례일련번호") or path.stem)
+        prompt = build_prompt(case)
+        prompt_cache_prefix, prompt_case_input = split_prompt_for_cache(case)
+        if prompt_cache_prefix + prompt_case_input != prompt:
+            raise ValueError(f"캐시 분리 후 프롬프트가 달라졌습니다: {case_id}")
         rows.append(
             {
                 "판례일련번호": case_id,
                 "사건명": normalize_text(case.get("사건명")),
                 "생성요약": normalize_text(case.get("생성요약")),
                 "source_path": str(path),
-                "prompt": build_prompt(case),
+                "prompt": prompt,
+                "prompt_cache_prefix": prompt_cache_prefix,
+                "prompt_case_input": prompt_case_input,
             }
         )
     return rows
@@ -451,15 +475,37 @@ def build_output_schema() -> dict[str, Any]:
 
 
 def build_message_params(
-    prompt: str,
+    input_row: dict[str, Any],
     model: str,
     max_output_tokens: int,
 ) -> dict[str, Any]:
     """Anthropic Batch 요청 한 건의 Messages 파라미터를 만든다."""
+    prompt = str(input_row["prompt"])
+    prompt_cache_prefix = str(input_row["prompt_cache_prefix"])
+    prompt_case_input = str(input_row["prompt_case_input"])
+    if prompt_cache_prefix + prompt_case_input != prompt:
+        raise ValueError(
+            f"캐시 메시지가 원본 프롬프트와 다릅니다: {input_row['판례일련번호']}"
+        )
     return {
         "model": model.strip(),
         "max_tokens": max_output_tokens,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt_cache_prefix,
+                        "cache_control": {
+                            "type": "ephemeral",
+                            "ttl": PROMPT_CACHE_TTL,
+                        },
+                    },
+                    {"type": "text", "text": prompt_case_input},
+                ],
+            }
+        ],
         "output_config": {
             "format": {
                 "type": "json_schema",
@@ -480,7 +526,7 @@ def submit_batch(
         {
             "custom_id": str(row["판례일련번호"]),
             "params": build_message_params(
-                str(row["prompt"]),
+                row,
                 model,
                 max_output_tokens,
             ),
@@ -665,13 +711,31 @@ def collect_batch_results(
             continue
         message = result.get("message") or {}
         usage = message.get("usage") or {}
+        uncached_input_tokens = int(usage.get("input_tokens") or 0)
+        cache_creation_input_tokens = int(
+            usage.get("cache_creation_input_tokens") or 0
+        )
+        cache_read_input_tokens = int(usage.get("cache_read_input_tokens") or 0)
+        total_input_tokens = (
+            uncached_input_tokens
+            + cache_creation_input_tokens
+            + cache_read_input_tokens
+        )
+        output_tokens = int(usage.get("output_tokens") or 0)
         token_usage = {
-            "input_tokens": int(usage.get("input_tokens") or 0),
-            "output_tokens": int(usage.get("output_tokens") or 0),
-            "total_tokens": int(usage.get("input_tokens") or 0)
-            + int(usage.get("output_tokens") or 0),
+            "input_tokens": total_input_tokens,
+            "uncached_input_tokens": uncached_input_tokens,
+            "cache_creation_input_tokens": cache_creation_input_tokens,
+            "cache_read_input_tokens": cache_read_input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_input_tokens + output_tokens,
         }
         stats.input_token_count += token_usage["input_tokens"]
+        stats.uncached_input_token_count += token_usage["uncached_input_tokens"]
+        stats.cache_creation_input_token_count += token_usage[
+            "cache_creation_input_tokens"
+        ]
+        stats.cache_read_input_token_count += token_usage["cache_read_input_tokens"]
         stats.output_token_count += token_usage["output_tokens"]
         stats.total_token_count += token_usage["total_tokens"]
         raw_response = ""
@@ -706,27 +770,37 @@ def collect_batch_results(
 
 
 def batch_pricing(model: str) -> dict[str, float] | None:
-    """모델의 50% Batch 할인 가격을 반환한다."""
+    """모델의 Batch 및 1시간 프롬프트 캐시 가격을 반환한다."""
     pricing = ANTHROPIC_PRICING_USD_PER_MILLION.get(model.strip())
     if not pricing:
         return None
     return {
         "input": round(pricing["input"] * 0.5, 6),
+        "cache_creation_input_1h": round(pricing["input"] * 2.0 * 0.5, 6),
+        "cache_read_input": round(pricing["input"] * 0.05 * 0.5, 6),
         "output": round(pricing["output"] * 0.5, 6),
     }
 
 
 def estimate_cost_usd(
     model: str,
-    input_tokens: int,
+    uncached_input_tokens: int,
+    cache_creation_input_tokens: int,
+    cache_read_input_tokens: int,
     output_tokens: int,
 ) -> float | None:
-    """Batch 할인 가격과 실제 토큰으로 비용을 계산한다."""
+    """Batch 및 프롬프트 캐시 가격과 실제 토큰으로 비용을 계산한다."""
     pricing = batch_pricing(model)
     if not pricing:
         return None
     return round(
-        input_tokens / 1_000_000 * pricing["input"]
+        uncached_input_tokens / 1_000_000 * pricing["input"]
+        + cache_creation_input_tokens
+        / 1_000_000
+        * pricing["cache_creation_input_1h"]
+        + cache_read_input_tokens
+        / 1_000_000
+        * pricing["cache_read_input"]
         + output_tokens / 1_000_000 * pricing["output"],
         6,
     )
@@ -751,6 +825,11 @@ def write_manifest(
         "prompt_version": PROMPT_VERSION,
         "field_name": args.field_name,
         "max_output_tokens": args.max_output_tokens,
+        "prompt_cache": {
+            "enabled": True,
+            "ttl": PROMPT_CACHE_TTL,
+            "cached_content": "shared_v19_v2_instructions_only",
+        },
         "dry_run": args.dry_run,
         "write_final": args.write_final,
         "overwrite": args.overwrite,
@@ -760,13 +839,18 @@ def write_manifest(
         "failure_count": stats.failure_count,
         "token_usage": {
             "input_tokens": stats.input_token_count,
+            "uncached_input_tokens": stats.uncached_input_token_count,
+            "cache_creation_input_tokens": stats.cache_creation_input_token_count,
+            "cache_read_input_tokens": stats.cache_read_input_token_count,
             "output_tokens": stats.output_token_count,
             "total_tokens": stats.total_token_count,
         },
         "pricing_usd_per_million_tokens": batch_pricing(args.anthropic_model),
         "estimated_cost_usd": estimate_cost_usd(
             args.anthropic_model,
-            stats.input_token_count,
+            stats.uncached_input_token_count,
+            stats.cache_creation_input_token_count,
+            stats.cache_read_input_token_count,
             stats.output_token_count,
         ),
         "stopped_reason": stats.stopped_reason,
@@ -834,7 +918,8 @@ def main() -> None:
             collect_batch_results(paths, args, stats, input_rows, batch_payload)
             print(
                 f"결과 저장: 생성 {stats.generated_count}건, 실패 {stats.failure_count}건, "
-                f"예상 비용 {estimate_cost_usd(args.anthropic_model, stats.input_token_count, stats.output_token_count)} USD"
+                "예상 비용 "
+                f"{estimate_cost_usd(args.anthropic_model, stats.uncached_input_token_count, stats.cache_creation_input_token_count, stats.cache_read_input_token_count, stats.output_token_count)} USD"
             )
         else:
             stats.stopped_reason = f"batch_not_ready:{batch_payload.get('processing_status')}"
