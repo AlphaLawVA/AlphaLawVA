@@ -1,5 +1,5 @@
 -r requirements-preprocessing.txt
+-r requirements-api.txt
 
 ruff==0.16.4
 jsonschema==4.26.0
-pydantic==2.13.5
