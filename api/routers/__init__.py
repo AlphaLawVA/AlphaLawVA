@@ -10,3 +10,6 @@ After:
     - 요청과 응답 처리를 담당하는 라우터 패키지가 제공됨.
 """
 
+from api.routers.precedents import router as precedents_router
+
+__all__ = ["precedents_router"]
