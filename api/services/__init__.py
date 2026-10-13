@@ -18,6 +18,19 @@ from api.services.precedent_case_repository import (
     PrecedentCaseRepository,
     PrecedentCaseRepositoryError,
 )
+from api.services.precedent_search_service import (
+    QueryScopeGuard,
+    ScopeDecision,
+    SimilarityExplainer,
+    PrecedentSearchService,
+)
+from api.services.precedent_search_sessions import (
+    PrecedentSearchSession,
+    PrecedentSearchSessionStore,
+    SearchResultNotFoundError,
+    SearchSessionError,
+    SearchSessionNotFoundError,
+)
 
 __all__ = [
     "DEFAULT_FINAL_CASES_DIR",
@@ -26,4 +39,13 @@ __all__ = [
     "PrecedentCaseNotFoundError",
     "PrecedentCaseRepository",
     "PrecedentCaseRepositoryError",
+    "PrecedentSearchService",
+    "PrecedentSearchSession",
+    "PrecedentSearchSessionStore",
+    "QueryScopeGuard",
+    "ScopeDecision",
+    "SearchResultNotFoundError",
+    "SearchSessionError",
+    "SearchSessionNotFoundError",
+    "SimilarityExplainer",
 ]

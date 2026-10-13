@@ -224,7 +224,7 @@ class PrecedentOfficialFields(ApiModel):
 
 
 class MatchedChunk(ApiModel):
-    rank: int = Field(ge=1, description="판례 내부 적중 청크 순위")
+    rank: int = Field(ge=1, description="전체 청크 검색 결과에서의 순위")
     chunk_id: str
     section: str | None = None
     chunk_type: str | None = None
