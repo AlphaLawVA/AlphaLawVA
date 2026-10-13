@@ -10,6 +10,12 @@ After:
     - 공개 API 스키마를 관리할 모델 패키지가 제공됨.
 """
 
+from api.models.errors import (
+    ApiError,
+    ApiErrorCode,
+    ApiErrorResponse,
+    ApiFieldError,
+)
 from api.models.precedents import (
     FullTextSection,
     MatchedChunk,
@@ -32,6 +38,10 @@ from api.models.precedents import (
 )
 
 __all__ = [
+    "ApiError",
+    "ApiErrorCode",
+    "ApiErrorResponse",
+    "ApiFieldError",
     "FullTextSection",
     "MatchedChunk",
     "PrecedentDetailResponse",

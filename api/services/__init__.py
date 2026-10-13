@@ -19,10 +19,11 @@ from api.services.precedent_case_repository import (
     PrecedentCaseRepositoryError,
 )
 from api.services.precedent_search_service import (
+    PrecedentSearchBackendUnavailableError,
+    PrecedentSearchService,
     QueryScopeGuard,
     ScopeDecision,
     SimilarityExplainer,
-    PrecedentSearchService,
 )
 from api.services.precedent_search_sessions import (
     PrecedentSearchSession,
@@ -39,6 +40,7 @@ __all__ = [
     "PrecedentCaseNotFoundError",
     "PrecedentCaseRepository",
     "PrecedentCaseRepositoryError",
+    "PrecedentSearchBackendUnavailableError",
     "PrecedentSearchService",
     "PrecedentSearchSession",
     "PrecedentSearchSessionStore",

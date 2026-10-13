@@ -17,6 +17,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 
+from api.models.errors import ApiErrorResponse
 from api.models.precedents import (
     PrecedentDetailResponse,
     PrecedentFullTextResponse,
@@ -27,6 +28,16 @@ from api.services.precedent_search_service import PrecedentSearchService
 
 
 router = APIRouter(prefix="/api/v1", tags=["precedents"])
+
+VALIDATION_AND_BACKEND_RESPONSES = {
+    422: {"model": ApiErrorResponse, "description": "요청 값 검증 실패"},
+    503: {"model": ApiErrorResponse, "description": "판례 검색 백엔드 사용 불가"},
+}
+PRECEDENT_LOOKUP_RESPONSES = {
+    400: {"model": ApiErrorResponse, "description": "잘못된 판례일련번호"},
+    404: {"model": ApiErrorResponse, "description": "검색 기록 또는 판례 없음"},
+    503: {"model": ApiErrorResponse, "description": "판례 데이터 사용 불가"},
+}
 
 
 def get_precedent_search_service(request: Request) -> PrecedentSearchService:
@@ -45,6 +56,7 @@ PrecedentSearchServiceDependency = Annotated[
 @router.post(
     "/precedent-searches",
     response_model=PrecedentSearchResponse,
+    responses=VALIDATION_AND_BACKEND_RESPONSES,
     summary="자연어 상황으로 유사 판례 검색",
 )
 def search_precedents(
@@ -57,6 +69,7 @@ def search_precedents(
 @router.get(
     "/precedent-searches/{search_id}/results/{precedent_id}",
     response_model=PrecedentDetailResponse,
+    responses=PRECEDENT_LOOKUP_RESPONSES,
     summary="검색 결과 판례 상세 조회",
 )
 def get_precedent_detail(
@@ -70,6 +83,7 @@ def get_precedent_detail(
 @router.get(
     "/precedents/{precedent_id}/full-text",
     response_model=PrecedentFullTextResponse,
+    responses=PRECEDENT_LOOKUP_RESPONSES,
     summary="AlphaLawVA 내부 판례 원문 조회",
 )
 def get_precedent_full_text(

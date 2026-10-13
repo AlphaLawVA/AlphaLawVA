@@ -59,6 +59,10 @@ FULL_TEXT_FIELDS = (
 )
 
 
+class PrecedentSearchBackendUnavailableError(Exception):
+    """Raised when the configured precedent retrieval backend cannot run."""
+
+
 class PrecedentRetriever(Protocol):
     def search(
         self,
@@ -123,7 +127,12 @@ class PrecedentSearchService:
                     message=decision.message or DEFAULT_OUT_OF_SCOPE_MESSAGE,
                 )
 
-        results = self.retriever.search(request.query, top_k=request.limit)
+        try:
+            results = self.retriever.search(request.query, top_k=request.limit)
+        except (FileNotFoundError, RuntimeError) as error:
+            raise PrecedentSearchBackendUnavailableError(
+                "판례 검색 백엔드를 사용할 수 없습니다."
+            ) from error
         session = self.sessions.create(request.query, results)
         if not results:
             return PrecedentSearchResponse(

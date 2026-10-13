@@ -24,6 +24,7 @@ from api.models.precedents import (
 from api.services.precedent_case_repository import PrecedentCaseRepository
 from api.services.precedent_search_service import (
     SUMMARY_PREVIEW_MAX_LENGTH,
+    PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
     ScopeDecision,
 )
@@ -46,6 +47,11 @@ class FakeRetriever:
 class RejectingScopeGuard:
     def evaluate(self, query):
         return ScopeDecision(False, f"검색 범위가 아닙니다: {query}")
+
+
+class FailingRetriever:
+    def search(self, _query, *, top_k=10):
+        raise FileNotFoundError(f"missing search backend for top_k={top_k}")
 
 
 class FakeExplainer:
@@ -163,6 +169,12 @@ class PrecedentSearchServiceTests(unittest.TestCase):
         self.assertEqual(response.status, SearchStatus.NO_RESULTS)
         self.assertEqual(response.results, [])
         self.assertIsNotNone(response.message)
+
+    def test_search_wraps_unavailable_retrieval_backend(self):
+        service, _ = self.make_service(retriever=FailingRetriever())
+
+        with self.assertRaises(PrecedentSearchBackendUnavailableError):
+            service.search(PrecedentSearchRequest(query="보증금 반환"))
 
     def test_scope_guard_can_reject_before_retrieval(self):
         service, retriever = self.make_service(scope_guard=RejectingScopeGuard())
