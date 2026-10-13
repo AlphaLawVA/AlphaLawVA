@@ -44,7 +44,9 @@ Google OCR 시간을 복원할 수 없다. local_total_excluding_output_write는
 
 ## 남은 작업
 
-- Google 실시간 클라이언트와 명시적 모델 버전, 요청 제한, 요청 시간 측정.
+- Google 실시간 연결은 [별도 CLI](DOCUMENT_AI_LIVE.md)로 추가했다.
+  명시적 버전, 승인 분리, 요청 시간, 캐시와 중복 요청 차단을 제공한다.
+  실제 인증 및 유료 호출 통합 검증은 아직 수행하지 않았다.
 - 비용/데이터 전송 승인 후 합성자료 소량 호출 검증.
 - 독립적인 같은 양식 새 작성본 검증, 사용자 확인 API/UI.
 - 실제 문서용 개인정보 처리, 암호화 저장, 접근 제어와 폐기 정책 구현.
@@ -55,18 +57,14 @@ Google OCR 시간을 복원할 수 없다. local_total_excluding_output_write는
 
 ## 브랜치와 커밋
 
-2026-10-06 확인 기준 feat/contract-document-intake에서 작업 중이며
-문서 처리 신규 파일들과 CI/dev requirements 변경이 미커밋 상태다.
-이번 변경은 lease_pipeline.py, test_lease_pipeline.py, 이 문서의 추가다.
-기존 추출 스키마/엔진/API/모델을 변경하지 않았다. 커밋/푸시는 수행하지 않았다.
-커밋 전에 기존 미추적 코드와 데이터의 포함 범위, 비밀/개인정보 유무,
-생성 결과 및 tmp 제외 여부를 별도로 점검해야 한다. git add .는 사용하지 않는다.
+2026-10-06 기준 feat/contract-document-intake의 입력 검증, OCR 평가,
+재실행 기능은 c3aff0b, 3eb2765, 322120f에 각각 커밋했다. 푸시는 하지 않았다.
+그 이후 추가한 실시간 연결은 별도 미커밋 변경이며 DOCUMENT_AI_LIVE.md를 참조한다.
 
 ## 이번 추가만 되돌리기
 
-미추적 파일이므로 아래 경로만 먼저 미리보기 후 제거한다. 기존 실험은 보존된다.
+재실행 기능 커밋만 취소하려면 미커밋 작업을 먼저 보존하고 아래 명령을 검토한다.
 
 ```powershell
-git clean -n -- ml/document_processing/contracts/lease_pipeline.py tests/document_processing/test_lease_pipeline.py docs/STANDARD_LEASE_PIPELINE.md
-git clean -f -- ml/document_processing/contracts/lease_pipeline.py tests/document_processing/test_lease_pipeline.py docs/STANDARD_LEASE_PIPELINE.md
+git revert 322120f
 ```

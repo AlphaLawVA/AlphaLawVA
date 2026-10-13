@@ -1,4 +1,5 @@
 -r requirements-document-processing.txt
+-r requirements-document-ai.txt
 
 ruff==0.16.4
 jsonschema==4.26.0
