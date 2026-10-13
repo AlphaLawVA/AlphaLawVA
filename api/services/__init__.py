@@ -10,3 +10,20 @@ After:
     - 검색과 데이터 조합 로직을 분리할 서비스 패키지가 제공됨.
 """
 
+from api.services.precedent_case_repository import (
+    DEFAULT_FINAL_CASES_DIR,
+    InvalidPrecedentIdError,
+    PrecedentCaseDataError,
+    PrecedentCaseNotFoundError,
+    PrecedentCaseRepository,
+    PrecedentCaseRepositoryError,
+)
+
+__all__ = [
+    "DEFAULT_FINAL_CASES_DIR",
+    "InvalidPrecedentIdError",
+    "PrecedentCaseDataError",
+    "PrecedentCaseNotFoundError",
+    "PrecedentCaseRepository",
+    "PrecedentCaseRepositoryError",
+]
