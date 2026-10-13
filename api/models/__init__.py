@@ -10,3 +10,44 @@ After:
     - 공개 API 스키마를 관리할 모델 패키지가 제공됨.
 """
 
+from api.models.precedents import (
+    FullTextSection,
+    MatchedChunk,
+    PrecedentDetailResponse,
+    PrecedentFullTextResponse,
+    PrecedentLinks,
+    PrecedentMetadata,
+    PrecedentOfficialFields,
+    PrecedentSearchItem,
+    PrecedentSearchRequest,
+    PrecedentSearchResponse,
+    PrecedentSummaries,
+    SearchQuery,
+    SearchStatus,
+    SimilarityExplanation,
+    SimilarityExplanationMethod,
+    SimilarityExplanationStatus,
+    SummaryPreview,
+    SummarySource,
+)
+
+__all__ = [
+    "FullTextSection",
+    "MatchedChunk",
+    "PrecedentDetailResponse",
+    "PrecedentFullTextResponse",
+    "PrecedentLinks",
+    "PrecedentMetadata",
+    "PrecedentOfficialFields",
+    "PrecedentSearchItem",
+    "PrecedentSearchRequest",
+    "PrecedentSearchResponse",
+    "PrecedentSummaries",
+    "SearchQuery",
+    "SearchStatus",
+    "SimilarityExplanation",
+    "SimilarityExplanationMethod",
+    "SimilarityExplanationStatus",
+    "SummaryPreview",
+    "SummarySource",
+]
