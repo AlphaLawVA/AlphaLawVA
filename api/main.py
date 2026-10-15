@@ -16,6 +16,9 @@ from fastapi.responses import JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
 from api.routers import precedents_router
+from api.services.ollama_similarity_explainer import (
+    create_ollama_similarity_explainer_from_env,
+)
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
     PrecedentCaseDataError,
@@ -148,7 +151,9 @@ def create_app(
     app.state.precedent_search_service = (
         precedent_search_service
         if precedent_search_service is not None
-        else PrecedentSearchService()
+        else PrecedentSearchService(
+            similarity_explainer=create_ollama_similarity_explainer_from_env(),
+        )
     )
     app.include_router(precedents_router)
     app.add_exception_handler(

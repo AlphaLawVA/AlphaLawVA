@@ -20,6 +20,7 @@ from api.services.precedent_case_repository import (
     PrecedentCaseDataError,
     PrecedentCaseNotFoundError,
 )
+from api.services.ollama_similarity_explainer import OllamaSimilarityExplainer
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
@@ -51,6 +52,10 @@ class ApiMainTests(unittest.TestCase):
 
         self.assertIsInstance(service, PrecedentSearchService)
         self.assertFalse(service.retriever.is_loaded)
+        self.assertIsInstance(
+            service.similarity_explainer,
+            OllamaSimilarityExplainer,
+        )
 
     def test_registers_public_error_handlers(self):
         app = create_app(object())

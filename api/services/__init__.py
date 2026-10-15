@@ -18,6 +18,10 @@ from api.services.precedent_case_repository import (
     PrecedentCaseRepository,
     PrecedentCaseRepositoryError,
 )
+from api.services.ollama_similarity_explainer import (
+    OllamaSimilarityExplainer,
+    create_ollama_similarity_explainer_from_env,
+)
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
@@ -36,6 +40,7 @@ from api.services.precedent_search_sessions import (
 __all__ = [
     "DEFAULT_FINAL_CASES_DIR",
     "InvalidPrecedentIdError",
+    "OllamaSimilarityExplainer",
     "PrecedentCaseDataError",
     "PrecedentCaseNotFoundError",
     "PrecedentCaseRepository",
@@ -50,4 +55,5 @@ __all__ = [
     "SearchSessionError",
     "SearchSessionNotFoundError",
     "SimilarityExplainer",
+    "create_ollama_similarity_explainer_from_env",
 ]
