@@ -18,6 +18,7 @@ from unittest.mock import patch
 from ml.evaluation.precedents.evaluate_query_scope_qwen import (
     DEFAULT_DATASET_PATH,
     OUTPUT_SCHEMA,
+    SYSTEM_PROMPTS,
     ClassificationAttempt,
     EvaluationCase,
     OllamaQueryScopeClassifier,
@@ -71,6 +72,23 @@ class PrecedentQueryScopeEvaluationTests(unittest.TestCase):
             user_payload,
             {"user_query": "보증금을 돌려받고 싶어요."},
         )
+        self.assertEqual(
+            request_payload["messages"][0]["content"],
+            SYSTEM_PROMPTS["v2"],
+        )
+
+    def test_keeps_prompt_versions_selectable_for_comparison(self):
+        classifier = OllamaQueryScopeClassifier(
+            model="qwen-test:9b",
+            prompt_version="v1",
+        )
+
+        self.assertEqual(classifier.system_prompt, SYSTEM_PROMPTS["v1"])
+        with self.assertRaisesRegex(ValueError, "프롬프트 버전"):
+            OllamaQueryScopeClassifier(
+                model="qwen-test:9b",
+                prompt_version="unknown",
+            )
 
     def test_rejects_outputs_that_do_not_exactly_match_schema(self):
         self.assertTrue(parse_structured_output('{"in_scope":true}'))
