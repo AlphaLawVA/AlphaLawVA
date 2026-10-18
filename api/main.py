@@ -10,27 +10,37 @@ After:
     - api.main:app으로 서버를 실행하고 판례 API와 상태를 확인할 수 있음.
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
 from api.routers import precedents_router
-from api.services.ollama_similarity_explainer import (
-    create_ollama_similarity_explainer_from_env,
+from api.services.gemini_similarity_explainer import (
+    create_gemini_similarity_explainer_from_env,
 )
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
     PrecedentCaseDataError,
     PrecedentCaseNotFoundError,
 )
+from api.services.precedent_favorites import PrecedentFavoriteNotFoundError
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
+    SimilarityExplanationUnavailableError,
 )
 from api.services.precedent_search_sessions import (
     SearchResultNotFoundError,
     SearchSessionNotFoundError,
+    SimilarityExplanationInProgressError,
+)
+
+
+PRECEDENT_DEMO_PATH = (
+    Path(__file__).resolve().parent / "static" / "precedent_search_demo.html"
 )
 
 
@@ -118,6 +128,39 @@ async def search_result_not_found_error_handler(
     )
 
 
+async def precedent_favorite_not_found_error_handler(
+    _request: Request,
+    _error: PrecedentFavoriteNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.PRECEDENT_FAVORITE_NOT_FOUND,
+        message="요청한 판례 즐겨찾기를 찾을 수 없습니다.",
+    )
+
+
+async def similarity_explanation_in_progress_error_handler(
+    _request: Request,
+    _error: SimilarityExplanationInProgressError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=409,
+        code=ApiErrorCode.SIMILARITY_EXPLANATION_IN_PROGRESS,
+        message="유사성 설명을 이미 생성하고 있습니다.",
+    )
+
+
+async def similarity_explanation_unavailable_error_handler(
+    _request: Request,
+    _error: SimilarityExplanationUnavailableError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=503,
+        code=ApiErrorCode.SIMILARITY_EXPLANATION_UNAVAILABLE,
+        message="유사성 설명 서비스를 사용할 수 없습니다.",
+    )
+
+
 async def precedent_data_error_handler(
     _request: Request,
     _error: PrecedentCaseDataError,
@@ -152,7 +195,7 @@ def create_app(
         precedent_search_service
         if precedent_search_service is not None
         else PrecedentSearchService(
-            similarity_explainer=create_ollama_similarity_explainer_from_env(),
+            similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )
     )
     app.include_router(precedents_router)
@@ -177,6 +220,18 @@ def create_app(
         search_result_not_found_error_handler,
     )
     app.add_exception_handler(
+        PrecedentFavoriteNotFoundError,
+        precedent_favorite_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        SimilarityExplanationInProgressError,
+        similarity_explanation_in_progress_error_handler,
+    )
+    app.add_exception_handler(
+        SimilarityExplanationUnavailableError,
+        similarity_explanation_unavailable_error_handler,
+    )
+    app.add_exception_handler(
         PrecedentCaseDataError,
         precedent_data_error_handler,
     )
@@ -188,6 +243,10 @@ def create_app(
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "AlphaLawVA"}
+
+    @app.get("/demo/precedent-search", include_in_schema=False)
+    def precedent_search_demo() -> FileResponse:
+        return FileResponse(PRECEDENT_DEMO_PATH)
 
     return app
 

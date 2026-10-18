@@ -16,6 +16,8 @@ from collections import Counter
 from unittest.mock import patch
 
 from ml.evaluation.precedents.evaluate_query_scope_qwen import (
+    DECISION_DATASET_PATH,
+    DECISION_OUTPUT_SCHEMA,
     DEFAULT_DATASET_PATH,
     OUTPUT_SCHEMA,
     SYSTEM_PROMPTS,
@@ -101,6 +103,22 @@ class PrecedentQueryScopeEvaluationTests(unittest.TestCase):
         with self.assertRaises(json.JSONDecodeError):
             parse_structured_output("in_scope=true")
 
+    def test_v3_uses_decision_schema_and_rejects_unknown_enum(self):
+        classifier = OllamaQueryScopeClassifier(
+            model="qwen-test:9b",
+            prompt_version="v3",
+        )
+
+        payload = classifier.build_request_payload("전세사기 당했어요.")
+
+        self.assertEqual(payload["format"], DECISION_OUTPUT_SCHEMA)
+        self.assertEqual(
+            parse_structured_output('{"decision":"ALLOW"}', "v3"),
+            "ALLOW",
+        )
+        with self.assertRaisesRegex(ValueError, "enum"):
+            parse_structured_output('{"decision":"UNKNOWN"}', "v3")
+
     @patch(
         "ml.evaluation.precedents.evaluate_query_scope_qwen.urlopen"
     )
@@ -161,6 +179,21 @@ class PrecedentQueryScopeEvaluationTests(unittest.TestCase):
             },
         )
         self.assertEqual(sum(case.expected_in_scope for case in cases), 44)
+
+    def test_v3_dataset_has_four_decisions_and_allow_is_in_scope(self):
+        cases = load_evaluation_cases(DECISION_DATASET_PATH)
+
+        self.assertEqual(len(cases), 60)
+        self.assertEqual(
+            Counter(case.expected_decision for case in cases),
+            {
+                "ALLOW": 24,
+                "NEEDS_CONTEXT": 12,
+                "MIXED_INTENT": 12,
+                "NOT_REAL_ESTATE": 12,
+            },
+        )
+        self.assertEqual(sum(case.expected_in_scope for case in cases), 24)
 
 
 if __name__ == "__main__":

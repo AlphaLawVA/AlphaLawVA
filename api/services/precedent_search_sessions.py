@@ -18,6 +18,10 @@ from dataclasses import dataclass
 from threading import RLock
 from uuid import UUID, uuid4
 
+from api.models.precedents import (
+    SimilarityExplanationMethod,
+    SimilarityExplanationStatus,
+)
 from ml.rag.precedent_retriever import PrecedentSearchResult
 
 
@@ -37,11 +41,81 @@ class SearchResultNotFoundError(SearchSessionError):
     """Raised when a precedent does not belong to a search session."""
 
 
+class SimilarityExplanationInProgressError(SearchSessionError):
+    """Raised when the same search result is already being explained."""
+
+
+@dataclass(frozen=True)
+class SimilarityExplanationSnapshot:
+    status: SimilarityExplanationStatus
+    method: SimilarityExplanationMethod | None = None
+    model: str | None = None
+    matched_reason: str | None = None
+
+
+class SearchResultInteractionState:
+    def __init__(self) -> None:
+        self._snapshot = SimilarityExplanationSnapshot(
+            status=SimilarityExplanationStatus.NOT_GENERATED,
+        )
+        self._lock = RLock()
+
+    def snapshot(self) -> SimilarityExplanationSnapshot:
+        with self._lock:
+            return self._snapshot
+
+    def start_generation(
+        self,
+        method: SimilarityExplanationMethod,
+        model: str,
+    ) -> bool:
+        with self._lock:
+            if self._snapshot.status is SimilarityExplanationStatus.GENERATED:
+                return False
+            if self._snapshot.status is SimilarityExplanationStatus.GENERATING:
+                raise SimilarityExplanationInProgressError(
+                    "유사성 설명을 이미 생성하고 있습니다."
+                )
+            self._snapshot = SimilarityExplanationSnapshot(
+                status=SimilarityExplanationStatus.GENERATING,
+                method=method,
+                model=model,
+            )
+            return True
+
+    def complete_generation(
+        self,
+        method: SimilarityExplanationMethod,
+        model: str,
+        matched_reason: str,
+    ) -> None:
+        with self._lock:
+            self._snapshot = SimilarityExplanationSnapshot(
+                status=SimilarityExplanationStatus.GENERATED,
+                method=method,
+                model=model,
+                matched_reason=matched_reason,
+            )
+
+    def fail_generation(
+        self,
+        method: SimilarityExplanationMethod,
+        model: str,
+    ) -> None:
+        with self._lock:
+            self._snapshot = SimilarityExplanationSnapshot(
+                status=SimilarityExplanationStatus.FAILED,
+                method=method,
+                model=model,
+            )
+
+
 @dataclass(frozen=True)
 class PrecedentSearchSession:
     search_id: UUID
     query: str
     results: tuple[PrecedentSearchResult, ...]
+    interactions: dict[str, SearchResultInteractionState]
     created_at: float
     expires_at: float
 
@@ -78,6 +152,10 @@ class PrecedentSearchSessionStore:
             search_id=uuid4(),
             query=normalized_query,
             results=tuple(results),
+            interactions={
+                result.precedent_id: SearchResultInteractionState()
+                for result in results
+            },
             created_at=now,
             expires_at=now + self.ttl_seconds,
         )
@@ -105,6 +183,21 @@ class PrecedentSearchSessionStore:
         search_id: UUID,
         precedent_id: str,
     ) -> tuple[PrecedentSearchSession, PrecedentSearchResult]:
+        session, result, _interaction = self.get_result_context(
+            search_id,
+            precedent_id,
+        )
+        return session, result
+
+    def get_result_context(
+        self,
+        search_id: UUID,
+        precedent_id: str,
+    ) -> tuple[
+        PrecedentSearchSession,
+        PrecedentSearchResult,
+        SearchResultInteractionState,
+    ]:
         session = self.get(search_id)
         result = next(
             (
@@ -118,7 +211,7 @@ class PrecedentSearchSessionStore:
             raise SearchResultNotFoundError(
                 "해당 검색 결과에 포함되지 않은 판례입니다."
             )
-        return session, result
+        return session, result, session.interactions[precedent_id]
 
     def _prune_expired(self, now: float) -> None:
         expired_ids = [

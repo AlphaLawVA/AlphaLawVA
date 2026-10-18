@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 from uuid import UUID
@@ -20,6 +21,8 @@ from api.models.precedents import (
     FullTextSection,
     MatchedChunk,
     PrecedentDetailResponse,
+    PrecedentFavoriteListResponse,
+    PrecedentFavoriteResponse,
     PrecedentFullTextResponse,
     PrecedentLinks,
     PrecedentMetadata,
@@ -32,18 +35,27 @@ from api.models.precedents import (
     SearchStatus,
     SimilarityExplanation,
     SimilarityExplanationMethod,
-    SimilarityExplanationStatus,
     SummaryPreview,
     SummarySource,
 )
 from api.services.precedent_case_repository import PrecedentCaseRepository
-from api.services.precedent_search_sessions import PrecedentSearchSessionStore
+from api.services.precedent_favorites import (
+    PrecedentFavorite,
+    PrecedentFavoriteStore,
+)
+from api.services.precedent_search_sessions import (
+    SearchResultInteractionState,
+    SimilarityExplanationSnapshot,
+    PrecedentSearchSessionStore,
+)
 from ml.rag.precedent_retriever import (
     BgeM3PrecedentRetriever,
     PrecedentChunkMatch,
     PrecedentSearchResult,
 )
 
+
+logger = logging.getLogger(__name__)
 
 SUMMARY_PREVIEW_MAX_LENGTH = 180
 OFFICIAL_SOURCE_URL = "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq={precedent_id}"
@@ -61,6 +73,10 @@ FULL_TEXT_FIELDS = (
 
 class PrecedentSearchBackendUnavailableError(Exception):
     """Raised when the configured precedent retrieval backend cannot run."""
+
+
+class SimilarityExplanationUnavailableError(Exception):
+    """Raised when no similarity explanation provider is configured."""
 
 
 class PrecedentRetriever(Protocol):
@@ -84,6 +100,9 @@ class QueryScopeGuard(Protocol):
 
 class SimilarityExplainer(Protocol):
     @property
+    def method(self) -> SimilarityExplanationMethod: ...
+
+    @property
     def model_name(self) -> str: ...
 
     def explain(
@@ -102,6 +121,7 @@ class PrecedentSearchService:
         retriever: PrecedentRetriever | None = None,
         repository: PrecedentCaseRepository | None = None,
         sessions: PrecedentSearchSessionStore | None = None,
+        favorites: PrecedentFavoriteStore | None = None,
         scope_guard: QueryScopeGuard | None = None,
         similarity_explainer: SimilarityExplainer | None = None,
     ) -> None:
@@ -110,6 +130,7 @@ class PrecedentSearchService:
             repository if repository is not None else PrecedentCaseRepository()
         )
         self.sessions = sessions if sessions is not None else PrecedentSearchSessionStore()
+        self.favorites = favorites if favorites is not None else PrecedentFavoriteStore()
         self.scope_guard = scope_guard
         self.similarity_explainer = similarity_explainer
 
@@ -161,7 +182,10 @@ class PrecedentSearchService:
         search_id: UUID,
         precedent_id: str,
     ) -> PrecedentDetailResponse:
-        session, result = self.sessions.get_result(search_id, precedent_id)
+        session, result, interaction = self.sessions.get_result_context(
+            search_id,
+            precedent_id,
+        )
         case_data = self.repository.get(precedent_id)
         return PrecedentDetailResponse(
             search_id=search_id,
@@ -169,13 +193,73 @@ class PrecedentSearchService:
             precedent=self._build_metadata(case_data),
             summaries=self._build_summaries(case_data),
             official_fields=self._build_official_fields(case_data),
-            similarity_explanation=self._build_similarity_explanation(
-                query=session.query,
-                case_data=case_data,
+            similarity_explanation=self._build_similarity_explanation_response(
                 matched_chunks=result.matched_chunks,
+                snapshot=interaction.snapshot(),
             ),
-            is_favorited=False,
+            is_favorited=self.favorites.is_favorited(search_id, precedent_id),
             links=self._build_links(precedent_id, search_id=search_id),
+        )
+
+    def generate_similarity_explanation(
+        self,
+        search_id: UUID,
+        precedent_id: str,
+    ) -> SimilarityExplanation:
+        session, result, interaction = self.sessions.get_result_context(
+            search_id,
+            precedent_id,
+        )
+        return self._generate_similarity_explanation(
+            search_id=search_id,
+            query=session.query,
+            result=result,
+            interaction=interaction,
+        )
+
+    def create_favorite(
+        self,
+        search_id: UUID,
+        precedent_id: str,
+    ) -> PrecedentFavoriteResponse:
+        session, result, interaction = self.sessions.get_result_context(
+            search_id,
+            precedent_id,
+        )
+        favorite = self.favorites.create(
+            search_id=search_id,
+            query=session.query,
+            result=result,
+            interaction=interaction,
+        )
+        return self._build_favorite_response(favorite)
+
+    def list_favorites(self) -> PrecedentFavoriteListResponse:
+        favorites = [
+            self._build_favorite_response(favorite)
+            for favorite in self.favorites.list()
+        ]
+        return PrecedentFavoriteListResponse(
+            favorite_count=len(favorites),
+            favorites=favorites,
+        )
+
+    def get_favorite(self, favorite_id: UUID) -> PrecedentFavoriteResponse:
+        return self._build_favorite_response(self.favorites.get(favorite_id))
+
+    def delete_favorite(self, favorite_id: UUID) -> None:
+        self.favorites.delete(favorite_id)
+
+    def generate_favorite_similarity_explanation(
+        self,
+        favorite_id: UUID,
+    ) -> SimilarityExplanation:
+        favorite = self.favorites.get(favorite_id)
+        return self._generate_similarity_explanation(
+            search_id=favorite.search_id,
+            query=favorite.query,
+            result=favorite.result,
+            interaction=favorite.interaction,
         )
 
     def get_full_text(self, precedent_id: str) -> PrecedentFullTextResponse:
@@ -211,47 +295,107 @@ class PrecedentSearchService:
             precedent=self._build_metadata(case_data),
             similarity_score=result.similarity,
             matched_chunk_count=len(result.matched_chunks),
+            matched_chunks=[
+                self._build_matched_chunk(chunk)
+                for chunk in result.matched_chunks
+            ],
             preview=self._build_preview(case_data),
-            is_favorited=False,
+            is_favorited=self.favorites.is_favorited(
+                search_id,
+                result.precedent_id,
+            ),
             links=self._build_links(result.precedent_id, search_id=search_id),
         )
 
-    def _build_similarity_explanation(
+    def _generate_similarity_explanation(
         self,
         *,
+        search_id: UUID,
         query: str,
-        case_data: dict[str, Any],
-        matched_chunks: Sequence[PrecedentChunkMatch],
+        result: PrecedentSearchResult,
+        interaction: SearchResultInteractionState,
     ) -> SimilarityExplanation:
-        chunks = [self._build_matched_chunk(chunk) for chunk in matched_chunks]
         if self.similarity_explainer is None:
-            return SimilarityExplanation(
-                status=SimilarityExplanationStatus.NOT_GENERATED,
-                method=SimilarityExplanationMethod.MATCHED_CHUNKS_ONLY,
-                matched_chunks=chunks,
+            raise SimilarityExplanationUnavailableError(
+                "유사성 설명 모델이 설정되지 않았습니다."
+            )
+
+        case_data = self.repository.get(result.precedent_id)
+        method = self.similarity_explainer.method
+        model = self.similarity_explainer.model_name
+        should_generate = interaction.start_generation(method, model)
+        if not should_generate:
+            return self._build_similarity_explanation_response(
+                matched_chunks=result.matched_chunks,
+                snapshot=interaction.snapshot(),
             )
 
         try:
             reason = self.similarity_explainer.explain(
                 query=query,
                 precedent=case_data,
-                matched_chunks=matched_chunks,
+                matched_chunks=result.matched_chunks,
             ).strip()
             if not reason:
                 raise ValueError("유사성 설명이 비어 있습니다.")
-        except Exception:
-            return SimilarityExplanation(
-                status=SimilarityExplanationStatus.FAILED,
-                method=SimilarityExplanationMethod.LOCAL_LLM,
-                model=self.similarity_explainer.model_name,
-                matched_chunks=chunks,
+        except Exception as error:
+            interaction.fail_generation(method, model)
+            logger.warning(
+                "Precedent similarity explanation failed: "
+                "search_id=%s precedent_id=%s model=%s error_type=%s error=%s",
+                search_id,
+                result.precedent_id,
+                model,
+                type(error).__name__,
+                error,
             )
+        else:
+            interaction.complete_generation(method, model, reason)
+
+        return self._build_similarity_explanation_response(
+            matched_chunks=result.matched_chunks,
+            snapshot=interaction.snapshot(),
+        )
+
+    @classmethod
+    def _build_similarity_explanation_response(
+        cls,
+        *,
+        matched_chunks: Sequence[PrecedentChunkMatch],
+        snapshot: SimilarityExplanationSnapshot,
+    ) -> SimilarityExplanation:
+        chunks = [cls._build_matched_chunk(chunk) for chunk in matched_chunks]
+        method = snapshot.method or SimilarityExplanationMethod.MATCHED_CHUNKS_ONLY
         return SimilarityExplanation(
-            status=SimilarityExplanationStatus.GENERATED,
-            method=SimilarityExplanationMethod.LOCAL_LLM,
-            model=self.similarity_explainer.model_name,
-            matched_reason=reason,
+            status=snapshot.status,
+            method=method,
+            model=snapshot.model,
+            matched_reason=snapshot.matched_reason,
             matched_chunks=chunks,
+        )
+
+    def _build_favorite_response(
+        self,
+        favorite: PrecedentFavorite,
+    ) -> PrecedentFavoriteResponse:
+        precedent_id = favorite.result.precedent_id
+        case_data = self.repository.get(precedent_id)
+        return PrecedentFavoriteResponse(
+            favorite_id=favorite.favorite_id,
+            created_at=favorite.created_at,
+            search_id=favorite.search_id,
+            query=SearchQuery(text=favorite.query),
+            precedent=self._build_metadata(case_data),
+            summaries=self._build_summaries(case_data),
+            official_fields=self._build_official_fields(case_data),
+            similarity_explanation=self._build_similarity_explanation_response(
+                matched_chunks=favorite.result.matched_chunks,
+                snapshot=favorite.interaction.snapshot(),
+            ),
+            links=self._build_favorite_links(
+                favorite.favorite_id,
+                precedent_id,
+            ),
         )
 
     @staticmethod
@@ -334,6 +478,17 @@ class PrecedentSearchService:
         )
         return PrecedentLinks(
             detail=detail,
+            full_text=f"/api/v1/precedents/{precedent_id}/full-text",
+            official_source=OFFICIAL_SOURCE_URL.format(precedent_id=precedent_id),
+        )
+
+    @staticmethod
+    def _build_favorite_links(
+        favorite_id: UUID,
+        precedent_id: str,
+    ) -> PrecedentLinks:
+        return PrecedentLinks(
+            detail=f"/api/v1/precedent-favorites/{favorite_id}",
             full_text=f"/api/v1/precedents/{precedent_id}/full-text",
             official_source=OFFICIAL_SOURCE_URL.format(precedent_id=precedent_id),
         )

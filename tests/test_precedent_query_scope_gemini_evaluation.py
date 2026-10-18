@@ -17,7 +17,10 @@ from unittest.mock import patch
 from ml.evaluation.precedents.evaluate_query_scope_gemini import (
     GeminiQueryScopeClassifier,
 )
-from ml.evaluation.precedents.evaluate_query_scope_qwen import OUTPUT_SCHEMA
+from ml.evaluation.precedents.evaluate_query_scope_qwen import (
+    DECISION_OUTPUT_SCHEMA,
+    OUTPUT_SCHEMA,
+)
 
 
 class FakeHttpResponse:
@@ -95,6 +98,30 @@ class GeminiQueryScopeEvaluationTests(unittest.TestCase):
         self.assertFalse(attempt.format_compliant)
         self.assertEqual(attempt.input_tokens, 500)
         self.assertIn("JSONDecodeError", attempt.error)
+
+    @patch(
+        "ml.evaluation.precedents.evaluate_query_scope_gemini.urlopen"
+    )
+    def test_v3_uses_decision_schema_and_parses_enum(self, mock_urlopen):
+        classifier = GeminiQueryScopeClassifier(
+            api_key="secret-test-key",
+            model="gemini-3.5-flash-lite",
+            prompt_version="v3",
+        )
+        mock_urlopen.return_value = FakeHttpResponse(
+            make_response('{"decision":"NEEDS_CONTEXT"}')
+        )
+
+        attempt = classifier.classify("전세 판례 알려줘.")
+
+        self.assertEqual(attempt.prediction, "NEEDS_CONTEXT")
+        self.assertFalse(attempt.effective_prediction)
+        request = mock_urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(
+            payload["generationConfig"]["responseJsonSchema"],
+            DECISION_OUTPUT_SCHEMA,
+        )
 
     def test_rejects_invalid_configuration(self):
         with self.assertRaises(ValueError):

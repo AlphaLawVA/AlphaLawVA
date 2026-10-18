@@ -19,6 +19,8 @@ from api.models.precedents import (
     FullTextSection,
     MatchedChunk,
     PrecedentDetailResponse,
+    PrecedentFavoriteListResponse,
+    PrecedentFavoriteResponse,
     PrecedentFullTextResponse,
     PrecedentLinks,
     PrecedentMetadata,
@@ -72,6 +74,7 @@ def make_search_item() -> PrecedentSearchItem:
         precedent=make_metadata(),
         similarity_score=0.91,
         matched_chunk_count=2,
+        matched_chunks=[make_chunk()],
         preview=SummaryPreview(
             summary="땅 임대차계약이 묵시적으로 끝난 사건입니다.",
             source=SummarySource.EASY_SUMMARY,
@@ -217,6 +220,60 @@ class PrecedentDetailResponseTests(unittest.TestCase):
                 status=SimilarityExplanationStatus.NOT_GENERATED,
                 method=SimilarityExplanationMethod.LOCAL_LLM,
                 matched_chunks=[make_chunk()],
+            )
+
+    def test_accepts_generating_explanation_without_reason(self):
+        explanation = SimilarityExplanation(
+            status=SimilarityExplanationStatus.GENERATING,
+            method=SimilarityExplanationMethod.LOCAL_LLM,
+            model="local-model",
+            matched_chunks=[make_chunk()],
+        )
+
+        self.assertIsNone(explanation.matched_reason)
+
+    def test_accepts_gemini_generated_explanation(self):
+        explanation = SimilarityExplanation(
+            status=SimilarityExplanationStatus.GENERATED,
+            method=SimilarityExplanationMethod.GEMINI,
+            model="gemini-2.5-flash-lite",
+            matched_reason=(
+                "사용자 상황과 이 판례는 보증금 반환이 문제 된 점에서 유사합니다."
+            ),
+            matched_chunks=[make_chunk()],
+        )
+
+        self.assertEqual(explanation.method, SimilarityExplanationMethod.GEMINI)
+
+
+class PrecedentFavoriteResponseTests(unittest.TestCase):
+    def test_validates_favorite_list_count(self):
+        favorite = PrecedentFavoriteResponse(
+            favorite_id=UUID("22345678-1234-5678-1234-567812345678"),
+            created_at="2026-10-15T00:00:00Z",
+            search_id=SEARCH_ID,
+            query=SearchQuery(text="임대인이 경매를 신청했습니다."),
+            precedent=make_metadata(),
+            summaries=PrecedentSummaries(),
+            official_fields=PrecedentOfficialFields(),
+            similarity_explanation=SimilarityExplanation(
+                status=SimilarityExplanationStatus.NOT_GENERATED,
+                method=SimilarityExplanationMethod.MATCHED_CHUNKS_ONLY,
+                matched_chunks=[make_chunk()],
+            ),
+            links=make_links(),
+        )
+
+        response = PrecedentFavoriteListResponse(
+            favorite_count=1,
+            favorites=[favorite],
+        )
+        self.assertTrue(response.favorites[0].is_favorited)
+
+        with self.assertRaises(ValidationError):
+            PrecedentFavoriteListResponse(
+                favorite_count=0,
+                favorites=[favorite],
             )
 
 

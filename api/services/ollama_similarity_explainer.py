@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import json
 import os
+import unicodedata
 from collections.abc import Sequence
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from api.models.precedents import SimilarityExplanationMethod
 from ml.rag.precedent_retriever import PrecedentChunkMatch
 
 
@@ -32,6 +34,7 @@ DEFAULT_MAX_CHUNKS = 3
 DEFAULT_MAX_CHUNK_CHARS = 1200
 DEFAULT_MAX_SOURCE_CHARS = 1200
 MAX_MATCHED_REASON_CHARS = 500
+MAX_EVIDENCE_CHARS = 320
 
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -39,13 +42,13 @@ OUTPUT_SCHEMA = {
         "user_evidence": {
             "type": "string",
             "minLength": 2,
-            "maxLength": 160,
+            "maxLength": MAX_EVIDENCE_CHARS,
             "description": "사용자 상황에서 공통점을 뒷받침하는 원문 그대로의 구절",
         },
         "precedent_evidence": {
             "type": "string",
             "minLength": 2,
-            "maxLength": 160,
+            "maxLength": MAX_EVIDENCE_CHARS,
             "description": "판례 자료에서 공통점을 뒷받침하는 원문 그대로의 구절",
         },
         "matched_reason": {
@@ -69,13 +72,15 @@ SYSTEM_PROMPT = """당신은 부동산 판례 검색 결과의 유사성을 설�
 1. user_evidence에는 사용자 상황에서 공통점을 입증하는 구절을 원문 그대로 복사합니다.
 2. precedent_evidence에는 판례 자료에서 대응하는 구절을 원문 그대로 복사합니다.
 3. matched_reason은 두 근거 구절에 모두 나타난 공통점만 설명합니다.
-4. 판례에만 있는 상속, 점유, 소멸시효, 절차 등의 내용을 공통점에 넣지 않습니다.
-5. 제공 자료에 없는 사실, 법률, 조문, 사건번호 또는 결론을 만들지 않습니다.
-6. 승소 가능성, 법률 자문, 사용자 사건의 결론을 말하지 않습니다.
-7. matched_reason은 반드시 '사용자 상황과 이 판례는 ... 점에서 유사합니다.'
+4. matched_reason은 공통 사실을 일상적인 표현으로 설명합니다.
+5. 어느 한쪽에만 있는 권리 행사 가능성, 당사자, 상속, 점유, 소멸시효,
+   절차 또는 법률효과를 공통점에 넣지 않습니다.
+6. 제공 자료에 없는 사실, 법률, 조문, 사건번호 또는 결론을 만들지 않습니다.
+7. 승소 가능성, 법률 자문, 사용자 사건의 결론을 말하지 않습니다.
+8. matched_reason은 반드시 '사용자 상황과 이 판례는 ... 점에서 유사합니다.'
    형식의 완결된 한 문장으로 작성합니다.
-8. '반환청구 여부' 같은 제목형 명사구로 끝내지 않습니다.
-9. 출력은 지정된 JSON 스키마를 따릅니다.
+9. '반환청구 여부' 같은 제목형 명사구로 끝내지 않습니다.
+10. 출력은 지정된 JSON 스키마를 따릅니다.
 """
 
 
@@ -116,6 +121,10 @@ class OllamaSimilarityExplainer:
     @property
     def model_name(self) -> str:
         return self._model_name
+
+    @property
+    def method(self) -> SimilarityExplanationMethod:
+        return SimilarityExplanationMethod.LOCAL_LLM
 
     def explain(
         self,
@@ -171,11 +180,14 @@ class OllamaSimilarityExplainer:
         if not isinstance(parsed_content, dict):
             raise ValueError("Ollama 유사성 설명 객체 형식이 올바르지 않습니다.")
 
-        user_evidence = self._compact(parsed_content.get("user_evidence"), 160)
-        precedent_evidence = self._compact(
-            parsed_content.get("precedent_evidence"),
-            160,
+        user_evidence = self._normalize_text(parsed_content.get("user_evidence"))
+        precedent_evidence = self._normalize_text(
+            parsed_content.get("precedent_evidence")
         )
+        if len(user_evidence) > MAX_EVIDENCE_CHARS:
+            raise ValueError("Ollama가 제시한 사용자 근거가 너무 깁니다.")
+        if len(precedent_evidence) > MAX_EVIDENCE_CHARS:
+            raise ValueError("Ollama가 제시한 판례 근거가 너무 깁니다.")
         normalized_query = self._compact(query, 2000)
         precedent_corpus = " ".join(
             [
@@ -183,17 +195,16 @@ class OllamaSimilarityExplainer:
                 *(item["text"] for item in payload["matched_evidence"]),
             ]
         )
-        if not user_evidence or user_evidence not in normalized_query:
+        if not self._contains_evidence(user_evidence, normalized_query):
             raise ValueError("Ollama가 제시한 사용자 근거를 원문에서 확인할 수 없습니다.")
-        if not precedent_evidence or precedent_evidence not in precedent_corpus:
+        if not self._contains_evidence(precedent_evidence, precedent_corpus):
             raise ValueError("Ollama가 제시한 판례 근거를 원문에서 확인할 수 없습니다.")
 
-        reason = self._compact(
-            parsed_content.get("matched_reason"),
-            MAX_MATCHED_REASON_CHARS,
-        )
+        reason = self._normalize_text(parsed_content.get("matched_reason"))
         if not reason:
             raise ValueError("Ollama 유사성 설명이 비어 있습니다.")
+        if len(reason) > MAX_MATCHED_REASON_CHARS:
+            raise ValueError("Ollama 유사성 설명이 너무 깁니다.")
         if len(reason) < 20 or "유사" not in reason:
             raise ValueError("Ollama 유사성 설명이 완결된 비교 문장이 아닙니다.")
         return reason
@@ -240,12 +251,28 @@ class OllamaSimilarityExplainer:
 
     @staticmethod
     def _compact(value: Any, limit: int) -> str:
-        if not isinstance(value, str):
-            return ""
-        normalized = " ".join(value.split())
+        normalized = OllamaSimilarityExplainer._normalize_text(value)
         if len(normalized) <= limit:
             return normalized
         return normalized[: limit - 3].rstrip() + "..."
+
+    @staticmethod
+    def _normalize_text(value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+        return " ".join(value.split())
+
+    @staticmethod
+    def _contains_evidence(evidence: str, corpus: str) -> bool:
+        def alphanumeric_text(value: str) -> str:
+            normalized = unicodedata.normalize("NFKC", value)
+            return "".join(character for character in normalized if character.isalnum())
+
+        normalized_evidence = alphanumeric_text(evidence)
+        return bool(
+            len(normalized_evidence) >= 2
+            and normalized_evidence in alphanumeric_text(corpus)
+        )
 
 
 def create_ollama_similarity_explainer_from_env() -> OllamaSimilarityExplainer | None:

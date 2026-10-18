@@ -18,9 +18,14 @@ from api.services.precedent_case_repository import (
     PrecedentCaseRepository,
     PrecedentCaseRepositoryError,
 )
-from api.services.ollama_similarity_explainer import (
-    OllamaSimilarityExplainer,
-    create_ollama_similarity_explainer_from_env,
+from api.services.gemini_similarity_explainer import (
+    GeminiSimilarityExplainer,
+    create_gemini_similarity_explainer_from_env,
+)
+from api.services.precedent_favorites import (
+    PrecedentFavorite,
+    PrecedentFavoriteNotFoundError,
+    PrecedentFavoriteStore,
 )
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
@@ -28,19 +33,26 @@ from api.services.precedent_search_service import (
     QueryScopeGuard,
     ScopeDecision,
     SimilarityExplainer,
+    SimilarityExplanationUnavailableError,
 )
 from api.services.precedent_search_sessions import (
     PrecedentSearchSession,
     PrecedentSearchSessionStore,
+    SearchResultInteractionState,
     SearchResultNotFoundError,
     SearchSessionError,
     SearchSessionNotFoundError,
+    SimilarityExplanationInProgressError,
+    SimilarityExplanationSnapshot,
 )
 
 __all__ = [
     "DEFAULT_FINAL_CASES_DIR",
     "InvalidPrecedentIdError",
-    "OllamaSimilarityExplainer",
+    "GeminiSimilarityExplainer",
+    "PrecedentFavorite",
+    "PrecedentFavoriteNotFoundError",
+    "PrecedentFavoriteStore",
     "PrecedentCaseDataError",
     "PrecedentCaseNotFoundError",
     "PrecedentCaseRepository",
@@ -51,9 +63,13 @@ __all__ = [
     "PrecedentSearchSessionStore",
     "QueryScopeGuard",
     "ScopeDecision",
+    "SearchResultInteractionState",
     "SearchResultNotFoundError",
     "SearchSessionError",
     "SearchSessionNotFoundError",
     "SimilarityExplainer",
-    "create_ollama_similarity_explainer_from_env",
+    "SimilarityExplanationInProgressError",
+    "SimilarityExplanationSnapshot",
+    "SimilarityExplanationUnavailableError",
+    "create_gemini_similarity_explainer_from_env",
 ]

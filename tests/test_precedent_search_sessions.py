@@ -16,6 +16,11 @@ from api.services.precedent_search_sessions import (
     PrecedentSearchSessionStore,
     SearchResultNotFoundError,
     SearchSessionNotFoundError,
+    SimilarityExplanationInProgressError,
+)
+from api.models.precedents import (
+    SimilarityExplanationMethod,
+    SimilarityExplanationStatus,
 )
 from ml.rag.precedent_retriever import PrecedentSearchResult
 
@@ -95,6 +100,53 @@ class PrecedentSearchSessionStoreTests(unittest.TestCase):
 
         with self.assertRaises(SearchResultNotFoundError):
             self.store.get_result(session.search_id, "222")
+
+    def test_keeps_interaction_state_with_search_result(self):
+        session = self.store.create("보증금 반환", [make_result("111")])
+
+        _, _, interaction = self.store.get_result_context(
+            session.search_id,
+            "111",
+        )
+        self.assertEqual(
+            interaction.snapshot().status,
+            SimilarityExplanationStatus.NOT_GENERATED,
+        )
+
+        self.assertTrue(
+            interaction.start_generation(
+                SimilarityExplanationMethod.GEMINI,
+                "gemini-test-model",
+            )
+        )
+        interaction.complete_generation(
+            SimilarityExplanationMethod.GEMINI,
+            "gemini-test-model",
+            "유사한 이유",
+        )
+
+        snapshot = interaction.snapshot()
+        self.assertEqual(snapshot.status, SimilarityExplanationStatus.GENERATED)
+        self.assertEqual(snapshot.method, SimilarityExplanationMethod.GEMINI)
+        self.assertEqual(snapshot.matched_reason, "유사한 이유")
+
+    def test_rejects_duplicate_generation_while_in_progress(self):
+        session = self.store.create("보증금 반환", [make_result("111")])
+        _, _, interaction = self.store.get_result_context(
+            session.search_id,
+            "111",
+        )
+
+        interaction.start_generation(
+            SimilarityExplanationMethod.GEMINI,
+            "gemini-test-model",
+        )
+
+        with self.assertRaises(SimilarityExplanationInProgressError):
+            interaction.start_generation(
+                SimilarityExplanationMethod.GEMINI,
+                "gemini-test-model",
+            )
 
     def test_rejects_invalid_configuration_and_empty_query(self):
         with self.assertRaises(ValueError):

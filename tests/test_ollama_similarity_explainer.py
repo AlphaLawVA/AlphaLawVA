@@ -168,6 +168,48 @@ class OllamaSimilarityExplainerTests(unittest.TestCase):
             )
 
     @patch("api.services.ollama_similarity_explainer.urlopen")
+    def test_validates_long_exact_evidence_without_truncating_it(self, mock_urlopen):
+        source_evidence = "임대차 종료 후 '보증금'을 반환하지 않았다. " + "가" * 180
+        precedent_evidence = "임대차 종료 후 보증금을 반환하지 않았다 " + "가" * 180
+        chunk = make_chunk(1)
+        chunk = PrecedentChunkMatch(
+            rank=chunk.rank,
+            chunk_id=chunk.chunk_id,
+            distance=chunk.distance,
+            similarity=chunk.similarity,
+            text=source_evidence,
+            chunk_type=chunk.chunk_type,
+            section=chunk.section,
+            section_chunk_index=chunk.section_chunk_index,
+            metadata=chunk.metadata,
+        )
+        mock_urlopen.return_value = FakeHttpResponse(
+            {
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "user_evidence": "보증금을 받지 못했습니다",
+                            "precedent_evidence": precedent_evidence,
+                            "matched_reason": (
+                                "사용자 상황과 이 판례는 임대차 종료 후 보증금을 "
+                                "받지 못한 점에서 유사합니다."
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
+                }
+            }
+        )
+
+        reason = self.explainer.explain(
+            query="보증금을 받지 못했습니다.",
+            precedent=self.precedent,
+            matched_chunks=[chunk],
+        )
+
+        self.assertIn("보증금을 받지 못한", reason)
+
+    @patch("api.services.ollama_similarity_explainer.urlopen")
     def test_wraps_local_ollama_connection_error(self, mock_urlopen):
         mock_urlopen.side_effect = URLError("offline")
 

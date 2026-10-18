@@ -35,10 +35,11 @@ from api.services.gemini_similarity_explainer import (  # noqa: E402
     MODEL_PRICING_USD_PER_MILLION,
 )
 from ml.evaluation.precedents.evaluate_query_scope_qwen import (  # noqa: E402
+    DECISION_DATASET_PATH,
     DEFAULT_DATASET_PATH,
     DEFAULT_OUTPUT_ROOT,
     DEFAULT_PROMPT_VERSION,
-    OUTPUT_SCHEMA,
+    OUTPUT_SCHEMAS,
     SYSTEM_PROMPTS,
     ClassificationAttempt,
     EvaluationCase,
@@ -46,6 +47,7 @@ from ml.evaluation.precedents.evaluate_query_scope_qwen import (  # noqa: E402
     evaluate_model,
     format_rate,
     load_evaluation_cases,
+    parse_structured_output,
     write_outputs,
 )
 from precedents.precedent_config import load_env_file  # noqa: E402
@@ -89,6 +91,7 @@ class GeminiQueryScopeClassifier:
         self.max_output_tokens = max_output_tokens
         self.prompt_version = prompt_version
         self.system_prompt = SYSTEM_PROMPTS[prompt_version]
+        self.output_schema = OUTPUT_SCHEMAS[prompt_version]
 
     def build_request_payload(self, query: str) -> dict[str, Any]:
         """Gemini의 최소 thinking과 JSON Schema 출력 옵션을 고정한다."""
@@ -113,7 +116,7 @@ class GeminiQueryScopeClassifier:
                 "maxOutputTokens": self.max_output_tokens,
                 "thinkingConfig": {"thinkingLevel": "minimal"},
                 "responseMimeType": "application/json",
-                "responseJsonSchema": OUTPUT_SCHEMA,
+                "responseJsonSchema": self.output_schema,
             },
         }
 
@@ -126,7 +129,7 @@ class GeminiQueryScopeClassifier:
             response_payload = self._post_json(self.build_request_payload(query))
             usage = self._extract_usage(response_payload)
             raw_content = self._extract_text(response_payload)
-            prediction = self._parse_structured_output(raw_content)
+            prediction = parse_structured_output(raw_content, self.prompt_version)
         except (RuntimeError, ValueError, json.JSONDecodeError) as error:
             return ClassificationAttempt(
                 prediction=None,
@@ -191,16 +194,6 @@ class GeminiQueryScopeClassifier:
             raise RuntimeError("Gemini 응답에 최종 text part가 없습니다.")
         return "\n".join(texts)
 
-    @staticmethod
-    def _parse_structured_output(raw_content: str) -> bool:
-        parsed = json.loads(raw_content)
-        if not isinstance(parsed, dict) or set(parsed) != {"in_scope"}:
-            raise ValueError("분류 출력 필드가 JSON Schema와 일치하지 않습니다.")
-        prediction = parsed["in_scope"]
-        if type(prediction) is not bool:
-            raise ValueError("in_scope 값이 boolean이 아닙니다.")
-        return prediction
-
     def _extract_usage(self, response_payload: dict[str, Any]) -> dict[str, Any]:
         metadata = response_payload.get("usageMetadata") or {}
         input_tokens = int(metadata.get("promptTokenCount") or 0)
@@ -252,7 +245,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Evaluate Gemini Flash-Lite for precedent query scope.",
     )
-    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
+    parser.add_argument("--dataset", type=Path, default=None)
     parser.add_argument("--model", default=DEFAULT_GEMINI_MODEL)
     parser.add_argument("--gemini-url", default=DEFAULT_GEMINI_BASE_URL)
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
@@ -281,7 +274,12 @@ def main() -> None:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY가 설정되어 있지 않습니다.")
 
-    cases: list[EvaluationCase] = load_evaluation_cases(args.dataset, args.limit)
+    dataset_path = args.dataset or (
+        DECISION_DATASET_PATH
+        if args.prompt_version == "v3"
+        else DEFAULT_DATASET_PATH
+    )
+    cases: list[EvaluationCase] = load_evaluation_cases(dataset_path, args.limit)
     classifier = GeminiQueryScopeClassifier(
         api_key=api_key,
         model=args.model,
@@ -307,11 +305,11 @@ def main() -> None:
         "prompt_version": args.prompt_version,
         "input_price_usd_per_million": pricing[0],
         "output_price_usd_per_million": pricing[1],
-        "schema": OUTPUT_SCHEMA,
+        "schema": classifier.output_schema,
     }
     write_outputs(
         output_dir,
-        args.dataset,
+        dataset_path,
         cases,
         {classifier.model: (attempts, summary)},
         config,

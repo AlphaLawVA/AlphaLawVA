@@ -18,6 +18,7 @@ from pathlib import Path
 from api.models.precedents import (
     PrecedentSearchRequest,
     SearchStatus,
+    SimilarityExplanationMethod,
     SimilarityExplanationStatus,
     SummarySource,
 )
@@ -27,6 +28,7 @@ from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
     ScopeDecision,
+    SimilarityExplanationUnavailableError,
 )
 from ml.rag.precedent_retriever import (
     PrecedentChunkMatch,
@@ -56,11 +58,14 @@ class FailingRetriever:
 
 class FakeExplainer:
     model_name = "local-test-model"
+    method = SimilarityExplanationMethod.GEMINI
 
     def __init__(self, *, should_fail=False):
         self.should_fail = should_fail
+        self.calls = 0
 
     def explain(self, **_kwargs):
+        self.calls += 1
         if self.should_fail:
             raise RuntimeError("local model unavailable")
         return "임대차 종료 시점과 경매 신청이라는 사실관계가 유사합니다."
@@ -202,29 +207,107 @@ class PrecedentSearchServiceTests(unittest.TestCase):
             "precedent:64441:reason:0001",
         )
 
-    def test_detail_uses_optional_local_llm_explainer(self):
-        service, _ = self.make_service(similarity_explainer=FakeExplainer())
+    def test_detail_does_not_call_optional_local_llm_explainer(self):
+        explainer = FakeExplainer()
+        service, _ = self.make_service(similarity_explainer=explainer)
         search_response = service.search(PrecedentSearchRequest(query="경매 신청"))
 
+        detail = service.get_detail(search_response.search_id, "64441")
+
+        explanation = detail.similarity_explanation
+        self.assertEqual(
+            explanation.status,
+            SimilarityExplanationStatus.NOT_GENERATED,
+        )
+        self.assertEqual(explainer.calls, 0)
+
+    def test_explicit_generation_is_cached_for_detail_reuse(self):
+        explainer = FakeExplainer()
+        service, _ = self.make_service(similarity_explainer=explainer)
+        search_response = service.search(PrecedentSearchRequest(query="경매 신청"))
+
+        first = service.generate_similarity_explanation(
+            search_response.search_id,
+            "64441",
+        )
+        second = service.generate_similarity_explanation(
+            search_response.search_id,
+            "64441",
+        )
         detail = service.get_detail(search_response.search_id, "64441")
 
         explanation = detail.similarity_explanation
         self.assertEqual(explanation.status, SimilarityExplanationStatus.GENERATED)
         self.assertEqual(explanation.model, "local-test-model")
+        self.assertEqual(explanation.method, SimilarityExplanationMethod.GEMINI)
         self.assertIn("사실관계", explanation.matched_reason)
+        self.assertEqual(first.matched_reason, second.matched_reason)
+        self.assertEqual(second.matched_reason, explanation.matched_reason)
+        self.assertEqual(explainer.calls, 1)
 
-    def test_detail_reports_local_llm_failure_without_hiding_chunks(self):
+    def test_explicit_generation_reports_failure_without_hiding_chunks(self):
         service, _ = self.make_service(
             similarity_explainer=FakeExplainer(should_fail=True)
         )
         search_response = service.search(PrecedentSearchRequest(query="경매 신청"))
 
-        detail = service.get_detail(search_response.search_id, "64441")
+        with self.assertLogs(
+            "api.services.precedent_search_service",
+            level="WARNING",
+        ):
+            explanation = service.generate_similarity_explanation(
+                search_response.search_id,
+                "64441",
+            )
 
-        explanation = detail.similarity_explanation
         self.assertEqual(explanation.status, SimilarityExplanationStatus.FAILED)
         self.assertIsNone(explanation.matched_reason)
         self.assertEqual(len(explanation.matched_chunks), 1)
+
+    def test_generation_requires_configured_explainer(self):
+        service, _ = self.make_service()
+        search_response = service.search(PrecedentSearchRequest(query="경매 신청"))
+
+        with self.assertRaises(SimilarityExplanationUnavailableError):
+            service.generate_similarity_explanation(
+                search_response.search_id,
+                "64441",
+            )
+
+    def test_favorite_before_generation_reuses_later_explanation(self):
+        explainer = FakeExplainer()
+        service, _ = self.make_service(similarity_explainer=explainer)
+        search_response = service.search(PrecedentSearchRequest(query="경매 신청"))
+
+        favorite = service.create_favorite(search_response.search_id, "64441")
+        self.assertEqual(
+            favorite.similarity_explanation.status,
+            SimilarityExplanationStatus.NOT_GENERATED,
+        )
+        self.assertTrue(
+            service.get_detail(
+                search_response.search_id,
+                "64441",
+            ).is_favorited
+        )
+
+        generated = service.generate_favorite_similarity_explanation(
+            favorite.favorite_id
+        )
+        favorite_detail = service.get_favorite(favorite.favorite_id)
+        search_detail = service.get_detail(search_response.search_id, "64441")
+
+        self.assertEqual(generated.status, SimilarityExplanationStatus.GENERATED)
+        self.assertEqual(
+            favorite_detail.similarity_explanation.matched_reason,
+            search_detail.similarity_explanation.matched_reason,
+        )
+        self.assertEqual(
+            favorite_detail.links.detail,
+            f"/api/v1/precedent-favorites/{favorite.favorite_id}",
+        )
+        self.assertEqual(service.list_favorites().favorite_count, 1)
+        self.assertEqual(explainer.calls, 1)
 
     def test_full_text_omits_empty_sections_and_keeps_official_fields(self):
         service, _ = self.make_service()

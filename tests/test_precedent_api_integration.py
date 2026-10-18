@@ -19,6 +19,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from api.main import create_app
+from api.models.precedents import SimilarityExplanationMethod
 from api.services.precedent_case_repository import PrecedentCaseRepository
 from api.services.precedent_search_service import PrecedentSearchService
 from ml.rag.precedent_retriever import (
@@ -71,6 +72,18 @@ class FailingRetriever:
         raise FileNotFoundError(f"missing vector DB for top_k={top_k}")
 
 
+class FakeExplainer:
+    model_name = "local-test-model"
+    method = SimilarityExplanationMethod.GEMINI
+
+    def __init__(self):
+        self.calls = 0
+
+    def explain(self, **_kwargs):
+        self.calls += 1
+        return "사용자 상황과 이 판례는 임대차 종료가 문제 된 점에서 유사합니다."
+
+
 class PrecedentApiIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -101,9 +114,11 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         )
         self.repository = PrecedentCaseRepository(self.cases_dir)
         self.retriever = FakeRetriever()
+        self.explainer = FakeExplainer()
         service = PrecedentSearchService(
             retriever=self.retriever,
             repository=self.repository,
+            similarity_explainer=self.explainer,
         )
         self.client = TestClient(create_app(service))
 
@@ -124,6 +139,10 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         self.assertEqual(
             search_payload["results"][0]["preview"]["source"],
             "easy_summary",
+        )
+        self.assertEqual(
+            search_payload["results"][0]["matched_chunks"][0]["chunk_id"],
+            "precedent:64441:reason:0001",
         )
         self.assertEqual(
             self.retriever.calls,
@@ -164,6 +183,68 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
             )
         )
 
+    def test_favorite_can_generate_and_reuse_similarity_explanation(self):
+        search_payload = self.client.post(
+            "/api/v1/precedent-searches",
+            json={"query": "임대인이 경매를 신청했습니다."},
+        ).json()
+        search_id = search_payload["search_id"]
+
+        favorite_response = self.client.post(
+            "/api/v1/precedent-favorites",
+            json={"search_id": search_id, "precedent_id": "64441"},
+        )
+        self.assertEqual(favorite_response.status_code, 200)
+        favorite_payload = favorite_response.json()
+        favorite_id = favorite_payload["favorite_id"]
+        self.assertEqual(
+            favorite_payload["similarity_explanation"]["status"],
+            "not_generated",
+        )
+
+        generated_response = self.client.post(
+            f"/api/v1/precedent-favorites/{favorite_id}"
+            "/similarity-explanation"
+        )
+        self.assertEqual(generated_response.status_code, 200)
+        generated_payload = generated_response.json()
+        self.assertEqual(generated_payload["status"], "generated")
+
+        repeated_response = self.client.post(
+            f"/api/v1/precedent-searches/{search_id}/results/64441"
+            "/similarity-explanation"
+        )
+        self.assertEqual(repeated_response.status_code, 200)
+        self.assertEqual(
+            repeated_response.json()["matched_reason"],
+            generated_payload["matched_reason"],
+        )
+        self.assertEqual(self.explainer.calls, 1)
+
+        detail_payload = self.client.get(
+            f"/api/v1/precedent-searches/{search_id}/results/64441"
+        ).json()
+        favorite_list = self.client.get("/api/v1/precedent-favorites").json()
+        self.assertTrue(detail_payload["is_favorited"])
+        self.assertEqual(favorite_list["favorite_count"], 1)
+        self.assertEqual(
+            favorite_list["favorites"][0]["similarity_explanation"][
+                "matched_reason"
+            ],
+            generated_payload["matched_reason"],
+        )
+
+        deleted = self.client.delete(
+            f"/api/v1/precedent-favorites/{favorite_id}"
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(
+            self.client.get("/api/v1/precedent-favorites").json()[
+                "favorite_count"
+            ],
+            0,
+        )
+
     def test_validation_error_uses_public_error_shape(self):
         response = self.client.post(
             "/api/v1/precedent-searches",
@@ -181,6 +262,9 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         missing_case = self.client.get("/api/v1/precedents/99999/full-text")
         missing_session = self.client.get(
             f"/api/v1/precedent-searches/{uuid4()}/results/64441"
+        )
+        missing_favorite = self.client.get(
+            f"/api/v1/precedent-favorites/{uuid4()}"
         )
         search_payload = self.client.post(
             "/api/v1/precedent-searches",
@@ -210,6 +294,32 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         self.assertEqual(
             missing_result.json()["error"]["code"],
             "search_result_not_found",
+        )
+        self.assertEqual(missing_favorite.status_code, 404)
+        self.assertEqual(
+            missing_favorite.json()["error"]["code"],
+            "precedent_favorite_not_found",
+        )
+
+    def test_similarity_generation_requires_configured_provider(self):
+        service = PrecedentSearchService(
+            retriever=FakeRetriever(),
+            repository=self.repository,
+        )
+        with TestClient(create_app(service)) as client:
+            search_payload = client.post(
+                "/api/v1/precedent-searches",
+                json={"query": "보증금 반환"},
+            ).json()
+            response = client.post(
+                f"/api/v1/precedent-searches/{search_payload['search_id']}"
+                "/results/64441/similarity-explanation"
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["error"]["code"],
+            "similarity_explanation_unavailable",
         )
 
     def test_damaged_case_data_returns_503_without_internal_details(self):
@@ -251,6 +361,17 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         self.assertIn("/api/v1/precedent-searches", paths)
         self.assertIn(
             "/api/v1/precedent-searches/{search_id}/results/{precedent_id}",
+            paths,
+        )
+        self.assertIn(
+            "/api/v1/precedent-searches/{search_id}/results/{precedent_id}"
+            "/similarity-explanation",
+            paths,
+        )
+        self.assertIn("/api/v1/precedent-favorites", paths)
+        self.assertIn("/api/v1/precedent-favorites/{favorite_id}", paths)
+        self.assertIn(
+            "/api/v1/precedent-favorites/{favorite_id}/similarity-explanation",
             paths,
         )
         self.assertIn("/api/v1/precedents/{precedent_id}/full-text", paths)

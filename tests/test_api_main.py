@@ -10,9 +10,12 @@ After:
     - 앱 생성 시 경로·서비스 상태·오류 처리 등록과 지연 로딩이 검증됨.
 """
 
+import os
 import unittest
+from unittest.mock import patch
 
 from fastapi.exceptions import RequestValidationError
+from fastapi.testclient import TestClient
 
 from api.main import create_app
 from api.services.precedent_case_repository import (
@@ -20,14 +23,17 @@ from api.services.precedent_case_repository import (
     PrecedentCaseDataError,
     PrecedentCaseNotFoundError,
 )
-from api.services.ollama_similarity_explainer import OllamaSimilarityExplainer
+from api.services.gemini_similarity_explainer import GeminiSimilarityExplainer
+from api.services.precedent_favorites import PrecedentFavoriteNotFoundError
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
+    SimilarityExplanationUnavailableError,
 )
 from api.services.precedent_search_sessions import (
     SearchResultNotFoundError,
     SearchSessionNotFoundError,
+    SimilarityExplanationInProgressError,
 )
 
 
@@ -44,17 +50,25 @@ class ApiMainTests(unittest.TestCase):
             "/api/v1/precedent-searches/{search_id}/results/{precedent_id}",
             paths,
         )
+        self.assertIn("/api/v1/precedent-favorites", paths)
         self.assertIn("/api/v1/precedents/{precedent_id}/full-text", paths)
 
     def test_default_service_keeps_embedding_model_lazy(self):
-        app = create_app()
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "test-key",
+                "PRECEDENT_SIMILARITY_GEMINI_MODEL": "gemini-3.5-flash-lite",
+            },
+        ):
+            app = create_app()
         service = app.state.precedent_search_service
 
         self.assertIsInstance(service, PrecedentSearchService)
         self.assertFalse(service.retriever.is_loaded)
         self.assertIsInstance(
             service.similarity_explainer,
-            OllamaSimilarityExplainer,
+            GeminiSimilarityExplainer,
         )
 
     def test_registers_public_error_handlers(self):
@@ -66,11 +80,22 @@ class ApiMainTests(unittest.TestCase):
             PrecedentCaseNotFoundError,
             SearchSessionNotFoundError,
             SearchResultNotFoundError,
+            PrecedentFavoriteNotFoundError,
+            SimilarityExplanationInProgressError,
+            SimilarityExplanationUnavailableError,
             PrecedentCaseDataError,
             PrecedentSearchBackendUnavailableError,
         ):
             with self.subTest(error_type=error_type):
                 self.assertIn(error_type, app.exception_handlers)
+
+    def test_serves_precedent_search_demo(self):
+        response = TestClient(create_app(object())).get("/demo/precedent-search")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("text/html"))
+        self.assertIn("AlphaLawVA 판례 검색", response.text)
+        self.assertIn("/api/v1/precedent-searches", response.text)
 
 
 if __name__ == "__main__":

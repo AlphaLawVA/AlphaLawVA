@@ -25,8 +25,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from api.models.precedents import PrecedentSearchRequest  # noqa: E402
-from api.services.ollama_similarity_explainer import (  # noqa: E402
-    create_ollama_similarity_explainer_from_env,
+from api.services.gemini_similarity_explainer import (  # noqa: E402
+    create_gemini_similarity_explainer_from_env,
 )
 from api.services.precedent_search_service import (  # noqa: E402
     PrecedentSearchService,
@@ -92,6 +92,12 @@ def print_query_results(
         precedent = item.precedent
         detail = service.get_detail(response.search_id, precedent.precedent_id)
         best_chunk = detail.similarity_explanation.matched_chunks[0]
+        explanation = detail.similarity_explanation
+        if service.similarity_explainer is not None:
+            explanation = service.generate_similarity_explanation(
+                response.search_id,
+                precedent.precedent_id,
+            )
 
         print("-" * 88)
         print(
@@ -112,7 +118,7 @@ def print_query_results(
         )
         print(
             "   유사한 이유: "
-            f"{compact(detail.similarity_explanation.matched_reason)}"
+            f"{compact(explanation.matched_reason)}"
         )
         print(f"   공식 원문: {item.links.official_source}")
 
@@ -124,7 +130,7 @@ def main() -> None:
 
     queries = args.queries or QUESTIONS
     service = PrecedentSearchService(
-        similarity_explainer=create_ollama_similarity_explainer_from_env(),
+        similarity_explainer=create_gemini_similarity_explainer_from_env(),
     )
     for query in queries:
         print_query_results(service, query, args.top_k)

@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
@@ -39,12 +40,14 @@ class SummarySource(str, Enum):
 
 class SimilarityExplanationStatus(str, Enum):
     GENERATED = "generated"
+    GENERATING = "generating"
     NOT_GENERATED = "not_generated"
     FAILED = "failed"
 
 
 class SimilarityExplanationMethod(str, Enum):
     LOCAL_LLM = "local_llm"
+    GEMINI = "gemini"
     MATCHED_CHUNKS_ONLY = "matched_chunks_only"
 
 
@@ -148,6 +151,10 @@ class PrecedentSearchItem(ApiModel):
         ge=1,
         description="해당 판례에 묶인 검색 적중 청크 수",
     )
+    matched_chunks: list[MatchedChunk] = Field(
+        min_length=1,
+        description="목록에서 즉시 확인할 수 있는 실제 검색 적중 청크",
+    )
     preview: SummaryPreview
     is_favorited: bool = Field(
         default=False,
@@ -239,7 +246,7 @@ class SimilarityExplanation(ApiModel):
     model: str | None = Field(
         default=None,
         min_length=1,
-        description="설명을 생성한 로컬 LLM 식별자",
+        description="설명을 생성한 LLM 식별자",
     )
     matched_reason: str | None = Field(
         default=None,
@@ -254,8 +261,11 @@ class SimilarityExplanation(ApiModel):
     @model_validator(mode="after")
     def validate_generation_state(self) -> SimilarityExplanation:
         if self.status is SimilarityExplanationStatus.GENERATED:
-            if self.method is not SimilarityExplanationMethod.LOCAL_LLM:
-                raise ValueError("generated 상태의 method는 local_llm이어야 합니다.")
+            if self.method not in {
+                SimilarityExplanationMethod.LOCAL_LLM,
+                SimilarityExplanationMethod.GEMINI,
+            }:
+                raise ValueError("generated 상태에는 LLM 생성 method가 필요합니다.")
             if not self.model or not self.matched_reason:
                 raise ValueError(
                     "generated 상태에는 model과 matched_reason이 필요합니다."
@@ -270,10 +280,19 @@ class SimilarityExplanation(ApiModel):
                     "not_generated 상태의 model과 matched_reason은 null이어야 합니다."
                 )
         else:
-            if self.method is not SimilarityExplanationMethod.LOCAL_LLM:
-                raise ValueError("failed 상태의 method는 local_llm이어야 합니다.")
+            if self.method not in {
+                SimilarityExplanationMethod.LOCAL_LLM,
+                SimilarityExplanationMethod.GEMINI,
+            }:
+                raise ValueError("generating 또는 failed 상태에는 LLM method가 필요합니다.")
+            if not self.model:
+                raise ValueError(
+                    "generating 또는 failed 상태에는 model이 필요합니다."
+                )
             if self.matched_reason is not None:
-                raise ValueError("failed 상태의 matched_reason은 null이어야 합니다.")
+                raise ValueError(
+                    "generating 또는 failed 상태의 matched_reason은 null이어야 합니다."
+                )
         return self
 
 
@@ -306,3 +325,35 @@ class PrecedentFullTextResponse(ApiModel):
         description="주문·청구취지·원심판결·이유 등 표시 가능한 원문 섹션"
     )
     links: PrecedentLinks
+
+
+class PrecedentFavoriteCreateRequest(ApiModel):
+    search_id: UUID = Field(description="즐겨찾기에 보관할 검색 세션 식별자")
+    precedent_id: str = Field(
+        min_length=1,
+        description="검색 결과에 포함된 국가법령정보센터 판례일련번호",
+    )
+
+
+class PrecedentFavoriteResponse(ApiModel):
+    favorite_id: UUID
+    created_at: datetime
+    search_id: UUID
+    query: SearchQuery
+    precedent: PrecedentMetadata
+    summaries: PrecedentSummaries
+    official_fields: PrecedentOfficialFields
+    similarity_explanation: SimilarityExplanation
+    is_favorited: bool = True
+    links: PrecedentLinks
+
+
+class PrecedentFavoriteListResponse(ApiModel):
+    favorite_count: int = Field(ge=0)
+    favorites: list[PrecedentFavoriteResponse]
+
+    @model_validator(mode="after")
+    def validate_favorite_count(self) -> PrecedentFavoriteListResponse:
+        if self.favorite_count != len(self.favorites):
+            raise ValueError("favorite_count는 favorites 길이와 같아야 합니다.")
+        return self

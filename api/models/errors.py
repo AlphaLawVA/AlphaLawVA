@@ -23,6 +23,9 @@ class ApiErrorCode(str, Enum):
     PRECEDENT_NOT_FOUND = "precedent_not_found"
     SEARCH_SESSION_NOT_FOUND = "search_session_not_found"
     SEARCH_RESULT_NOT_FOUND = "search_result_not_found"
+    PRECEDENT_FAVORITE_NOT_FOUND = "precedent_favorite_not_found"
+    SIMILARITY_EXPLANATION_IN_PROGRESS = "similarity_explanation_in_progress"
+    SIMILARITY_EXPLANATION_UNAVAILABLE = "similarity_explanation_unavailable"
     PRECEDENT_DATA_UNAVAILABLE = "precedent_data_unavailable"
     SEARCH_BACKEND_UNAVAILABLE = "search_backend_unavailable"
 
