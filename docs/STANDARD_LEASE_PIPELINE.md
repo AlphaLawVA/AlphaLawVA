@@ -1,8 +1,8 @@
-# 표준임대차 재실행 파이프라인
+# 표준계약서 재실행 파이프라인
 
 현재 단계는 합성자료의 저장된 Google OCR 결과를 처리하는 로컬 CLI다.
-법무부 표준임대차 본문 1~3페이지의 전세/월세만 지원한다. 매매와 다른
-임대차 양식은 기존 실험을 보존하되 이 진입점에서는 지원하지 않는다.
+법무부 표준임대차 본문 1~3페이지의 전세/월세와 서울중앙지방법원 일반형
+매매계약서 1~3페이지를 지원한다. 그 밖의 양식은 지원하지 않는다.
 
 ## 실행
 
@@ -10,7 +10,7 @@
 .venv/Scripts/python.exe -m ml.document_processing.contracts.lease_pipeline --ocr-json C:/Users/oes05/Downloads/jeonse_document.json --contract-type jeonse --synthetic-only --output output/document_processing/lease_pipeline_v01/jeonse.json
 ```
 
-월세는 contract-type을 monthly_rent로 바꾸고 해당 JSON을 지정한다.
+월세는 contract-type을 monthly_rent, 매매는 sale로 바꾸고 해당 JSON을 지정한다.
 결과 파일이 이미 존재하면 덮어쓰지 않으므로 새 출력 경로를 사용한다.
 입력은 읽기만 하며, 골드셋을 로드하거나 외부 API를 호출하지 않는다.
 
@@ -32,10 +32,8 @@ Google OCR 시간을 복원할 수 없다. local_total_excluding_output_write는
 
 ## 이번 검증
 
-- 전세/월세 저장 JSON 실제 재실행 성공, 기존 전세 입력 해시 일치 확인.
-- OCR 테스트 12개를 unittest.TestCase로 변환해 CI 자동 수집에 포함했다.
-  검증 조건은 유지했고, CI와 같은 전체 discovery 명령으로 168개가
-  건너뛰기 없이 통과했다(로컬 실행; GitHub 원격 실행은 아직 하지 않음).
+- 전세/월세/매매 저장 JSON 실제 재실행과 양식별 표제 검사를 확인했다.
+- OCR 테스트를 unittest.TestCase로 구성해 CI 자동 수집에 포함했다.
 - 기존 합성 텍스트 PDF를 tests/document_processing/fixtures/로 분리했다.
   이제 PDF 통합 테스트는 로컬 output 파일에 의존하지 않으며 fixture가
   없으면 건너뛰지 않고 실패한다.
@@ -44,27 +42,12 @@ Google OCR 시간을 복원할 수 없다. local_total_excluding_output_write는
 
 ## 남은 작업
 
-- Google 실시간 연결은 [별도 CLI](DOCUMENT_AI_LIVE.md)로 추가했다.
-  명시적 버전, 승인 분리, 요청 시간, 캐시와 중복 요청 차단을 제공한다.
-  실제 인증 및 유료 호출 통합 검증은 아직 수행하지 않았다.
-- 비용/데이터 전송 승인 후 합성자료 소량 호출 검증.
+- Google 실시간 연결은 [별도 CLI](DOCUMENT_AI_LIVE.md)로 추가했고 합성자료
+  3건으로 실제 인증과 호출을 검증했다.
 - 독립적인 같은 양식 새 작성본 검증, 사용자 확인 API/UI.
+- 등기사항전부증명서는 별도 구조화 파이프라인으로 구현한다.
 - 실제 문서용 개인정보 처리, 암호화 저장, 접근 제어와 폐기 정책 구현.
 
 합성자료 전용 플래그는 사용자의 선언이며 실제 개인정보가 없는지 증명하지
 않는다. 현재 로컬 JSON 출력은 암호화 저장소가 아니다. 원본 JSON을 그대로
 결과에 복사하지 않지만 실제 문서 개인정보 보호를 보장하지 않는다.
-
-## 브랜치와 커밋
-
-2026-10-06 기준 feat/contract-document-intake의 입력 검증, OCR 평가,
-재실행 기능은 c3aff0b, 3eb2765, 322120f에 각각 커밋했다. 푸시는 하지 않았다.
-그 이후 추가한 실시간 연결은 별도 미커밋 변경이며 DOCUMENT_AI_LIVE.md를 참조한다.
-
-## 이번 추가만 되돌리기
-
-재실행 기능 커밋만 취소하려면 미커밋 작업을 먼저 보존하고 아래 명령을 검토한다.
-
-```powershell
-git revert 322120f
-```

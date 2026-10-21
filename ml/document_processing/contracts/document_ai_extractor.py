@@ -241,24 +241,53 @@ def special_terms(lines, sale, warnings, tokens=None):
             active = [Line(line.text[match.end() :], line.page, line.box)]
         elif active:
             if re.match(r"^[가-힣]{1,2}\s*[.]\s+\S", line.text):
-                warnings.append(
-                    "special_term_unassigned: 번호 판독 불가 원문=" + line.text
-                )
                 blocks.append((number, active))
+                blocks.append((None, [line]))
                 active = []
                 number = None
                 continue
             active.append(line)
     if active:
         blocks.append((number, active))
+    for index, (item_number, item_lines) in enumerate(blocks):
+        if item_number is not None:
+            continue
+        previous = blocks[index - 1][0] if index else None
+        following = blocks[index + 1][0] if index + 1 < len(blocks) else None
+        if previous is not None and following == previous + 2:
+            inferred = previous + 1
+            blocks[index] = (inferred, item_lines)
+            warnings.append(
+                "special_term_inferred_order: "
+                f"번호 판독 실패 항목을 {inferred}번 후보로 보존; 원문="
+                + joined(item_lines)
+            )
+        else:
+            warnings.append(
+                "special_term_unassigned: 번호 판독 불가 원문="
+                + joined(item_lines)
+            )
     if [n for n, _ in blocks] != list(range(1, len(blocks) + 1)):
         warnings.append(
             "special_term_numbering: 특약 번호 누락/순서 이상; 원문 확인 필요"
         )
     return [
-        {"item_order": n, "original_text": joined(ls).strip(), "source": source(ls)}
+        {
+            "item_order": n,
+            "original_text": joined(ls).strip(),
+            "source": source(ls),
+            **(
+                {"confidence": 0.0}
+                if any(
+                    warning.startswith("special_term_inferred_order:")
+                    and f"{n}번 후보" in warning
+                    for warning in warnings
+                )
+                else {}
+            ),
+        }
         for n, ls in blocks
-        if joined(ls).strip()
+        if n is not None and joined(ls).strip()
     ]
 
 
@@ -300,7 +329,17 @@ def brokers_from_lines(lines):
                 if continuation:
                     value += compact(continuation.text)
                     group.append(continuation)
-            broker["office_registration_number"] = field(value, group)
+            registration_field = field(value, group)
+            if value:
+                missing_separator = re.fullmatch(
+                    r"가상([가-힣]+)-(\d{4}-\d+)", value
+                )
+                if missing_separator:
+                    registration_field["value"] = (
+                        f"가상-{missing_separator[1]}-{missing_separator[2]}"
+                    )
+                    registration_field["status"] = "ambiguous"
+            broker["office_registration_number"] = registration_field
         representative = next(
             (
                 item
@@ -314,9 +353,71 @@ def brokers_from_lines(lines):
             if match:
                 broker["broker_in_charge"] = field(match[1], [representative])
         brokers.append(broker)
-    return sorted(
+    brokers = sorted(
         brokers, key=lambda b: b["office_name"]["source"]["bounding_box"]["x_min"]
     )
+    by_office = {}
+    for broker in brokers:
+        office = broker["office_name"].get("value")
+        registration = broker.get("office_registration_number", {}).get("value")
+        if office and registration:
+            by_office.setdefault(office, []).append((broker, registration))
+    for duplicates in by_office.values():
+        registrations = [value for _, value in duplicates]
+        longest = max(registrations, key=len)
+        if all(longest.startswith(value) for value in registrations):
+            for broker, value in duplicates:
+                if value != longest:
+                    broker["office_registration_number"]["value"] = longest
+                    broker["office_registration_number"]["status"] = "ambiguous"
+    return brokers
+
+
+def lease_disclosures(lines):
+    result = {}
+    tax = next((item for item in lines if "미납국세·지방세" in compact(item.text)), None)
+    if tax:
+        candidates = [
+            item
+            for item in lines
+            if tax.cy < item.cy < tax.cy + 0.035 and item.box[0] < 0.35
+        ]
+        no_arrears = next(
+            (item for item in candidates if "없음" in compact(item.text)), None
+        )
+        if no_arrears and re.search(r"[✓✔☑]", no_arrears.text):
+            result["tax_arrears"] = field("없음", [tax, no_arrears])
+        elif candidates:
+            result["tax_arrears"] = {
+                "value": None,
+                "raw_text": joined([tax, *candidates]),
+                "status": "ambiguous",
+                "source": source([tax, *candidates]),
+            }
+
+    senior = next(
+        (item for item in lines if "선순위확정일자현황" in compact(item.text)), None
+    )
+    if senior:
+        candidates = [
+            item
+            for item in lines
+            if senior.cy < item.cy < senior.cy + 0.035
+            and 0.35 < item.box[0] < 0.75
+        ]
+        none = next(
+            (item for item in candidates if "해당없음" in compact(item.text)), None
+        )
+        if none:
+            result["senior_deposit_status"] = field("해당 없음", [senior, none])
+        elif candidates:
+            result["senior_deposit_status"] = {
+                "value": None,
+                "raw_text": joined([senior, *candidates]),
+                "status": "ambiguous",
+                "source": source([senior, *candidates]),
+            }
+    return result
 
 
 def sale_articles(lines):
@@ -396,13 +497,22 @@ def extract_document_ai(document, contract_type):
         value = None
         if match:
             raw = compact(match[0])
-            if "," in raw:
+            if re.fullmatch(r"\d+,\d{2}", raw):
+                value = float(raw.replace(",", "."))
+                warnings.append(
+                    "area_separator_normalized: 면적 쉼표를 소수점 후보로 변환; "
+                    "원문 확인 필요"
+                )
+            elif "," in raw:
                 warnings.append("area_separator: 면적의 쉼표/소수점 확인 필요")
             else:
                 value = float(raw)
                 if value > 1000:
                     warnings.append("area_scale: 큰 면적 값; 단위 및 소수점 확인 필요")
-        areas.append(field(value, group))
+        area_field = field(value, group)
+        if value is not None and re.search(r"\d+,\d{2}", compact(joined(group))):
+            area_field["status"] = "ambiguous"
+        areas.append(area_field)
     if sale:
         prop["building_area_m2"] = areas[0] if areas else field(None, [])
     else:
@@ -512,7 +622,7 @@ def extract_document_ai(document, contract_type):
             third, sale, warnings, load_lines(document, "tokens")
         ),
         "brokers": [] if sale else brokers_from_lines(third),
-        "disclosures": {},
+        "disclosures": {} if sale else lease_disclosures(first),
         "warnings": warnings,
     }
     if sale:

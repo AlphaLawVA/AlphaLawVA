@@ -1,6 +1,6 @@
 # test_lease_pipeline.py
 """
-Description: 표준임대차 재실행 파이프라인의 입력 제한 및 확인 목록을 검사한다.
+Description: 표준 임대차·매매 재실행 파이프라인의 입력 제한 및 확인 목록을 검사한다.
 Author: ooheunsu
 Date: 2026-10-06
 Before:
@@ -10,6 +10,9 @@ After:
 """
 
 import unittest
+from unittest.mock import patch
+
+from ml.document_processing.contracts.document_ai_extractor import Line
 
 from ml.document_processing.contracts.lease_pipeline import (
     UnsupportedLeaseInput,
@@ -25,9 +28,9 @@ class LeasePipelineTests(unittest.TestCase):
             with self.assertRaises(UnsupportedLeaseInput):
                 validate_template(document)
 
-    def test_sale_rejected_before_file_access(self):
+    def test_unknown_contract_type_rejected_before_file_access(self):
         with self.assertRaises(UnsupportedLeaseInput):
-            run_replay(None, "sale")
+            run_replay(None, "unknown")
 
     def test_wrong_page_order(self):
         document = {
@@ -36,6 +39,23 @@ class LeasePipelineTests(unittest.TestCase):
         }
         with self.assertRaises(UnsupportedLeaseInput):
             validate_template(document)
+
+    def test_sale_template_uses_sale_anchors(self):
+        document = {
+            "text": "sale",
+            "pages": [
+                {"pageNumber": number, "lines": [{}]} for number in range(1, 4)
+            ],
+        }
+        lines = [
+            Line("부동산매매계약서 제1조 제2조", 1, (0.1, 0.1, 0.9, 0.2)),
+            Line("제3조 제6조", 2, (0.1, 0.1, 0.9, 0.2)),
+            Line("제7조 매도인 매수인", 3, (0.1, 0.1, 0.9, 0.2)),
+        ]
+        target = "ml.document_processing.contracts.lease_pipeline.load_lines"
+        with patch(target, return_value=lines):
+            result = validate_template(document, "sale")
+        self.assertEqual(result["template"], "court-general-sale-three-page")
 
     def test_review_includes_missing_and_nonmissing(self):
         result = list(

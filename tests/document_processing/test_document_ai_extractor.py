@@ -17,6 +17,7 @@ from ml.document_processing.contracts.document_ai_extractor import (
     korean_amount,
     load_lines,
     money,
+    lease_disclosures,
     special_terms,
     validate_amounts,
     brokers_from_lines,
@@ -136,7 +137,7 @@ class DocumentAiExtractorTests(unittest.TestCase):
             "오른쪽 계속.",
         ]
 
-    def test_unreadable_number_is_not_guessed(self):
+    def test_unreadable_number_between_neighbors_is_preserved_as_candidate(self):
         warnings = []
         lines = [
             Line("4. 앞 문장.", 3, (0.1, 0.1, 0.4, 0.12)),
@@ -145,8 +146,10 @@ class DocumentAiExtractorTests(unittest.TestCase):
             Line("본 계약을 증명", 3, (0.1, 0.2, 0.9, 0.22)),
         ]
         result = special_terms(lines, False, warnings)
-        assert [item["item_order"] for item in result] == [4, 6]
-        assert any("판독불가 문장" in text for text in warnings)
+        assert [item["item_order"] for item in result] == [4, 5, 6]
+        assert result[1]["original_text"] == "동. 판독불가 문장."
+        assert result[1]["confidence"] == 0.0
+        assert any("5번 후보" in text for text in warnings)
 
     def test_broker_registration_preserves_missing_digit(self):
         lines = [
@@ -156,6 +159,65 @@ class DocumentAiExtractorTests(unittest.TestCase):
         result = brokers_from_lines(lines)
         assert result[0]["office_registration_number"]["value"] == "가상-지역-2026-00"
         assert "signature_present" not in result[0]
+
+    def test_duplicate_broker_registration_uses_complete_matching_copy(self):
+        lines = [
+            Line("테스트 공인중개사사무소", 3, (0.1, 0.3, 0.4, 0.32)),
+            Line("가상-지역-2026-00전화", 3, (0.1, 0.35, 0.4, 0.37)),
+            Line("테스트 공인중개사사무소", 3, (0.6, 0.3, 0.9, 0.32)),
+            Line("가상-지역-2026-001", 3, (0.6, 0.35, 0.9, 0.37)),
+        ]
+        result = brokers_from_lines(lines)
+        assert [
+            item["office_registration_number"]["value"] for item in result
+        ] == ["가상-지역-2026-001", "가상-지역-2026-001"]
+        assert result[0]["office_registration_number"]["status"] == "ambiguous"
+
+    def test_broker_registration_restores_only_expected_separator(self):
+        lines = [
+            Line("테스트 공인중개사사무소", 3, (0.2, 0.3, 0.4, 0.32)),
+            Line("가상관악-2026-002", 3, (0.2, 0.35, 0.4, 0.37)),
+        ]
+        result = brokers_from_lines(lines)
+        registration = result[0]["office_registration_number"]
+        assert registration["value"] == "가상-관악-2026-002"
+        assert registration["status"] == "ambiguous"
+
+    def test_lease_disclosures_require_visible_selection(self):
+        lines = [
+            Line("미납 국세·지방세", 1, (0.1, 0.3, 0.3, 0.32)),
+            Line("✔없음", 1, (0.05, 0.335, 0.11, 0.35)),
+            Line("선순위 확정일자 현황", 1, (0.4, 0.3, 0.62, 0.32)),
+            Line("해당 없음", 1, (0.4, 0.335, 0.47, 0.35)),
+        ]
+        result = lease_disclosures(lines)
+        assert result["tax_arrears"]["value"] == "없음"
+        assert result["senior_deposit_status"]["value"] == "해당 없음"
+
+        lines[1] = Line("없음", 1, (0.05, 0.335, 0.11, 0.35))
+        ambiguous = lease_disclosures(lines)["tax_arrears"]
+        assert ambiguous["value"] is None
+        assert ambiguous["status"] == "ambiguous"
+
+    def test_signature_is_excluded_from_ocr_accuracy(self):
+        gold = {
+            "contract_type": {"value": "jeonse", "status": "user_confirmed"},
+            "brokers": [
+                {
+                    "signature_present": {
+                        "value": False,
+                        "status": "user_confirmed",
+                    }
+                }
+            ],
+            "special_terms": [],
+        }
+        result = evaluate(gold, {"brokers": [{}], "special_terms": []})
+        assert result["field_count"] == 0
+        signature = next(
+            item for item in result["fields"] if item["path"].endswith("signature_present")
+        )
+        assert signature["evaluated"] is False
 
     def test_articles_preserve_verbatim_text(self):
         lines = [

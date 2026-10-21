@@ -50,6 +50,9 @@ def evaluate(gold, prediction):
             if isinstance(expected, (int, float, bool))
             else normalize(actual) == normalize(expected)
         )
+        evaluated = path != "contract_type" and not path.endswith(
+            ".signature_present"
+        )
         fields.append(
             {
                 "path": path,
@@ -57,7 +60,7 @@ def evaluate(gold, prediction):
                 "actual": actual,
                 "exact": exact,
                 "missing": actual is None,
-                "evaluated": path != "contract_type",
+                "evaluated": evaluated,
             }
         )
     terms = []

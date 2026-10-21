@@ -20,6 +20,7 @@ outputs/
 __pycache__/
 *.py[cod]
 .matplotlib_cache/
+.local-tools/
 
 # Local collection outputs and other large/generated data.
 local_data/
