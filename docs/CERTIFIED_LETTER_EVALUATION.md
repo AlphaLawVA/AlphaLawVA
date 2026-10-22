@@ -100,6 +100,23 @@ outcome mismatches, required-term omissions, and model-call limit violations
 fail the run. A malformed model response is recorded as a failed case instead
 of aborting the whole evaluation.
 
+## Deterministic Integration Gate
+
+The default test suite also runs a no-network end-to-end gate through the
+public FastAPI endpoint and the compiled LangGraph. Fixed synthetic statute and
+precedent results and a deterministic structured model are injected at the
+external boundaries. This verifies the `202` submission and completed job
+contract, OpenAPI response registration, statute grounding, and that precedent
+data is returned separately without entering the drafting prompt.
+
+```bash
+python -m unittest tests.test_certified_letter_end_to_end
+```
+
+This gate does not evaluate retrieval relevance, reranker quality, or hosted
+model writing quality. Those comparisons remain separate experiments and must
+not be inferred from a passing integration test.
+
 ## Alpha Gates
 
 A run passes only if all six cases pass and all of these counts remain zero:
