@@ -96,6 +96,16 @@ class ApiMainTests(unittest.TestCase):
         self.assertTrue(response.headers["content-type"].startswith("text/html"))
         self.assertIn("AlphaLawVA 판례 검색", response.text)
         self.assertIn("/api/v1/precedent-searches", response.text)
+        self.assertIn('/demo/certified-letter', response.text)
+
+    def test_serves_certified_letter_demo(self):
+        response = TestClient(create_app(object())).get("/demo/certified-letter")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("text/html"))
+        self.assertIn("AlphaLawVA 내용증명 생성", response.text)
+        self.assertIn("/api/v1/certified-letter-drafts", response.text)
+        self.assertIn('/demo/precedent-search', response.text)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AlphaLawVA 내용증명 생성</title>
+  <style>
+    :root {
+      --navy: #11196f;
+      --navy-dark: #0c124f;
+      --ink: #252525;
+      --muted: #707070;
+      --line: #dedede;
+      --soft: #f7f7f5;
+      --blue-soft: #f3f4ff;
+      --success: #276a4c;
+      --warning: #805500;
+      --danger: #a62b2b;
+      --white: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--white);
+      font: 16px/1.65 Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    .site-header { min-height: 76px; border-bottom: 1px solid var(--line); }
+    .header-inner {
+      width: min(1160px, calc(100% - 48px));
+      min-height: 76px;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand { color: var(--navy); font-size: 24px; font-weight: 800; text-decoration: none; }
+    .nav { display: flex; gap: 27px; color: #555; font-size: 14px; font-weight: 600; }
+    .nav a { text-decoration: none; white-space: nowrap; }
+    .nav a[aria-current="page"] { color: var(--navy); }
+    .page { width: min(1060px, calc(100% - 48px)); margin: auto; padding: 42px 0 72px; }
+    h1 { margin: 0; color: var(--navy); font-size: 32px; line-height: 1.25; }
+    h2 { margin: 0; font-size: 25px; line-height: 1.4; }
+    h3 { margin: 0 0 12px; font-size: 19px; }
+    .steps {
+      min-height: 48px;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      color: #858585;
+      font-size: 14px;
+    }
+    .step.active { color: var(--navy); font-weight: 800; }
+    .view { padding-top: 28px; }
+    .view[hidden], [hidden] { display: none !important; }
+    .lead { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+    .notice, .error, .outcome-card {
+      margin-top: 22px;
+      padding: 16px 18px;
+      border: 1px solid #d9dbef;
+      background: var(--blue-soft);
+    }
+    .error { border-color: #efd0d0; color: var(--danger); background: #fff7f7; }
+    .form-section { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
+    .form-section:first-of-type { margin-top: 38px; border-top: 0; padding-top: 0; }
+    .section-copy { margin: -6px 0 18px; color: var(--muted); font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .field.full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 750; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 2px;
+      padding: 11px 12px;
+      color: var(--ink);
+      background: var(--white);
+    }
+    textarea { min-height: 116px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--navy); outline: 2px solid #dfe2ff; }
+    .help { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .actions { margin-top: 30px; display: flex; align-items: center; gap: 14px; }
+    .primary, .secondary, .copy-button {
+      min-height: 44px;
+      padding: 10px 20px;
+      border-radius: 2px;
+      font-weight: 750;
+    }
+    .primary { border: 1px solid var(--navy); color: var(--white); background: var(--navy); }
+    .primary:hover, .primary:focus-visible { background: var(--navy-dark); }
+    .primary:disabled { cursor: wait; opacity: .6; }
+    .secondary, .copy-button { border: 1px solid var(--line); color: var(--navy); background: var(--white); }
+    .privacy { color: var(--muted); font-size: 13px; }
+    .progress { min-height: 330px; display: grid; place-items: center; text-align: center; }
+    .spinner {
+      width: 38px;
+      height: 38px;
+      margin: 0 auto 18px;
+      border: 4px solid #d9dbef;
+      border-top-color: var(--navy);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status-copy { color: var(--muted); }
+    .result-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .draft-badge { color: var(--warning); font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .document {
+      margin-top: 24px;
+      padding: 34px;
+      border: 1px solid var(--line);
+      background: #fdfdfc;
+    }
+    .document-title { text-align: center; font-size: 24px; }
+    .party-table { margin: 28px 0; display: grid; gap: 10px; }
+    .party-row { display: grid; grid-template-columns: 86px 1fr; gap: 12px; }
+    .party-label { color: var(--navy); font-weight: 800; }
+    .letter-body { margin: 28px 0 0; white-space: pre-wrap; line-height: 1.9; }
+    .result-grid { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .panel { padding: 22px; border: 1px solid var(--line); background: var(--white); }
+    .panel.full { grid-column: 1 / -1; }
+    .panel p { margin: 0; white-space: pre-wrap; }
+    .clean-list { margin: 0; padding-left: 20px; }
+    .clean-list li + li { margin-top: 8px; }
+    .evidence-list { display: grid; gap: 12px; }
+    .evidence {
+      padding: 16px 18px;
+      border-left: 3px solid var(--navy);
+      background: var(--soft);
+    }
+    .evidence-title { margin: 0 0 5px; color: var(--navy); font-weight: 800; }
+    .evidence p { margin: 0; }
+    .evidence a { color: var(--navy); font-size: 13px; font-weight: 700; }
+    .separation-note { margin: 8px 0 16px; color: var(--muted); font-size: 13px; }
+    .warnings { color: var(--warning); }
+    .result-actions { margin-top: 26px; display: flex; gap: 12px; flex-wrap: wrap; }
+    @media (max-width: 1000px) {
+      .header-inner { width: min(100% - 32px, 1160px); padding: 14px 0; flex-wrap: wrap; }
+      .nav { order: 3; width: 100%; gap: 18px; overflow-x: auto; }
+    }
+    @media (max-width: 720px) {
+      .page { width: min(100% - 32px, 1060px); padding-top: 30px; }
+      h1 { font-size: 28px; }
+      .steps { gap: 8px; font-size: 12px; }
+      .grid, .result-grid { grid-template-columns: 1fr; }
+      .field.full, .panel.full { grid-column: auto; }
+      .document { padding: 24px 18px; }
+      .result-header, .actions { align-items: stretch; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/demo/certified-letter">AlphaLawVA</a>
+      <nav class="nav" aria-label="주요 메뉴">
+        <a href="#">계약서 검토</a>
+        <a href="#">특약 생성</a>
+        <a href="/demo/precedent-search">판례 검색</a>
+        <a href="/demo/certified-letter" aria-current="page">내용증명 생성</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <h1>내용증명 생성</h1>
+    <div class="steps" aria-label="내용증명 생성 단계">
+      <span id="step-input" class="step active">01 정보 입력</span><span>→</span>
+      <span id="step-progress" class="step">02 초안 생성</span><span>→</span>
+      <span id="step-result" class="step">03 결과 확인</span>
+    </div>
+    <div id="global-error" class="error" role="alert" hidden></div>
+
+    <section id="input-view" class="view">
+      <h2>어떤 내용을 상대방에게 공식적으로 전달하고 싶나요?</h2>
+      <p class="lead">확인된 사실과 계약 정보를 입력하면 관련 법령을 바탕으로 검토 전 초안을 만듭니다.</p>
+      <div class="notice"><strong>현재 알파 범위</strong><br>임대차보증금, 계약 종료·해지, 수선, 월세·관리비 관련 내용증명을 지원합니다.</div>
+
+      <form id="letter-form">
+        <section class="form-section">
+          <h3>요청과 사실관계</h3>
+          <div class="grid">
+            <div class="field full">
+              <label for="purpose">내용증명으로 달성하려는 목적</label>
+              <input id="purpose" maxlength="200" required value="계약 종료 후 보증금을 반환받고 싶습니다.">
+            </div>
+            <div class="field full">
+              <label for="facts">확인된 구체적인 사실</label>
+              <textarea id="facts" minlength="10" maxlength="3000" required>임대차계약이 종료되었지만 임대인이 보증금을 아직 반환하지 않았습니다.</textarea>
+              <p class="help">추측이나 평가보다 날짜, 금액, 상대방의 행동처럼 직접 확인한 내용을 적어주세요.</p>
+            </div>
+            <div class="field">
+              <label for="deadline">희망 이행 기한 (선택)</label>
+              <input id="deadline" type="date">
+              <p class="help">비워두면 수령 후 7일 이내를 전략적 제안으로 표시합니다.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3>계약 정보</h3>
+          <div class="grid">
+            <div class="field"><label for="contract-type">계약 유형</label><select id="contract-type"><option value="jeonse">전세</option><option value="monthly_rent">월세</option></select></div>
+            <div class="field"><label for="property-address">임대 부동산 주소</label><input id="property-address" maxlength="500" required value="서울특별시 중구 세종대로 1"></div>
+            <div class="field"><label for="property-detail">상세 주소 (선택)</label><input id="property-detail" maxlength="200" value="101동 101호"></div>
+            <div class="field"><label for="building-type">건물 유형 (선택)</label><input id="building-type" maxlength="100" value="아파트"></div>
+            <div class="field"><label for="start-date">계약 시작일</label><input id="start-date" type="date" required value="2024-10-01"></div>
+            <div class="field"><label for="end-date">계약 종료일</label><input id="end-date" type="date" required value="2026-09-30"></div>
+            <div class="field"><label for="deposit">보증금 (원)</label><input id="deposit" type="number" min="0" step="1" required value="100000000"></div>
+            <div id="rent-field" class="field" hidden><label for="monthly-rent">월세 (원)</label><input id="monthly-rent" type="number" min="1" step="1"></div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3>보내는 사람과 받는 사람</h3>
+          <p class="section-copy">임차인이 보내는 사람, 임대인이 받는 사람으로 작성됩니다.</p>
+          <div class="grid">
+            <div class="field"><label for="lessee-name">임차인 이름</label><input id="lessee-name" maxlength="100" required value="김민지"></div>
+            <div class="field"><label for="lessor-name">임대인 이름</label><input id="lessor-name" maxlength="100" required value="홍길동"></div>
+            <div class="field"><label for="lessee-address">임차인 주소</label><input id="lessee-address" maxlength="500" required value="서울특별시 중구 세종대로 1"></div>
+            <div class="field"><label for="lessor-address">임대인 송달 주소</label><input id="lessor-address" maxlength="500" required value="서울특별시 종로구 사직로 1"></div>
+            <div class="field"><label for="lessee-detail">임차인 상세 주소 (선택)</label><input id="lessee-detail" maxlength="200" value="101동 101호"></div>
+            <div class="field"><label for="lessor-detail">임대인 상세 주소 (선택)</label><input id="lessor-detail" maxlength="200"></div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button id="submit-button" class="primary" type="submit">내용증명 초안 생성 →</button>
+          <span class="privacy">입력한 이름과 주소는 검색 질의에 포함되지 않습니다.</span>
+        </div>
+      </form>
+    </section>
+
+    <section id="progress-view" class="view" hidden>
+      <div class="progress" role="status" aria-live="polite">
+        <div><div class="spinner" aria-hidden="true"></div><h2>내용증명 초안을 만들고 있습니다</h2><p id="progress-message" class="status-copy">요청을 안전하게 접수하는 중입니다.</p></div>
+      </div>
+    </section>
+    <section id="result-view" class="view" hidden aria-live="polite"></section>
+  </main>
+
+  <script>
+    const views = { input: document.querySelector("#input-view"), progress: document.querySelector("#progress-view"), result: document.querySelector("#result-view") };
+    const steps = { input: document.querySelector("#step-input"), progress: document.querySelector("#step-progress"), result: document.querySelector("#step-result") };
+    const form = document.querySelector("#letter-form");
+    const errorBanner = document.querySelector("#global-error");
+    const submitButton = document.querySelector("#submit-button");
+    const resultView = views.result;
+    let activeDraftId = null;
+
+    function value(id) { return document.querySelector(`#${id}`).value.trim(); }
+    function optional(id) { return value(id) || null; }
+    function escapeHtml(raw) { return String(raw ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
+    function setView(name) {
+      Object.entries(views).forEach(([key, element]) => { element.hidden = key !== name; });
+      Object.entries(steps).forEach(([key, element]) => element.classList.toggle("active", key === name));
+      errorBanner.hidden = true;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function showError(message) { errorBanner.textContent = message; errorBanner.hidden = false; errorBanner.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    async function api(path, options = {}) {
+      const response = await fetch(path, options);
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error = new Error(payload?.error?.message || `요청을 처리하지 못했습니다. (${response.status})`);
+        error.payload = payload;
+        throw error;
+      }
+      return payload;
+    }
+    function payloadFromForm() {
+      const contractType = value("contract-type");
+      return {
+        purpose: value("purpose"), facts: value("facts"), requested_deadline: optional("deadline"),
+        contract: {
+          contract_type: contractType,
+          property: { address: value("property-address"), detail_address: optional("property-detail"), building_type: optional("building-type") },
+          period: { start_date: value("start-date"), end_date: value("end-date") },
+          payment: { deposit: Number(value("deposit")), monthly_rent: contractType === "monthly_rent" ? Number(value("monthly-rent")) : null },
+          lessor: { name: value("lessor-name"), address: value("lessor-address"), detail_address: optional("lessor-detail"), phone_number: null },
+          lessee: { name: value("lessee-name"), address: value("lessee-address"), detail_address: optional("lessee-detail"), phone_number: null }
+        }
+      };
+    }
+    function formatParty(party) { return [party.address, party.detail_address].filter(Boolean).map(escapeHtml).join(" "); }
+    function evidenceCard(item, type) {
+      const title = type === "statute" ? `${item.law_name} ${item.article_label}` : [item.court_name, item.case_number, item.case_name].filter(Boolean).join(" · ");
+      const text = type === "statute" ? item.explanation : item.summary;
+      return `<article class="evidence"><p class="evidence-title">${escapeHtml(title)}</p><p>${escapeHtml(text)}</p>${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">공식 출처 ↗</a>` : ""}</article>`;
+    }
+    function renderDraft(job) {
+      const result = job.result, documentData = result.document;
+      resultView.innerHTML = `
+        <div class="result-header"><div><h2>내용증명 초안이 준비되었습니다</h2><p class="lead">발송 전에 계약 정보, 주소, 금액과 기한을 반드시 다시 확인하세요.</p></div><span class="draft-badge">검토 전 초안</span></div>
+        <article class="document"><h3 class="document-title">${escapeHtml(documentData.title)}</h3><div class="party-table"><div class="party-row"><span class="party-label">받는 사람</span><span>${escapeHtml(documentData.recipient.name)} · ${formatParty(documentData.recipient)}</span></div><div class="party-row"><span class="party-label">보내는 사람</span><span>${escapeHtml(documentData.sender.name)} · ${formatParty(documentData.sender)}</span></div></div><p id="letter-body" class="letter-body">${escapeHtml(documentData.body)}</p></article>
+        <div class="result-grid">
+          <section class="panel"><h3>작성 전략</h3><p>${escapeHtml(result.strategy_summary)}</p></section>
+          <section class="panel"><h3>다음 단계</h3><ol class="clean-list">${result.follow_up_actions.map(item => `<li>${escapeHtml(item.action)}</li>`).join("")}</ol></section>
+          <section class="panel full"><h3>본문에 사용된 법령</h3><div class="evidence-list">${result.statute_evidence.map(item => evidenceCard(item, "statute")).join("")}</div></section>
+          <section class="panel full"><h3>유사한 상황의 판례</h3><p class="separation-note">아래 판례는 참고용 유사 사례이며 내용증명 본문의 법적 근거로 사용되지 않았습니다.</p><div class="evidence-list">${result.similar_precedents.length ? result.similar_precedents.map(item => evidenceCard(item, "precedent")).join("") : "<p>반환된 유사 판례가 없습니다.</p>"}</div></section>
+          <section class="panel full warnings"><h3>확인 사항</h3><ul class="clean-list">${result.warnings.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></section>
+        </div>
+        <div class="result-actions"><button id="copy-button" class="copy-button" type="button">본문 복사</button><button class="secondary restart-button" type="button">정보 수정 후 다시 생성</button></div>`;
+      document.querySelector("#copy-button").addEventListener("click", async (event) => { await navigator.clipboard.writeText(documentData.body); event.currentTarget.textContent = "복사 완료"; });
+      document.querySelector(".restart-button").addEventListener("click", () => setView("input"));
+    }
+    function renderNonDraft(job) {
+      const labels = { needs_information: "추가 정보가 필요합니다", out_of_scope: "현재 지원 범위를 벗어난 요청입니다", insufficient_evidence: "충분한 법령 근거를 찾지 못했습니다" };
+      const missing = job.missing_information?.length ? `<ul class="clean-list">${job.missing_information.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
+      resultView.innerHTML = `<div class="outcome-card"><h2>${escapeHtml(labels[job.outcome] || "초안을 만들지 못했습니다")}</h2><p>${escapeHtml(job.message || "입력 내용을 확인한 뒤 다시 시도해 주세요.")}</p>${missing}</div><div class="result-actions"><button class="secondary restart-button" type="button">입력 내용 수정</button></div>`;
+      document.querySelector(".restart-button").addEventListener("click", () => setView("input"));
+    }
+    async function poll(draftId) {
+      const startedAt = Date.now();
+      while (activeDraftId === draftId && Date.now() - startedAt < 300000) {
+        const job = await api(`/api/v1/certified-letter-drafts/${draftId}`);
+        if (job.status === "completed") { job.outcome === "draft_ready" ? renderDraft(job) : renderNonDraft(job); setView("result"); return; }
+        if (job.status === "failed") { throw new Error(job.error?.message || "초안을 생성하지 못했습니다."); }
+        document.querySelector("#progress-message").textContent = job.status === "processing" ? "관련 법령과 유사 판례를 찾고 초안을 검증하고 있습니다." : "생성 순서를 기다리고 있습니다.";
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+      throw new Error("생성 시간이 길어지고 있습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    document.querySelector("#contract-type").addEventListener("change", event => { const isMonthly = event.target.value === "monthly_rent"; document.querySelector("#rent-field").hidden = !isMonthly; document.querySelector("#monthly-rent").required = isMonthly; });
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      submitButton.disabled = true;
+      setView("progress");
+      try {
+        const key = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+        const accepted = await api("/api/v1/certified-letter-drafts", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify(payloadFromForm()) });
+        activeDraftId = accepted.draft_id;
+        await poll(activeDraftId);
+      } catch (error) { activeDraftId = null; setView("input"); showError(error.message); }
+      finally { submitButton.disabled = false; }
+    });
+  </script>
+</body>
+</html>

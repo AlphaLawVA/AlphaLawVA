@@ -53,6 +53,9 @@ from api.services.precedent_search_sessions import (
 PRECEDENT_DEMO_PATH = (
     Path(__file__).resolve().parent / "static" / "precedent_search_demo.html"
 )
+CERTIFIED_LETTER_DEMO_PATH = (
+    Path(__file__).resolve().parent / "static" / "certified_letter_demo.html"
+)
 
 
 def _error_response(
@@ -310,6 +313,10 @@ def create_app(
     @app.get("/demo/precedent-search", include_in_schema=False)
     def precedent_search_demo() -> FileResponse:
         return FileResponse(PRECEDENT_DEMO_PATH)
+
+    @app.get("/demo/certified-letter", include_in_schema=False)
+    def certified_letter_demo() -> FileResponse:
+        return FileResponse(CERTIFIED_LETTER_DEMO_PATH)
 
     return app
 
