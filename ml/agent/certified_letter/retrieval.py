@@ -136,6 +136,9 @@ def _to_precedent_evidence(
         source_url=OFFICIAL_PRECEDENT_URL.format(
             precedent_id=result.precedent_id
         ),
+        rerank_texts=_unique_nonempty_texts(
+            chunk.text for chunk in result.matched_chunks
+        ),
     )
 
 
@@ -149,3 +152,14 @@ def _optional_text(value) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _unique_nonempty_texts(values) -> tuple[str, ...]:
+    result = []
+    seen = set()
+    for value in values:
+        normalized = str(value).strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return tuple(result)

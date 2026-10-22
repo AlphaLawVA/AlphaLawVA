@@ -2,8 +2,10 @@
 """내용증명 생성 접수·백그라운드 처리·상태 조회와 공통 오류 응답을 검증한다."""
 
 import unittest
+import os
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -148,7 +150,13 @@ class CertifiedLetterApiIntegrationTests(unittest.TestCase):
         self.assertEqual(invalid.json()["error"]["code"], "invalid_request")
 
     def test_default_app_refuses_generation_without_model_configuration(self):
-        client = TestClient(create_app(precedent_search_service=object()))
+        with (
+            patch(
+                "api.services.certified_letter_configuration.load_env_file"
+            ),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            client = TestClient(create_app(precedent_search_service=object()))
 
         response = client.post(
             "/api/v1/certified-letter-drafts",

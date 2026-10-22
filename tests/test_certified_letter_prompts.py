@@ -101,6 +101,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_2")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -108,6 +109,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         )
         self.assertNotIn("precedent", prompt.user.lower())
         self.assertNotIn("판례", prompt.user)
+        self.assertIn("「법령명」 제N조", prompt.system)
         self.assertEqual(
             list(inspect.signature(build_generation_prompt).parameters),
             ["request", "statute_evidence"],

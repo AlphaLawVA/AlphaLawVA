@@ -2,13 +2,15 @@
 """기존 BGE 검색 결과의 내용증명 근거 변환과 중복 제거를 검증한다."""
 
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
 from ml.agent.certified_letter.retrieval import (
     BgeM3PrecedentSearchAdapter,
     BgeM3StatuteSearchAdapter,
 )
-from ml.rag.precedent_retriever import PrecedentSearchResult
-from ml.rag.reranker import DenseSimilarityReranker
+from ml.rag.precedent_retriever import PrecedentChunkMatch, PrecedentSearchResult
+from ml.rag.reranker import CrossEncoderReranker, DenseSimilarityReranker
 from ml.rag.statute_retriever import StatuteSearchResult
 
 
@@ -36,7 +38,12 @@ def make_statute(
     )
 
 
-def make_precedent(*, precedent_id: str, similarity: float):
+def make_precedent(
+    *,
+    precedent_id: str,
+    similarity: float,
+    matched_texts: tuple[str, ...] = (),
+):
     return PrecedentSearchResult(
         rank=1,
         precedent_id=precedent_id,
@@ -52,7 +59,20 @@ def make_precedent(*, precedent_id: str, similarity: float):
         case_type="민사",
         judgment_type="판결",
         source_path="precedents/64441.json",
-        matched_chunks=[],
+        matched_chunks=[
+            PrecedentChunkMatch(
+                rank=index,
+                chunk_id=f"precedent:{precedent_id}:reason:{index:04d}",
+                distance=1.0 - similarity,
+                similarity=similarity,
+                text=text,
+                chunk_type="이유",
+                section="이유",
+                section_chunk_index=index - 1,
+                metadata={"precedent_id": precedent_id},
+            )
+            for index, text in enumerate(matched_texts, start=1)
+        ],
         metadata={"easy_summary": "보증금 반환과 관련된 판례입니다."},
     )
 
@@ -65,6 +85,16 @@ class FakeSearchMany:
     def search_many(self, queries, *, top_k):
         self.calls.append((tuple(queries), top_k))
         return self.results
+
+
+class FakeCrossEncoder:
+    def __init__(self, scores):
+        self.scores = scores
+        self.calls = []
+
+    def predict(self, pairs, *, batch_size, show_progress_bar):
+        self.calls.append((pairs, batch_size, show_progress_bar))
+        return self.scores
 
 
 class CertifiedLetterRetrievalTests(unittest.TestCase):
@@ -89,7 +119,11 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
 
     def test_precedent_adapter_merges_same_precedent_and_preserves_source(self):
         low = make_precedent(precedent_id="64441", similarity=0.72)
-        high = make_precedent(precedent_id="64441", similarity=0.90)
+        high = make_precedent(
+            precedent_id="64441",
+            similarity=0.90,
+            matched_texts=("첫 번째 적중 청크", "두 번째 적중 청크"),
+        )
         other = make_precedent(precedent_id="75552", similarity=0.85)
         adapter = BgeM3PrecedentSearchAdapter(
             FakeSearchMany([[low, other], [high]])
@@ -103,6 +137,10 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
         )
         self.assertEqual(results[0].summary, "보증금 반환과 관련된 판례입니다.")
         self.assertTrue(results[0].source_url.endswith("precSeq=64441"))
+        self.assertEqual(
+            results[0].rerank_texts,
+            ("첫 번째 적중 청크", "두 번째 적중 청크"),
+        )
 
     def test_dense_similarity_reranker_is_stable_baseline(self):
         candidates = [
@@ -123,6 +161,66 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             DenseSimilarityReranker().rerank("질의", candidates, top_k=0)
+
+    def test_cross_encoder_reranker_loads_lazily_and_uses_model_scores(self):
+        candidates = [
+            make_precedent(precedent_id="1", similarity=0.9),
+            make_precedent(precedent_id="2", similarity=0.5),
+            make_precedent(precedent_id="3", similarity=0.7),
+        ]
+        model = FakeCrossEncoder([0.1, 0.95, 0.4])
+        loader_calls = []
+
+        def load_model(path, **options):
+            loader_calls.append((path, options))
+            return model
+
+        reranker = CrossEncoderReranker(
+            model_path=Path("/models/bge-reranker-v2-m3"),
+            batch_size=2,
+            device="cpu",
+            model_loader=load_model,
+        )
+
+        self.assertFalse(reranker.is_loaded)
+        results = reranker.rerank("보증금 반환", candidates, top_k=2)
+
+        self.assertTrue(reranker.is_loaded)
+        self.assertEqual(
+            [result.precedent_id for result in results],
+            ["2", "3"],
+        )
+        self.assertEqual(len(loader_calls), 1)
+        self.assertEqual(model.calls[0][1:], (2, False))
+
+        reranker.rerank("보증금 반환", candidates, top_k=1)
+        self.assertEqual(len(loader_calls), 1)
+
+    def test_cross_encoder_uses_best_score_across_precedent_chunks(self):
+        candidates = [
+            SimpleNamespace(
+                precedent_id="1",
+                similarity=0.9,
+                text="대표 청크 1",
+                rerank_texts=("청크 1-A", "청크 1-B"),
+            ),
+            SimpleNamespace(
+                precedent_id="2",
+                similarity=0.8,
+                text="대표 청크 2",
+                rerank_texts=("청크 2-A",),
+            ),
+        ]
+        model = FakeCrossEncoder([0.1, 0.95, 0.7])
+        reranker = CrossEncoderReranker(
+            model_path=Path("/models/bge-reranker-v2-m3"),
+            model_loader=lambda *_args, **_kwargs: model,
+        )
+
+        results = reranker.rerank("보증금 반환", candidates, top_k=2)
+
+        self.assertEqual([result.precedent_id for result in results], ["1", "2"])
+        self.assertEqual(len(model.calls[0][0]), 3)
 
 
 if __name__ == "__main__":

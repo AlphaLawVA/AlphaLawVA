@@ -100,6 +100,7 @@ class PrecedentEvidenceData:
     summary: str | None = None
     matched_reason: str | None = None
     source_url: str | None = None
+    rerank_texts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

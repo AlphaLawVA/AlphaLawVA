@@ -22,6 +22,9 @@ from api.services.certified_letter_jobs import (
     CertifiedLetterIdempotencyConflictError,
     CertifiedLetterJobNotFoundError,
 )
+from api.services.certified_letter_configuration import (
+    create_certified_letter_service_from_env,
+)
 from api.services.certified_letter_service import (
     CertifiedLetterGenerationUnavailableError,
     CertifiedLetterService,
@@ -236,7 +239,7 @@ def create_app(
     app.state.certified_letter_service = (
         certified_letter_service
         if certified_letter_service is not None
-        else CertifiedLetterService()
+        else create_certified_letter_service_from_env()
     )
     app.state.precedent_search_service = (
         precedent_search_service

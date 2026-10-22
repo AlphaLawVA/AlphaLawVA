@@ -25,7 +25,7 @@ from ml.agent.certified_letter.state import (
 
 
 LAW_CITATION_PATTERN = re.compile(
-    r"「(?P<law>[^」]+)」\s*(?P<article>제\s*\d+\s*조)"
+    r"「(?P<law>[^」]+)」\s*(?P<article>제\s*\d+\s*조(?:\s*의\s*\d+)?)"
 )
 WON_PATTERN = re.compile(r"(?<!\d)(\d[\d,]*)\s*원")
 ISO_DATE_PATTERN = re.compile(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b")

@@ -229,6 +229,25 @@ The reranker is selected only after a same-dataset comparison against dense
 retrieval. Statutes and precedents may use different rerankers. The selected
 implementation must remain replaceable through an explicit interface.
 
+Stage 2 runtime configuration uses the following provisional alpha choices:
+
+- generation: `gemini-3.5-flash-lite` through structured JSON output, with
+  Claude remaining the intended production candidate;
+- statute ranking: the approved BGE-M3 dense score until a statute-specific
+  reranker comparison is completed;
+- precedent ranking: local `bge-reranker-v2-m3`, selected for the alpha because
+  the existing ten-scenario comparison improved Precision@3 from 0.8000 to
+  0.8333 and MRR@5 from 0.7450 to 0.7750, while its latency remains acceptable
+  for the slower certified-letter workflow;
+- model loading: one shared BGE-M3 encoder instance for statute and precedent
+  queries, with all embedding and reranker models loaded lazily.
+
+The Gemini adapter records model, prompt version, token usage, retries, result
+status, and estimated cost without storing the raw prompt, request, or draft.
+Setting `CERTIFIED_LETTER_GENERATION_ENABLED=false` or omitting
+`GEMINI_API_KEY` keeps the endpoint unavailable instead of returning a mock
+draft.
+
 ## Draft Validation
 
 Before returning a draft, deterministic checks validate:

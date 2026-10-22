@@ -118,6 +118,18 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
             issue_codes(self.validator.validate(self.request, self.statutes, missing)),
         )
 
+    def test_accepts_grounded_subarticle_citation(self):
+        statute = replace(make_statute(), article_label="제6조의2")
+        draft = replace(
+            make_draft(),
+            body=make_draft().body.replace("제4조", "제6조의2"),
+        )
+
+        codes = issue_codes(self.validator.validate(self.request, [statute], draft))
+
+        self.assertNotIn("unsupported_statute_citation", codes)
+        self.assertNotIn("missing_statute_citation", codes)
+
     def test_rejects_party_direction_mismatch(self):
         draft = make_draft()
         swapped = replace(
