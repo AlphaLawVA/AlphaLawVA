@@ -277,6 +277,11 @@ status transition, duration, dependency category, and redacted error class.
 
 ## Evaluation Gates
 
+Stage 3 adds the versioned synthetic dataset and offline evaluator described in
+`docs/CERTIFIED_LETTER_EVALUATION.md`. Generated drafts and raw responses remain
+under gitignored `local_data/`; only synthetic inputs and configuration
+templates are version controlled.
+
 Before enabling a model or reranker by default, record:
 
 - evaluation dataset and version;

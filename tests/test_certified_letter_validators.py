@@ -161,6 +161,18 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         self.assertIn("unexpected_money", codes)
         self.assertIn("unexpected_date", codes)
 
+    def test_rejects_unconfirmed_iso_date_followed_by_korean_suffix(self):
+        draft = replace(
+            make_draft(),
+            body=make_draft().body + " 2026-12-31까지 지급해 주세요.",
+        )
+
+        codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, draft)
+        )
+
+        self.assertIn("unexpected_date", codes)
+
     def test_accepts_explicit_deadline_in_korean_date_format(self):
         request = make_request(requested_deadline=date(2026, 11, 15))
         draft = replace(

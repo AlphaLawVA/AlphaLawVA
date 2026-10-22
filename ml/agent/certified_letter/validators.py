@@ -28,7 +28,9 @@ LAW_CITATION_PATTERN = re.compile(
     r"「(?P<law>[^」]+)」\s*(?P<article>제\s*\d+\s*조(?:\s*의\s*\d+)?)"
 )
 WON_PATTERN = re.compile(r"(?<!\d)(\d[\d,]*)\s*원")
-ISO_DATE_PATTERN = re.compile(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b")
+ISO_DATE_PATTERN = re.compile(
+    r"(?<!\d)(20\d{2})-(\d{1,2})-(\d{1,2})(?!\d)"
+)
 KOREAN_DATE_PATTERN = re.compile(
     r"\b(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일"
 )
