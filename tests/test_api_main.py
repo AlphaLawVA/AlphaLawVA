@@ -106,6 +106,8 @@ class ApiMainTests(unittest.TestCase):
         self.assertIn("AlphaLawVA 내용증명 생성", response.text)
         self.assertIn("/api/v1/certified-letter-drafts", response.text)
         self.assertIn('/demo/precedent-search', response.text)
+        self.assertIn('window.location.protocol === "file:"', response.text)
+        self.assertIn("API 서버에 연결할 수 없습니다", response.text)
 
 
 if __name__ == "__main__":

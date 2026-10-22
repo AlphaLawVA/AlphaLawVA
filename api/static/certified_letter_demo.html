@@ -264,7 +264,12 @@
     }
     function showError(message) { errorBanner.textContent = message; errorBanner.hidden = false; errorBanner.scrollIntoView({ behavior: "smooth", block: "center" }); }
     async function api(path, options = {}) {
-      const response = await fetch(path, options);
+      let response;
+      try {
+        response = await fetch(path, options);
+      } catch (_error) {
+        throw new Error("API 서버에 연결할 수 없습니다. 이 화면을 API 서버의 /demo/certified-letter 주소로 열었는지 확인해 주세요.");
+      }
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
         const error = new Error(payload?.error?.message || `요청을 처리하지 못했습니다. (${response.status})`);
@@ -327,6 +332,10 @@
       throw new Error("생성 시간이 길어지고 있습니다. 잠시 후 다시 시도해 주세요.");
     }
     document.querySelector("#contract-type").addEventListener("change", event => { const isMonthly = event.target.value === "monthly_rent"; document.querySelector("#rent-field").hidden = !isMonthly; document.querySelector("#monthly-rent").required = isMonthly; });
+    if (window.location.protocol === "file:") {
+      submitButton.disabled = true;
+      showError("이 파일은 화면 미리보기이므로 API를 호출할 수 없습니다. 백엔드 서버를 실행한 뒤 http://127.0.0.1:8000/demo/certified-letter 로 접속해 주세요.");
+    }
     form.addEventListener("submit", async event => {
       event.preventDefault();
       if (!form.reportValidity()) return;

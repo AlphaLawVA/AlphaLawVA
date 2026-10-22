@@ -11,6 +11,7 @@ After:
 """
 
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -193,6 +194,57 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
             ),
         ):
             with self.assertRaisesRegex(ValueError, "이름에는"):
+                create_certified_letter_service_from_env()
+
+    def test_external_env_file_becomes_relative_runtime_root(self):
+        graph = object()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runtime_root = Path(temporary_directory).resolve()
+            env_file = runtime_root / ".env"
+            env_file.write_text(
+                "GEMINI_API_KEY=test-key\n"
+                "ALPHALAWVA_LOCAL_DATA_DIR=local_data\n"
+                "CERTIFIED_LETTER_STATUTE_DB_DIR=data/statutes/vectorstores/bge_m3\n"
+                "CERTIFIED_LETTER_MODEL_CACHE_DIR=data/statutes/models\n",
+                encoding="utf-8",
+            )
+            with (
+                patch.dict(
+                    os.environ,
+                    {"ALPHALAWVA_ENV_FILE": str(env_file)},
+                    clear=True,
+                ),
+                patch(
+                    "api.services.certified_letter_configuration."
+                    "create_certified_letter_workflow",
+                    return_value=graph,
+                ) as create_workflow,
+            ):
+                service = create_certified_letter_service_from_env()
+
+        self.assertIs(service.graph, graph)
+        arguments = create_workflow.call_args.kwargs
+        self.assertEqual(
+            arguments["statute_search"].retriever.db_dir,
+            runtime_root / "data/statutes/vectorstores/bge_m3",
+        )
+        self.assertEqual(
+            arguments["precedent_search"].retriever.db_dir,
+            runtime_root
+            / "local_data/precedents/vector_dbs/precedents_bge-m3_v1",
+        )
+        self.assertEqual(
+            arguments["statute_search"].retriever.model_cache,
+            runtime_root / "data/statutes/models",
+        )
+
+    def test_rejects_missing_explicit_env_file(self):
+        with patch.dict(
+            os.environ,
+            {"ALPHALAWVA_ENV_FILE": "/missing/alphalawva/.env"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(FileNotFoundError, "ALPHALAWVA_ENV_FILE"):
                 create_certified_letter_service_from_env()
 
 

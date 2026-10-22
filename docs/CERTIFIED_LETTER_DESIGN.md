@@ -297,6 +297,32 @@ execution. The store has a TTL and an injectable interface. This intentionally
 does not provide restart durability or cross-process coordination; a persistent
 store and production job queue are later infrastructure decisions.
 
+### Running the demo
+
+The demo is an API-served page, not a standalone HTML file. Start FastAPI and
+open `http://127.0.0.1:8000/demo/certified-letter`. Opening
+`api/static/certified_letter_demo.html` with a `file://` URL cannot reach the
+relative `/api/v1` endpoints and is intentionally blocked with an explanation.
+
+When code runs in a separate Git worktree while secrets and local vector data
+remain in the saved project checkout, point the process at that checkout's
+environment file. Relative data paths are then resolved from the environment
+file's directory instead of the worktree source directory.
+
+macOS or Linux:
+
+```bash
+ALPHALAWVA_ENV_FILE=/absolute/path/to/AlphaLawVA/.env \
+  python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+PowerShell:
+
+```powershell
+$env:ALPHALAWVA_ENV_FILE = "C:\\absolute\\path\\to\\AlphaLawVA\\.env"
+python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
 ## Privacy and Logging
 
 Certified-letter requests contain names, addresses, phone numbers, contract

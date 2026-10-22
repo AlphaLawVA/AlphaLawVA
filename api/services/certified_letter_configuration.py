@@ -43,6 +43,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATUTE_DB_DIR = PROJECT_ROOT / "data/statutes/vectorstores/bge_m3"
 DEFAULT_LOCAL_DATA_DIR = PROJECT_ROOT / "local_data"
 DEFAULT_MODEL_CACHE_DIR = PROJECT_ROOT / "data/statutes/models"
+ENV_FILE_VARIABLE = "ALPHALAWVA_ENV_FILE"
 
 
 class _SharedBgeM3ModelLoader:
@@ -69,7 +70,7 @@ class _SharedBgeM3ModelLoader:
 
 
 def create_certified_letter_service_from_env() -> CertifiedLetterService:
-    load_env_file()
+    runtime_root = _load_environment()
     if not _enabled("CERTIFIED_LETTER_GENERATION_ENABLED", default=True):
         return CertifiedLetterService()
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -78,15 +79,18 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
 
     local_data_dir = _path_from_env(
         "ALPHALAWVA_LOCAL_DATA_DIR",
-        DEFAULT_LOCAL_DATA_DIR,
+        runtime_root / "local_data",
+        base_dir=runtime_root,
     )
     model_cache = _path_from_env(
         "CERTIFIED_LETTER_MODEL_CACHE_DIR",
-        DEFAULT_MODEL_CACHE_DIR,
+        runtime_root / "data/statutes/models",
+        base_dir=runtime_root,
     )
     statute_db = _path_from_env(
         "CERTIFIED_LETTER_STATUTE_DB_DIR",
-        DEFAULT_STATUTE_DB_DIR,
+        runtime_root / "data/statutes/vectorstores/bge_m3",
+        base_dir=runtime_root,
     )
     precedent_db = _path_from_env(
         "CERTIFIED_LETTER_PRECEDENT_DB_DIR",
@@ -94,6 +98,7 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         / "precedents"
         / "vector_dbs"
         / "precedents_bge-m3_v1",
+        base_dir=runtime_root,
     )
     usage_manifest = _path_from_env(
         "CERTIFIED_LETTER_GEMINI_USAGE_MANIFEST",
@@ -101,6 +106,7 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         / "certified_letters"
         / "manifests"
         / "gemini_generation_usage.jsonl",
+        base_dir=runtime_root,
     )
     device = os.environ.get("CERTIFIED_LETTER_EMBEDDING_DEVICE", "auto").strip()
     shared_model_loader = _SharedBgeM3ModelLoader()
@@ -147,11 +153,13 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
     statute_reranker = _create_reranker(
         role="STATUTE",
         local_data_dir=local_data_dir,
+        runtime_root=runtime_root,
         default="dense",
     )
     precedent_reranker = _create_reranker(
         role="PRECEDENT",
         local_data_dir=local_data_dir,
+        runtime_root=runtime_root,
         default="bge-reranker-v2-m3",
     )
     graph = create_certified_letter_workflow(
@@ -169,6 +177,7 @@ def _create_reranker(
     *,
     role: str,
     local_data_dir: Path,
+    runtime_root: Path,
     default: str,
 ):
     prefix = f"CERTIFIED_LETTER_{role}_RERANKER"
@@ -188,8 +197,9 @@ def _create_reranker(
     default_path = local_data_dir / "models/rerankers" / selected
     return CrossEncoderReranker(
         model_path=_path_from_env(
-            f"{prefix}_DIR",
-            default_path,
+        f"{prefix}_DIR",
+        default_path,
+        base_dir=runtime_root,
         ),
         max_length=int(
             os.environ.get("CERTIFIED_LETTER_RERANKER_MAX_LENGTH", "512")
@@ -203,11 +213,29 @@ def _create_reranker(
     )
 
 
-def _path_from_env(name: str, default: Path) -> Path:
+def _load_environment() -> Path:
+    configured = os.environ.get(ENV_FILE_VARIABLE, "").strip()
+    if not configured:
+        load_env_file()
+        return PROJECT_ROOT
+
+    env_file = Path(configured).expanduser()
+    if not env_file.is_absolute():
+        env_file = PROJECT_ROOT / env_file
+    env_file = env_file.resolve()
+    if not env_file.is_file():
+        raise FileNotFoundError(
+            f"{ENV_FILE_VARIABLE}에 지정한 파일을 찾을 수 없습니다: {env_file}"
+        )
+    load_env_file(env_file)
+    return env_file.parent
+
+
+def _path_from_env(name: str, default: Path, *, base_dir: Path) -> Path:
     value = os.environ.get(name, "").strip()
     path = Path(value).expanduser() if value else default
     if not path.is_absolute():
-        path = PROJECT_ROOT / path
+        path = base_dir / path
     return path
 
 
