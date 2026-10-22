@@ -101,7 +101,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_2")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_3")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -109,11 +109,22 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         )
         self.assertNotIn("precedent", prompt.user.lower())
         self.assertNotIn("판례", prompt.user)
-        self.assertIn("「법령명」 제N조", prompt.system)
+        self.assertIn("「완전한 법령명」 제N조", prompt.system)
         self.assertEqual(
             list(inspect.signature(build_generation_prompt).parameters),
             ["request", "statute_evidence"],
         )
+
+    def test_prompt_keeps_practical_legacy_rules_without_expert_hype(self):
+        prompt = build_generation_prompt(make_request(), [make_statute()])
+
+        self.assertIn("정중하고 협력적", prompt.system)
+        self.assertIn("임대 부동산 주소", prompt.system)
+        self.assertIn("같은 법", prompt.system)
+        self.assertIn("마크다운, 이모지", prompt.system)
+        self.assertNotIn("25년 경력", prompt.system)
+        self.assertNotIn("성공률", prompt.system)
+        self.assertNotIn("심리적 설득력", prompt.system)
 
     def test_user_instruction_is_data_not_system_instruction(self):
         request = make_request(

@@ -264,6 +264,13 @@ provided. This allows a future same-dataset experiment to install the selected
 statute and precedent cross-encoders without changing graph or API code. An
 uncompared model must not be described as the final choice.
 
+Stage 6 prompt `certified_letter_v0_3` incorporates the useful drafting
+structure from SuperLawVA's legacy `generate_letter` prompt while removing
+fabricated experience, unsupported success-rate claims, guaranteed-effect
+language, ungrounded general-law fallback, and successful fallback letters.
+The detailed comparison is recorded in
+`docs/CERTIFIED_LETTER_PROMPT_CHANGES.md`.
+
 ## Draft Validation
 
 Before returning a draft, deterministic checks validate:
