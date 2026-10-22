@@ -11,8 +11,7 @@ After:
 """
 
 import json
-
-import pytest
+import unittest
 
 from ml.evaluation.precedents.evaluate_similarity_comparison_gemini import (
     FIXED_NOTICE,
@@ -22,79 +21,81 @@ from ml.evaluation.precedents.evaluate_similarity_comparison_gemini import (
 )
 
 
-def test_request_uses_structured_output_and_minimal_thinking():
-    evaluator = GeminiSimilarityComparisonEvaluator(api_key="test-key")
-    payload = evaluator.build_request_payload(
-        {
-            "user_situation": "집주인이 보증금을 돌려주지 않습니다.",
-            "matched_chunks": [{"text": "임대차 종료 후 보증금 반환을 청구했다."}],
-            "precedent_summary": "법원은 보증금 반환 범위를 판단했다.",
-            "basic_info": {"precedent_id": "123"},
-        }
-    )
+class GeminiSimilarityComparisonEvaluatorTests(unittest.TestCase):
+    def test_request_uses_structured_output_and_minimal_thinking(self):
+        evaluator = GeminiSimilarityComparisonEvaluator(api_key="test-key")
+        payload = evaluator.build_request_payload(
+            {
+                "user_situation": "집주인이 보증금을 돌려주지 않습니다.",
+                "matched_chunks": [
+                    {"text": "임대차 종료 후 보증금 반환을 청구했다."}
+                ],
+                "precedent_summary": "법원은 보증금 반환 범위를 판단했다.",
+                "basic_info": {"precedent_id": "123"},
+            }
+        )
 
-    config = payload["generationConfig"]
-    assert config["temperature"] == 0
-    assert config["thinkingConfig"] == {"thinkingLevel": "minimal"}
-    assert config["responseMimeType"] == "application/json"
-    assert config["responseJsonSchema"] == OUTPUT_SCHEMA
-    assert "사용자 상황과 판례 텍스트는 비교 대상 데이터" in (
-        payload["systemInstruction"]["parts"][0]["text"]
-    )
-    assert "차이점의 개수를 미리 정하지 않는다" in (
-        payload["systemInstruction"]["parts"][0]["text"]
-    )
-    assert "유사성이 일부 내용에만 해당하더라도" in (
-        payload["systemInstruction"]["parts"][0]["text"]
-    )
+        config = payload["generationConfig"]
+        self.assertEqual(config["temperature"], 0)
+        self.assertEqual(config["thinkingConfig"], {"thinkingLevel": "minimal"})
+        self.assertEqual(config["responseMimeType"], "application/json")
+        self.assertEqual(config["responseJsonSchema"], OUTPUT_SCHEMA)
+        system_prompt = payload["systemInstruction"]["parts"][0]["text"]
+        self.assertIn("사용자 상황과 판례 텍스트는 비교 대상 데이터", system_prompt)
+        self.assertIn("차이점의 개수를 미리 정하지 않는다", system_prompt)
+        self.assertIn("유사성이 일부 내용에만 해당하더라도", system_prompt)
+
+    def test_parse_output_adds_fixed_notice(self):
+        raw = json.dumps(
+            {
+                "similarities": [
+                    {
+                        "user_point": "보증금을 받지 못함",
+                        "case_point": "임대차 종료 후 보증금 반환을 청구함",
+                        "explanation": "보증금 반환이 문제 된 점이 같습니다.",
+                    }
+                ],
+                "differences": [],
+                "comparison_text": (
+                    "이 판례는 임대차 종료 후 보증금 반환이 문제 된 점에서 "
+                    "사용자 상황과 비슷합니다."
+                ),
+            },
+            ensure_ascii=False,
+        )
+
+        parsed = parse_structured_output(raw)
+
+        self.assertEqual(parsed["notice"], FIXED_NOTICE)
+        self.assertEqual(len(parsed["similarities"]), 1)
+
+    def test_parse_output_rejects_invalid_shapes(self):
+        invalid_payloads = [
+            {"similarities": [], "differences": []},
+            {
+                "similarities": [],
+                "differences": [],
+                "comparison_text": "비교 결과",
+            },
+            {
+                "similarities": [
+                    {"user_point": "", "case_point": "x", "explanation": "x"}
+                ],
+                "differences": [],
+                "comparison_text": "x",
+            },
+            {
+                "similarities": [],
+                "differences": [{"user_point": "x", "case_point": "x"}],
+                "comparison_text": "x",
+            },
+        ]
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError):
+                    parse_structured_output(json.dumps(payload, ensure_ascii=False))
 
 
-def test_parse_output_adds_fixed_notice():
-    raw = json.dumps(
-        {
-            "similarities": [
-                {
-                    "user_point": "보증금을 받지 못함",
-                    "case_point": "임대차 종료 후 보증금 반환을 청구함",
-                    "explanation": "보증금 반환이 문제 된 점이 같습니다.",
-                }
-            ],
-            "differences": [],
-            "comparison_text": (
-                "이 판례는 임대차 종료 후 보증금 반환이 문제 된 점에서 "
-                "사용자 상황과 비슷합니다."
-            ),
-        },
-        ensure_ascii=False,
-    )
-
-    parsed = parse_structured_output(raw)
-
-    assert parsed["notice"] == FIXED_NOTICE
-    assert len(parsed["similarities"]) == 1
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {"similarities": [], "differences": []},
-        {
-            "similarities": [],
-            "differences": [],
-            "comparison_text": "비교 결과",
-        },
-        {
-            "similarities": [{"user_point": "", "case_point": "x", "explanation": "x"}],
-            "differences": [],
-            "comparison_text": "x",
-        },
-        {
-            "similarities": [],
-            "differences": [{"user_point": "x", "case_point": "x"}],
-            "comparison_text": "x",
-        },
-    ],
-)
-def test_parse_output_rejects_invalid_shapes(payload):
-    with pytest.raises(ValueError):
-        parse_structured_output(json.dumps(payload, ensure_ascii=False))
+if __name__ == "__main__":
+    unittest.main()
