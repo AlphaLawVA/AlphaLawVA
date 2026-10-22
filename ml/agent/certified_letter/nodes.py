@@ -137,7 +137,22 @@ class CertifiedLetterNodes:
         contract_label = (
             "전세" if request.contract.contract_type == "jeonse" else "월세"
         )
-        context = f"{contract_label} 임대차 {searchable_text}".strip()
+        contract = request.contract
+        payment_context = f"보증금 {contract.payment.deposit}원"
+        if contract.payment.monthly_rent is not None:
+            payment_context += f" 월세 {contract.payment.monthly_rent}원"
+        period_context = (
+            f"계약기간 {contract.period.start_date.isoformat()}부터 "
+            f"{contract.period.end_date.isoformat()}까지"
+        )
+        context = " ".join(
+            (
+                f"{contract_label} 임대차",
+                period_context,
+                payment_context,
+                searchable_text,
+            )
+        ).strip()
         statute_queries = tuple(
             _limit_query(f"{issue} 관련 법령 {context}") for issue in issues
         )

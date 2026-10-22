@@ -190,6 +190,8 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         statute_query = statute_search.calls[0][0][0]
         self.assertNotIn("홍길동", statute_query)
         self.assertNotIn("서울특별시 종로구 사직로 1", statute_query)
+        self.assertIn("계약기간 2024-10-01부터 2026-09-30까지", statute_query)
+        self.assertIn("보증금 100000000원", statute_query)
 
     def test_stops_out_of_scope_before_search(self):
         dependencies, statute_search, precedent_search, generator, _validator = (

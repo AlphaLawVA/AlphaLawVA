@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Protocol, Sequence
 
 from ml.agent.certified_letter.state import (
@@ -91,8 +92,22 @@ class BgeM3PrecedentSearchAdapter:
         for result in _flatten(batches):
             evidence = _to_precedent_evidence(result)
             existing = merged.get(evidence.precedent_id)
-            if existing is None or evidence.similarity > existing.similarity:
+            if existing is None:
                 merged[evidence.precedent_id] = evidence
+                continue
+            rerank_texts = _unique_nonempty_texts(
+                (*evidence.rerank_texts, *existing.rerank_texts)
+            )
+            if evidence.similarity > existing.similarity:
+                merged[evidence.precedent_id] = replace(
+                    evidence,
+                    rerank_texts=rerank_texts,
+                )
+            else:
+                merged[evidence.precedent_id] = replace(
+                    existing,
+                    rerank_texts=rerank_texts,
+                )
         return sorted(merged.values(), key=lambda item: item.similarity, reverse=True)[
             :candidate_limit
         ]

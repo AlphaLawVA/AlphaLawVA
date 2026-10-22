@@ -248,6 +248,13 @@ Setting `CERTIFIED_LETTER_GENERATION_ENABLED=false` or omitting
 `GEMINI_API_KEY` keeps the endpoint unavailable instead of returning a mock
 draft.
 
+Stage 4 completes the existing-retriever integration without an LLM query
+expander. Search queries combine the redacted purpose and facts with contract
+type, period, deposit, and monthly rent. Names, delivery addresses, detailed
+addresses, and phone numbers are removed. Results from multiple deterministic
+queries are deduplicated by statute article or precedent ID; all matched chunks
+for a repeated precedent are retained for a later replaceable reranker.
+
 ## Draft Validation
 
 Before returning a draft, deterministic checks validate:

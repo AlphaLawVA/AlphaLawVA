@@ -118,7 +118,11 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
         self.assertEqual(backend.calls, [(('질의 1', '질의 2'), 20)])
 
     def test_precedent_adapter_merges_same_precedent_and_preserves_source(self):
-        low = make_precedent(precedent_id="64441", similarity=0.72)
+        low = make_precedent(
+            precedent_id="64441",
+            similarity=0.72,
+            matched_texts=("다른 질의에서 찾은 적중 청크",),
+        )
         high = make_precedent(
             precedent_id="64441",
             similarity=0.90,
@@ -139,7 +143,11 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
         self.assertTrue(results[0].source_url.endswith("precSeq=64441"))
         self.assertEqual(
             results[0].rerank_texts,
-            ("첫 번째 적중 청크", "두 번째 적중 청크"),
+            (
+                "첫 번째 적중 청크",
+                "두 번째 적중 청크",
+                "다른 질의에서 찾은 적중 청크",
+            ),
         )
 
     def test_dense_similarity_reranker_is_stable_baseline(self):
