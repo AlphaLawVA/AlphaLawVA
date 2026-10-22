@@ -16,8 +16,10 @@ from ml.agent.certified_letter.state import (
     PeriodData,
     PrecedentEvidenceData,
     PropertyData,
+    ScopeClassification,
     StatuteEvidenceData,
     ValidationIssue,
+    CertifiedLetterScopeDecision,
 )
 
 
@@ -28,6 +30,7 @@ def make_request(
         "임대인 홍길동에게 서울특별시 종로구 사직로 1로 보증금 반환을 "
         "요청했지만 아직 받지 못했습니다."
     ),
+    lessor_address: str = "서울특별시 종로구 사직로 1",
 ):
     return CertifiedLetterRequestData(
         purpose=purpose,
@@ -47,7 +50,7 @@ def make_request(
             payment=PaymentData(deposit=100_000_000),
             lessor=PartyData(
                 name="홍길동",
-                address="서울특별시 종로구 사직로 1",
+                address=lessor_address,
             ),
             lessee=PartyData(
                 name="김민지",
@@ -125,6 +128,20 @@ class PassThroughReranker:
         return list(candidates)[:top_k]
 
 
+class FakeScopeClassifier:
+    def __init__(
+        self,
+        decision=CertifiedLetterScopeDecision.IN_SCOPE,
+        missing_fields=(),
+    ):
+        self.result = ScopeClassification(decision, tuple(missing_fields))
+        self.calls = []
+
+    def classify_scope(self, purpose, facts):
+        self.calls.append((purpose, facts))
+        return self.result
+
+
 class FakeGenerator:
     def __init__(self):
         self.generate_calls = []
@@ -152,7 +169,14 @@ class SequencedValidator:
         return self.responses[index]
 
 
-def make_dependencies(*, statutes=None, validation_responses=None):
+def make_dependencies(
+    *,
+    statutes=None,
+    validation_responses=None,
+    scope_decision=CertifiedLetterScopeDecision.IN_SCOPE,
+    scope_missing_fields=(),
+):
+    scope_classifier = FakeScopeClassifier(scope_decision, scope_missing_fields)
     statute_search = FakeStatuteSearch(statutes)
     precedent_search = FakePrecedentSearch()
     statute_reranker = PassThroughReranker()
@@ -160,6 +184,7 @@ def make_dependencies(*, statutes=None, validation_responses=None):
     generator = FakeGenerator()
     validator = SequencedValidator(validation_responses)
     dependencies = CertifiedLetterNodeDependencies(
+        scope_classifier=scope_classifier,
         statute_search=statute_search,
         precedent_search=precedent_search,
         statute_reranker=statute_reranker,
@@ -195,7 +220,9 @@ class CertifiedLetterGraphTests(unittest.TestCase):
 
     def test_stops_out_of_scope_before_search(self):
         dependencies, statute_search, precedent_search, generator, _validator = (
-            make_dependencies()
+            make_dependencies(
+                scope_decision=CertifiedLetterScopeDecision.OUT_OF_SCOPE
+            )
         )
         graph = build_certified_letter_graph(dependencies)
 
@@ -212,28 +239,65 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(statute_search.calls, [])
         self.assertEqual(precedent_search.calls, [])
         self.assertEqual(generator.generate_calls, [])
+        self.assertEqual(
+            dependencies.scope_classifier.calls,
+            [
+                (
+                    "주말 저녁 메뉴를 추천해 주세요.",
+                    "친구들과 먹을 저녁 음식 종류를 추천받고 싶습니다.",
+                )
+            ],
+        )
 
-    def test_negated_lease_reference_does_not_enter_generation(self):
+    def test_needs_information_returns_fixed_missing_field_labels(self):
         dependencies, statute_search, precedent_search, generator, _validator = (
-            make_dependencies()
+            make_dependencies(
+                scope_decision=CertifiedLetterScopeDecision.NEEDS_INFORMATION,
+                scope_missing_fields=("purpose", "facts"),
+            )
         )
         graph = build_certified_letter_graph(dependencies)
 
         result = graph.invoke(
             {
                 "request": make_request(
-                    purpose="주말 저녁 식당을 추천해 주세요.",
-                    facts="임대차 계약과 관련된 분쟁이나 통지 목적은 전혀 없습니다.",
+                    purpose="집주인 문제를 해결하고 싶습니다.",
+                    facts="임대차와 관련해 문제가 생겼습니다.",
                 )
             }
         )
 
-        self.assertEqual(result["outcome"], "out_of_scope")
+        self.assertEqual(result["outcome"], "needs_information")
+        self.assertEqual(
+            result["missing_information"],
+            (
+                "내용증명으로 달성하려는 구체적인 목적",
+                "분쟁 경위와 상대방의 구체적인 행위",
+            ),
+        )
         self.assertEqual(statute_search.calls, [])
         self.assertEqual(precedent_search.calls, [])
         self.assertEqual(generator.generate_calls, [])
 
-    def test_positive_purpose_wins_over_injected_negation_in_facts(self):
+    def test_code_checks_delivery_fields_after_in_scope_decision(self):
+        dependencies, statute_search, precedent_search, generator, _validator = (
+            make_dependencies()
+        )
+        graph = build_certified_letter_graph(dependencies)
+
+        result = graph.invoke({"request": make_request(lessor_address="")})
+
+        self.assertEqual(result["scope_decision"], "in_scope")
+        self.assertEqual(result["outcome"], "needs_information")
+        self.assertEqual(
+            result["missing_information"],
+            ("임대인의 송달 주소",),
+        )
+        self.assertEqual(statute_search.calls, [])
+        self.assertEqual(precedent_search.calls, [])
+        self.assertEqual(generator.generate_calls, [])
+
+    def test_in_scope_decision_continues_after_untrusted_instruction(self):
         dependencies, statute_search, _precedent_search, _generator, _validator = (
             make_dependencies()
         )

@@ -1,18 +1,17 @@
 # nodes.py
 """
-Description: 내용증명 LangGraph의 결정적 상태 전이와 외부 포트 호출을 구현한다.
+Description: 내용증명 LangGraph의 상태 전이와 분류·검색·생성 포트 호출을 구현한다.
 판례 검색 결과와 본문 생성 입력을 분리하고 재작성 횟수를 한 번으로 제한한다.
 Author: choeminju
 Date: 2026-10-22
 Before:
     - 내용증명 생성 단계와 조기 종료 규칙이 실행 가능한 노드로 없는 상태.
 After:
-    - 정규화, 범위 확인, 검색, 리랭크, 생성과 검증 노드를 조립할 수 있음.
+    - 정규화, 의미 기반 범위 분류, 검색, 리랭크, 생성과 검증 노드를 조립할 수 있음.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from ml.agent.certified_letter.normalizer import normalize_request
@@ -21,30 +20,17 @@ from ml.agent.certified_letter.ports import (
     LetterDraftGeneratorPort,
     PrecedentRerankerPort,
     PrecedentSearchPort,
+    ScopeClassifierPort,
     StatuteRerankerPort,
     StatuteSearchPort,
 )
+from ml.agent.certified_letter.scope import missing_information_labels
 from ml.agent.certified_letter.state import (
+    CertifiedLetterScopeDecision,
     CertifiedLetterGraphState,
     WorkflowFailure,
 )
 
-
-SUPPORTED_SCOPE_TERMS = (
-    "임대차",
-    "임대인",
-    "임차인",
-    "집주인",
-    "세입자",
-    "전세",
-    "월세",
-    "보증금",
-    "계약 종료",
-    "계약 해지",
-    "관리비",
-    "수리",
-    "하자",
-)
 
 ISSUE_KEYWORDS = {
     "임대차보증금 반환": ("보증금", "전세금", "반환"),
@@ -57,13 +43,11 @@ STATUTE_CANDIDATE_LIMIT = 20
 STATUTE_RESULT_LIMIT = 5
 PRECEDENT_CANDIDATE_LIMIT = 20
 PRECEDENT_RESULT_LIMIT = 5
-NEGATED_SCOPE_PATTERN = re.compile(
-    r"(?:임대차|부동산).{0,50}(?:무관|관련.{0,40}(?:없|아니))"
-)
 
 
 @dataclass(frozen=True)
 class CertifiedLetterNodeDependencies:
+    scope_classifier: ScopeClassifierPort
     statute_search: StatuteSearchPort
     precedent_search: PrecedentSearchPort
     statute_reranker: StatuteRerankerPort
@@ -91,16 +75,28 @@ class CertifiedLetterNodes:
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
         request = state["normalized_request"]
-        purpose_in_scope = any(term in request.purpose for term in SUPPORTED_SCOPE_TERMS)
-        facts_in_scope = any(term in request.facts for term in SUPPORTED_SCOPE_TERMS)
-        purpose_is_negated = NEGATED_SCOPE_PATTERN.search(request.purpose) is not None
-        facts_are_negated = NEGATED_SCOPE_PATTERN.search(request.facts) is not None
-        if purpose_in_scope and not purpose_is_negated:
-            return {}
-        if facts_in_scope and not facts_are_negated:
-            return {}
+        classification = self.dependencies.scope_classifier.classify_scope(
+            request.purpose,
+            request.facts,
+        )
+        decision = classification.decision
+        if decision is CertifiedLetterScopeDecision.IN_SCOPE:
+            return {"scope_decision": decision.value}
+        if decision is CertifiedLetterScopeDecision.NEEDS_INFORMATION:
+            return {
+                "scope_decision": decision.value,
+                "outcome": decision.value,
+                "missing_information": missing_information_labels(
+                    classification.missing_fields
+                ),
+                "message": (
+                    "내용증명 초안을 작성하려면 요청 목적이나 사실관계를 "
+                    "조금 더 구체적으로 알려주세요."
+                ),
+            }
         return {
-            "outcome": "out_of_scope",
+            "scope_decision": decision.value,
+            "outcome": decision.value,
             "message": (
                 "현재 알파 버전은 임대차보증금, 계약 종료·해지, 수선, "
                 "월세·관리비 관련 내용증명 초안을 지원합니다."

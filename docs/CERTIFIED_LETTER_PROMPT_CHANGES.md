@@ -35,7 +35,7 @@ branch, or reuse its global LangChain chain.
 | “80% early-resolution success rate” | Removed. The system has no evidence for this performance claim. |
 | “A document with legal effect and psychological persuasiveness” | Replaced with the narrower goal of clearly communicating confirmed facts, demands, and a deadline. The draft does not guarantee legal effect or a result. |
 | Use general legal principles when retrieved law is absent | Removed. The workflow returns `insufficient_evidence` rather than generating unsupported law. |
-| Ask the model to classify out-of-scope requests and emit a fake letter-shaped system notice | Removed. LangGraph performs scope checks before generation and returns a typed domain outcome. |
+| Ask the drafting model to classify out-of-scope requests and emit a fake letter-shaped system notice | Replaced. A separate pre-generation Gemini prompt returns `in_scope`, `needs_information`, or `out_of_scope`; LangGraph returns the typed outcome without constructing a fake letter. |
 | Include a sending date and signature unconditionally | Changed. The model must not invent a date or signature when the input does not provide it. |
 | Generate legal and precedent explanations after drafting | Changed. Statutes are server-selected evidence; precedents are returned separately and never enter the drafting model. |
 | Return a successful fallback letter after an exception | Removed. Dependency or validation failure remains a failed job. |
@@ -54,6 +54,9 @@ branch, or reuse its global LangChain chain.
   definitive legal conclusions.
 - The prompt permits only the structured fields validated by the Gemini adapter
   and the deterministic post-generation validator.
+- The separate `certified_letter_scope_v0_1` prompt sees only `purpose` and
+  `facts`. It never receives contract parties, addresses, retrieved statutes,
+  precedents, or the drafting prompt.
 
 ## Review Notes
 

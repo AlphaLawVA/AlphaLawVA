@@ -156,6 +156,7 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
     )
     graph = create_certified_letter_workflow(
         model=model,
+        scope_classifier=model,
         statute_search=statute_search,
         precedent_search=precedent_search,
         statute_reranker=statute_reranker,

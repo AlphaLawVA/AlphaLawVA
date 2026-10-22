@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from enum import Enum
 from typing import TypedDict
 
 
@@ -71,6 +72,18 @@ class NormalizedCertifiedLetterRequest:
     is_deadline_suggested: bool
     contract: ContractData
     warnings: tuple[str, ...] = ()
+
+
+class CertifiedLetterScopeDecision(str, Enum):
+    IN_SCOPE = "in_scope"
+    NEEDS_INFORMATION = "needs_information"
+    OUT_OF_SCOPE = "out_of_scope"
+
+
+@dataclass(frozen=True)
+class ScopeClassification:
+    decision: CertifiedLetterScopeDecision
+    missing_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -137,6 +150,7 @@ class WorkflowFailure:
 class CertifiedLetterGraphState(TypedDict, total=False):
     request: CertifiedLetterRequestData
     normalized_request: NormalizedCertifiedLetterRequest
+    scope_decision: str
     missing_information: tuple[str, ...]
     legal_issues: tuple[str, ...]
     statute_queries: tuple[str, ...]

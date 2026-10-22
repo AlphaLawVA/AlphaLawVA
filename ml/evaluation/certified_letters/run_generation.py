@@ -103,7 +103,7 @@ def main() -> None:
     for case in cases:
         if case.case_id in completed_ids:
             continue
-        before_calls = _usage_totals(usage_path)["record_count"]
+        before_usage = _usage_totals(usage_path)
         started = time.monotonic()
         execution_error = None
         response = None
@@ -117,6 +117,7 @@ def main() -> None:
             if state is not None:
                 diagnostics = {
                     "repair_attempts": int(state.get("repair_attempts", 0)),
+                    "scope_decision": state.get("scope_decision"),
                     "validation_issue_codes": [
                         item.code for item in state.get("validation_issues", ())
                     ],
@@ -126,11 +127,17 @@ def main() -> None:
             execution_error = type(error).__name__
         latency_ms = round((time.monotonic() - started) * 1000, 3)
         totals = _usage_totals(usage_path)
+        scope_model_calls = (
+            totals["scope_record_count"] - before_usage["scope_record_count"]
+        )
+        diagnostics["scope_model_calls"] = scope_model_calls
         attempt = RecordedAttempt(
             case_id=case.case_id,
             response=response,
             latency_ms=latency_ms,
-            model_calls=totals["record_count"] - before_calls,
+            model_calls=(
+                totals["draft_record_count"] - before_usage["draft_record_count"]
+            ),
             execution_error=execution_error,
             diagnostics=diagnostics,
         )
@@ -144,6 +151,7 @@ def main() -> None:
                     "status": status,
                     "outcome": outcome,
                     "model_calls": attempt.model_calls,
+                    "scope_model_calls": scope_model_calls,
                     "cumulative_cost_usd": totals["estimated_cost_usd"],
                 },
                 ensure_ascii=False,
@@ -223,6 +231,8 @@ def _usage_totals(path: Path) -> dict[str, int | float]:
     if not path.exists():
         return {
             "record_count": 0,
+            "draft_record_count": 0,
+            "scope_record_count": 0,
             "input_tokens": 0,
             "output_tokens": 0,
             "total_tokens": 0,
@@ -235,6 +245,12 @@ def _usage_totals(path: Path) -> dict[str, int | float]:
     ]
     return {
         "record_count": len(records),
+        "draft_record_count": sum(
+            item.get("request_kind") in {None, "draft"} for item in records
+        ),
+        "scope_record_count": sum(
+            item.get("request_kind") == "scope" for item in records
+        ),
         "input_tokens": sum(int(item.get("input_tokens", 0)) for item in records),
         "output_tokens": sum(int(item.get("output_tokens", 0)) for item in records),
         "total_tokens": sum(int(item.get("total_tokens", 0)) for item in records),

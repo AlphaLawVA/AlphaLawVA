@@ -37,9 +37,15 @@ draft and personal data when a non-synthetic case is evaluated locally.
   "response": {},
   "latency_ms": 12345.6,
   "model_calls": 1,
-  "execution_error": null
+  "execution_error": null,
+  "diagnostics": {"scope_model_calls": 1}
 }
 ```
+
+`model_calls` counts drafting and repair calls so the existing one-pass quality
+gate remains comparable. Scope-classification calls are recorded separately in
+`diagnostics.scope_model_calls` and in the usage manifest. Legacy usage records
+without `request_kind` are treated as draft calls.
 
 The run metadata must record provider, exact model, prompt version, both
 embedding and chunking strategies, and the precedent reranker. Retrieval

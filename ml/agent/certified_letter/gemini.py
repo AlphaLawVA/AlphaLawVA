@@ -1,13 +1,13 @@
 # gemini.py
 """
-Description: Gemini 구조화 출력을 공급자 중립 내용증명 생성 포트에 연결한다.
-응답 스키마와 사용량을 검증하고 프롬프트 원문 없이 호출 메타데이터만 기록한다.
+Description: Gemini 구조화 출력을 내용증명 범위 분류와 생성 포트에 연결한다.
+두 응답 스키마와 사용량을 검증하고 프롬프트 원문 없이 호출 메타데이터만 기록한다.
 Author: choeminju
 Date: 2026-10-22
 Before:
     - 내용증명 그래프에 실제 생성 모델 구현이 연결되지 않은 상태.
 After:
-    - Gemini Flash-Lite로 검증 가능한 내용증명 초안 객체를 생성할 수 있음.
+    - Gemini Flash-Lite로 요청을 3분기하고 검증 가능한 내용증명 초안을 생성할 수 있음.
 """
 
 from __future__ import annotations
@@ -22,13 +22,20 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from ml.agent.certified_letter.prompts import PromptBundle
-from ml.agent.certified_letter.state import DraftPartyData, LetterDraftData
+from ml.agent.certified_letter.scope import build_scope_prompt
+from ml.agent.certified_letter.state import (
+    CertifiedLetterScopeDecision,
+    DraftPartyData,
+    LetterDraftData,
+    ScopeClassification,
+)
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_MAX_OUTPUT_TOKENS = 4096
+SCOPE_MAX_OUTPUT_TOKENS = 64
 MODEL_PRICING_USD_PER_MILLION = {
     "gemini-3.5-flash-lite": (0.30, 2.50),
 }
@@ -89,6 +96,26 @@ LETTER_DRAFT_SCHEMA = {
     "additionalProperties": False,
 }
 
+SCOPE_CLASSIFICATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "decision": {
+            "type": "string",
+            "enum": [item.value for item in CertifiedLetterScopeDecision],
+        },
+        "missing_fields": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": ["purpose", "facts"],
+            },
+            "maxItems": 2,
+        },
+    },
+    "required": ["decision", "missing_fields"],
+    "additionalProperties": False,
+}
+
 _USAGE_LOCK = Lock()
 
 
@@ -139,7 +166,10 @@ class GeminiStructuredLetterModel:
         return round(self._session_estimated_cost_usd, 8)
 
     def invoke(self, prompt: PromptBundle) -> LetterDraftData:
-        self._ensure_session_budget(prompt)
+        self._ensure_session_budget(
+            prompt,
+            max_output_tokens=self.max_output_tokens,
+        )
         request_payload = {
             "systemInstruction": {"parts": [{"text": prompt.system}]},
             "contents": [
@@ -165,13 +195,65 @@ class GeminiStructuredLetterModel:
             self._record_usage(
                 prompt,
                 usage,
+                request_kind="draft",
                 success=False,
                 error_type=type(error).__name__,
             )
             raise
 
-        self._record_usage(prompt, usage, success=True)
+        self._record_usage(
+            prompt,
+            usage,
+            request_kind="draft",
+            success=True,
+        )
         return draft
+
+    def classify_scope(self, purpose: str, facts: str) -> ScopeClassification:
+        prompt = build_scope_prompt(purpose, facts)
+        self._ensure_session_budget(
+            prompt,
+            max_output_tokens=SCOPE_MAX_OUTPUT_TOKENS,
+        )
+        request_payload = {
+            "systemInstruction": {"parts": [{"text": prompt.system}]},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt.user}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": SCOPE_MAX_OUTPUT_TOKENS,
+                "thinkingConfig": {"thinkingLevel": "minimal"},
+                "responseMimeType": "application/json",
+                "responseJsonSchema": SCOPE_CLASSIFICATION_SCHEMA,
+            },
+        }
+        usage = self._empty_usage()
+        try:
+            response_payload = self._post_json(request_payload)
+            usage = self._extract_usage(response_payload)
+            parsed = json.loads(self._extract_text(response_payload))
+            classification = self._parse_scope_classification(parsed)
+        except Exception as error:
+            self._record_usage(
+                prompt,
+                usage,
+                request_kind="scope",
+                success=False,
+                error_type=type(error).__name__,
+            )
+            raise
+
+        self._record_usage(
+            prompt,
+            usage,
+            request_kind="scope",
+            success=True,
+        )
+        return classification
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         endpoint = (
@@ -192,10 +274,10 @@ class GeminiStructuredLetterModel:
                 body = response.read().decode("utf-8")
         except HTTPError as error:
             raise RuntimeError(
-                f"Gemini 내용증명 생성 호출 실패: HTTP {error.code}"
+                f"Gemini 내용증명 모델 호출 실패: HTTP {error.code}"
             ) from error
         except (URLError, TimeoutError) as error:
-            raise RuntimeError("Gemini 내용증명 생성 모델을 호출할 수 없습니다.") from error
+            raise RuntimeError("Gemini 내용증명 모델을 호출할 수 없습니다.") from error
 
         try:
             parsed = json.loads(body)
@@ -263,6 +345,35 @@ class GeminiStructuredLetterModel:
             warnings=cls._string_tuple(value["warnings"], "warnings"),
         )
 
+    @staticmethod
+    def _parse_scope_classification(value: Any) -> ScopeClassification:
+        if not isinstance(value, dict) or set(value) != {
+            "decision",
+            "missing_fields",
+        }:
+            raise ValueError("Gemini 범위 분류 응답 필드가 스키마와 일치하지 않습니다.")
+        try:
+            decision = CertifiedLetterScopeDecision(value["decision"])
+        except (TypeError, ValueError) as error:
+            raise ValueError("Gemini 범위 분류 decision이 올바르지 않습니다.") from error
+        missing_fields = value["missing_fields"]
+        if (
+            not isinstance(missing_fields, list)
+            or len(missing_fields) > 2
+            or len(set(missing_fields)) != len(missing_fields)
+            or any(item not in {"purpose", "facts"} for item in missing_fields)
+        ):
+            raise ValueError("Gemini 범위 분류 missing_fields가 올바르지 않습니다.")
+        if decision is CertifiedLetterScopeDecision.NEEDS_INFORMATION:
+            if not missing_fields:
+                raise ValueError("needs_information에는 누락 필드가 필요합니다.")
+        elif missing_fields:
+            raise ValueError("범위 판정과 누락 필드가 일치하지 않습니다.")
+        return ScopeClassification(
+            decision=decision,
+            missing_fields=tuple(missing_fields),
+        )
+
     @classmethod
     def _parse_party(cls, value: Any, field: str) -> DraftPartyData:
         if not isinstance(value, dict) or set(value) != {
@@ -310,6 +421,7 @@ class GeminiStructuredLetterModel:
         prompt: PromptBundle,
         usage: dict[str, int],
         *,
+        request_kind: str,
         success: bool,
         error_type: str | None = None,
     ) -> None:
@@ -322,6 +434,7 @@ class GeminiStructuredLetterModel:
             "provider": "gemini",
             "model": self.model_name,
             "prompt_version": prompt.version,
+            "request_kind": request_kind,
             "success": success,
             "input_tokens": usage["input_tokens"],
             "output_tokens": usage["output_tokens"],
@@ -336,7 +449,12 @@ class GeminiStructuredLetterModel:
             with self.usage_manifest_path.open("a", encoding="utf-8") as file:
                 file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    def _ensure_session_budget(self, prompt: PromptBundle) -> None:
+    def _ensure_session_budget(
+        self,
+        prompt: PromptBundle,
+        *,
+        max_output_tokens: int,
+    ) -> None:
         if self.max_session_cost_usd is None:
             return
         input_price, output_price = MODEL_PRICING_USD_PER_MILLION[self.model_name]
@@ -345,7 +463,7 @@ class GeminiStructuredLetterModel:
         ) + 1024
         conservative_next_cost = (
             conservative_input_tokens * input_price
-            + self.max_output_tokens * output_price
+            + max_output_tokens * output_price
         ) / 1_000_000
         if (
             self._session_estimated_cost_usd + conservative_next_cost

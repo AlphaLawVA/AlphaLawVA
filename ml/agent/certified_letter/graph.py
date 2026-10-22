@@ -91,7 +91,11 @@ def build_certified_letter_graph(
 def _route_after_scope(
     state: CertifiedLetterGraphState,
 ) -> Literal["continue", "finish"]:
-    return "finish" if state.get("outcome") == "out_of_scope" else "continue"
+    return (
+        "finish"
+        if state.get("outcome") in {"out_of_scope", "needs_information"}
+        else "continue"
+    )
 
 
 def _route_after_required_information(

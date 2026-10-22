@@ -192,7 +192,7 @@ loop.
 
 ```text
 normalize_input
-  -> check_scope
+  -> check_scope (Gemini: in_scope / needs_information / out_of_scope)
   -> check_required_information
   -> build_search_queries
   -> [retrieve_statutes -> rerank_statutes]
@@ -206,8 +206,12 @@ normalize_input
 
 Early outcomes:
 
-- an unrelated request ends as `out_of_scope`;
-- missing delivery-critical facts end as `needs_information`;
+- Gemini receives only `purpose` and `facts`; an unrelated request ends as
+  `out_of_scope` before retrieval;
+- a semantically vague or mixed request ends as `needs_information` with a
+  fixed server-side description of whether `purpose` or `facts` is needed;
+- code checks names and delivery addresses after an `in_scope` decision and
+  missing delivery-critical values also end as `needs_information`;
 - a successful search with inadequate statute evidence ends as
   `insufficient_evidence`;
 - dependency failures end the job as `failed`.
@@ -231,8 +235,10 @@ implementation must remain replaceable through an explicit interface.
 
 Stage 2 runtime configuration uses the following provisional alpha choices:
 
-- generation: `gemini-3.5-flash-lite` through structured JSON output, with
-  Claude remaining the intended production candidate;
+- scope classification: `gemini-3.5-flash-lite` with temperature 0, minimal
+  thinking, a 64-token limit, and a three-value structured JSON decision;
+- generation: the same `gemini-3.5-flash-lite` adapter and shared session cost
+  guard, with Claude remaining the intended production candidate;
 - statute ranking: the approved BGE-M3 dense score until a statute-specific
   reranker comparison is completed;
 - precedent ranking: local `bge-reranker-v2-m3`, selected for the alpha because

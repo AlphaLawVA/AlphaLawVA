@@ -18,9 +18,14 @@ from ml.agent.certified_letter.state import (
     LetterDraftData,
     NormalizedCertifiedLetterRequest,
     PrecedentEvidenceData,
+    ScopeClassification,
     StatuteEvidenceData,
     ValidationIssue,
 )
+
+
+class ScopeClassifierPort(Protocol):
+    def classify_scope(self, purpose: str, facts: str) -> ScopeClassification: ...
 
 
 class StatuteSearchPort(Protocol):

@@ -281,6 +281,7 @@ class CertifiedLetterEvaluationTests(unittest.TestCase):
                             "estimated_cost_usd": 0.001,
                         },
                         {
+                            "request_kind": "scope",
                             "input_tokens": 200,
                             "output_tokens": 75,
                             "total_tokens": 275,
@@ -295,6 +296,8 @@ class CertifiedLetterEvaluationTests(unittest.TestCase):
             totals = _usage_totals(path)
 
         self.assertEqual(totals["record_count"], 2)
+        self.assertEqual(totals["draft_record_count"], 1)
+        self.assertEqual(totals["scope_record_count"], 1)
         self.assertEqual(totals["input_tokens"], 300)
         self.assertEqual(totals["total_tokens"], 425)
         self.assertEqual(totals["estimated_cost_usd"], 0.003)

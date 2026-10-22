@@ -7,6 +7,10 @@ graph. It is not a reranker or legal-quality benchmark. Both retrievers used
 their dense-order baseline so that reranker model selection can be evaluated
 separately later.
 
+> Historical note: this run predates the dedicated Gemini three-way scope
+> classifier. Its scope result describes the former deterministic guard and
+> must not be used as evidence for the current classifier's semantic accuracy.
+
 ## Configuration
 
 - Provider/model: Google Gemini API, `gemini-3.5-flash-lite`

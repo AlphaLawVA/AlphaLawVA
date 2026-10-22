@@ -73,6 +73,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
         self.assertIs(service.graph, graph)
         arguments = create_workflow.call_args.kwargs
         self.assertIsInstance(arguments["model"], GeminiStructuredLetterModel)
+        self.assertIs(arguments["scope_classifier"], arguments["model"])
         self.assertEqual(arguments["model"].model_name, "gemini-3.5-flash-lite")
         self.assertEqual(
             arguments["statute_search"].retriever.db_dir,
