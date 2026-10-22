@@ -102,6 +102,7 @@ class GeminiStructuredLetterModel:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         usage_manifest_path: Path | None = None,
+        max_session_cost_usd: float | None = None,
     ) -> None:
         normalized_key = api_key.strip()
         normalized_model = model.strip().removeprefix("models/")
@@ -116,6 +117,13 @@ class GeminiStructuredLetterModel:
             raise ValueError("Gemini timeout은 0보다 커야 합니다.")
         if max_output_tokens < 1:
             raise ValueError("Gemini 출력 토큰 수는 1 이상이어야 합니다.")
+        if max_session_cost_usd is not None and max_session_cost_usd <= 0:
+            raise ValueError("Gemini 세션 비용 상한은 0보다 커야 합니다.")
+        if (
+            max_session_cost_usd is not None
+            and normalized_model not in MODEL_PRICING_USD_PER_MILLION
+        ):
+            raise ValueError("비용 정보가 없는 Gemini 모델에는 상한을 적용할 수 없습니다.")
 
         self._api_key = normalized_key
         self.model_name = normalized_model
@@ -123,8 +131,15 @@ class GeminiStructuredLetterModel:
         self.timeout_seconds = timeout_seconds
         self.max_output_tokens = max_output_tokens
         self.usage_manifest_path = usage_manifest_path
+        self.max_session_cost_usd = max_session_cost_usd
+        self._session_estimated_cost_usd = 0.0
+
+    @property
+    def session_estimated_cost_usd(self) -> float:
+        return round(self._session_estimated_cost_usd, 8)
 
     def invoke(self, prompt: PromptBundle) -> LetterDraftData:
+        self._ensure_session_budget(prompt)
         request_payload = {
             "systemInstruction": {"parts": [{"text": prompt.system}]},
             "contents": [
@@ -298,16 +313,10 @@ class GeminiStructuredLetterModel:
         success: bool,
         error_type: str | None = None,
     ) -> None:
+        estimated_cost = self._estimated_cost(usage)
+        self._session_estimated_cost_usd += estimated_cost
         if self.usage_manifest_path is None:
             return
-        input_price, output_price = MODEL_PRICING_USD_PER_MILLION.get(
-            self.model_name,
-            (0.0, 0.0),
-        )
-        estimated_cost = (
-            usage["input_tokens"] * input_price
-            + usage["output_tokens"] * output_price
-        ) / 1_000_000
         record: dict[str, str | int | float | bool] = {
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "provider": "gemini",
@@ -326,6 +335,33 @@ class GeminiStructuredLetterModel:
             self.usage_manifest_path.parent.mkdir(parents=True, exist_ok=True)
             with self.usage_manifest_path.open("a", encoding="utf-8") as file:
                 file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def _ensure_session_budget(self, prompt: PromptBundle) -> None:
+        if self.max_session_cost_usd is None:
+            return
+        input_price, output_price = MODEL_PRICING_USD_PER_MILLION[self.model_name]
+        conservative_input_tokens = len(
+            f"{prompt.system}\n{prompt.user}".encode("utf-8")
+        ) + 1024
+        conservative_next_cost = (
+            conservative_input_tokens * input_price
+            + self.max_output_tokens * output_price
+        ) / 1_000_000
+        if (
+            self._session_estimated_cost_usd + conservative_next_cost
+            > self.max_session_cost_usd
+        ):
+            raise RuntimeError("Gemini 내용증명 평가 세션 비용 상한을 초과할 수 있습니다.")
+
+    def _estimated_cost(self, usage: dict[str, int]) -> float:
+        input_price, output_price = MODEL_PRICING_USD_PER_MILLION.get(
+            self.model_name,
+            (0.0, 0.0),
+        )
+        return (
+            usage["input_tokens"] * input_price
+            + usage["output_tokens"] * output_price
+        ) / 1_000_000
 
     @staticmethod
     def _empty_usage() -> dict[str, int]:

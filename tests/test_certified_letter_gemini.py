@@ -131,6 +131,7 @@ class GeminiStructuredLetterModelTests(unittest.TestCase):
         self.assertEqual(usage["prompt_version"], "certified_letter_test")
         self.assertEqual(usage["estimated_cost_usd"], 0.00155)
         self.assertNotIn("private_fact", usage)
+        self.assertEqual(self.model.session_estimated_cost_usd, 0.00155)
 
     @patch("ml.agent.certified_letter.gemini.urlopen")
     def test_rejects_schema_mismatch_and_records_failure(self, mock_urlopen):
@@ -162,6 +163,25 @@ class GeminiStructuredLetterModelTests(unittest.TestCase):
                 api_key="test",
                 base_url="http://example.com",
             )
+        with self.assertRaises(ValueError):
+            GeminiStructuredLetterModel(
+                api_key="test",
+                max_session_cost_usd=0,
+            )
+
+    @patch("ml.agent.certified_letter.gemini.urlopen")
+    def test_blocks_call_before_session_budget_can_be_exceeded(self, mock_urlopen):
+        model = GeminiStructuredLetterModel(
+            api_key="test-key",
+            max_session_cost_usd=0.000001,
+            usage_manifest_path=self.manifest_path,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "비용 상한"):
+            model.invoke(self.prompt)
+
+        mock_urlopen.assert_not_called()
+        self.assertFalse(self.manifest_path.exists())
 
 
 if __name__ == "__main__":

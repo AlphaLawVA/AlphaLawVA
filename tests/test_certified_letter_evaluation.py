@@ -13,6 +13,8 @@ After:
 from __future__ import annotations
 
 import copy
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +24,7 @@ from ml.evaluation.certified_letters.evaluate_outputs import (
     evaluate,
     load_cases,
 )
+from ml.evaluation.certified_letters.run_generation import _usage_totals
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -263,6 +266,38 @@ class CertifiedLetterEvaluationTests(unittest.TestCase):
             "system_failure_disguised_as_success",
             artifacts.case_results[0]["failure_reasons"],
         )
+
+    def test_sums_only_recorded_usage_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "usage.jsonl"
+            path.write_text(
+                "\n".join(
+                    json.dumps(item)
+                    for item in (
+                        {
+                            "input_tokens": 100,
+                            "output_tokens": 50,
+                            "total_tokens": 150,
+                            "estimated_cost_usd": 0.001,
+                        },
+                        {
+                            "input_tokens": 200,
+                            "output_tokens": 75,
+                            "total_tokens": 275,
+                            "estimated_cost_usd": 0.002,
+                        },
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            totals = _usage_totals(path)
+
+        self.assertEqual(totals["record_count"], 2)
+        self.assertEqual(totals["input_tokens"], 300)
+        self.assertEqual(totals["total_tokens"], 425)
+        self.assertEqual(totals["estimated_cost_usd"], 0.003)
 
 
 if __name__ == "__main__":

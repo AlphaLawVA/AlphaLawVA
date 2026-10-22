@@ -118,6 +118,18 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
             issue_codes(self.validator.validate(self.request, self.statutes, missing)),
         )
 
+    def test_rejects_unverified_paragraph_or_item_citation(self):
+        detailed = replace(
+            make_draft(),
+            body=make_draft().body.replace("제4조", "제4조 제1항 제2호"),
+        )
+
+        codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, detailed)
+        )
+
+        self.assertIn("unsupported_statute_detail_citation", codes)
+
     def test_accepts_grounded_subarticle_citation(self):
         statute = replace(make_statute(), article_label="제6조의2")
         draft = replace(
@@ -172,6 +184,26 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         )
 
         self.assertIn("unexpected_date", codes)
+
+    def test_rejects_missing_demand_and_unconfirmed_contact_history(self):
+        missing_demand = replace(
+            make_draft(),
+            body="「주택임대차보호법」 제4조를 확인했습니다. 받은 날부터 7일 이내입니다.",
+        )
+        invented_contact = replace(
+            make_draft(),
+            body=make_draft().body + " 수차례 연락하였으나 답변이 없었습니다.",
+        )
+
+        missing_codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, missing_demand)
+        )
+        invented_codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, invented_contact)
+        )
+
+        self.assertIn("missing_demand", missing_codes)
+        self.assertIn("unconfirmed_event_claim", invented_codes)
 
     def test_accepts_explicit_deadline_in_korean_date_format(self):
         request = make_request(requested_deadline=date(2026, 11, 15))

@@ -164,7 +164,7 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         self.assertTrue(submission.is_new)
         self.assertEqual(submission.response.status, CertifiedLetterJobStatus.QUEUED)
 
-        service.process(submission.response.draft_id)
+        state = service.process(submission.response.draft_id)
         response = service.get(submission.response.draft_id)
 
         self.assertEqual(response.status, CertifiedLetterJobStatus.COMPLETED)
@@ -174,6 +174,7 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         self.assertEqual(response.result.similar_precedents[0].decision_date.isoformat(), "2008-09-25")
         self.assertIn("수령 후 7일 이내", " ".join(response.result.warnings))
         self.assertEqual(len(graph.calls), 1)
+        self.assertEqual(state["outcome"], "draft_ready")
 
     def test_returns_existing_job_for_same_idempotency_key_and_request(self):
         service = self.make_service(ReadyGraph())

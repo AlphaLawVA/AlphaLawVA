@@ -124,6 +124,9 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
             )
         ),
         usage_manifest_path=usage_manifest,
+        max_session_cost_usd=_optional_positive_float(
+            "CERTIFIED_LETTER_GEMINI_SESSION_BUDGET_USD"
+        ),
     )
     statute_search = BgeM3StatuteSearchAdapter(
         BgeM3StatuteRetriever(
@@ -215,3 +218,13 @@ def _enabled(name: str, *, default: bool) -> bool:
         "no",
         "off",
     }
+
+
+def _optional_positive_float(name: str) -> float | None:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return None
+    parsed = float(value)
+    if parsed <= 0:
+        raise ValueError(f"{name}은 0보다 커야 합니다.")
+    return parsed

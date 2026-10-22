@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from ml.agent.certified_letter.normalizer import normalize_request
@@ -56,6 +57,9 @@ STATUTE_CANDIDATE_LIMIT = 20
 STATUTE_RESULT_LIMIT = 5
 PRECEDENT_CANDIDATE_LIMIT = 20
 PRECEDENT_RESULT_LIMIT = 5
+NEGATED_SCOPE_PATTERN = re.compile(
+    r"(?:임대차|부동산).{0,50}(?:무관|관련.{0,40}(?:없|아니))"
+)
 
 
 @dataclass(frozen=True)
@@ -87,8 +91,13 @@ class CertifiedLetterNodes:
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
         request = state["normalized_request"]
-        text = f"{request.purpose} {request.facts}"
-        if any(term in text for term in SUPPORTED_SCOPE_TERMS):
+        purpose_in_scope = any(term in request.purpose for term in SUPPORTED_SCOPE_TERMS)
+        facts_in_scope = any(term in request.facts for term in SUPPORTED_SCOPE_TERMS)
+        purpose_is_negated = NEGATED_SCOPE_PATTERN.search(request.purpose) is not None
+        facts_are_negated = NEGATED_SCOPE_PATTERN.search(request.facts) is not None
+        if purpose_in_scope and not purpose_is_negated:
+            return {}
+        if facts_in_scope and not facts_are_negated:
             return {}
         return {
             "outcome": "out_of_scope",

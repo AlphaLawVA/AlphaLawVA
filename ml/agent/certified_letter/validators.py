@@ -26,6 +26,7 @@ from ml.agent.certified_letter.state import (
 
 LAW_CITATION_PATTERN = re.compile(
     r"「(?P<law>[^」]+)」\s*(?P<article>제\s*\d+\s*조(?:\s*의\s*\d+)?)"
+    r"(?P<paragraph>\s*제\s*\d+\s*항)?(?P<item>\s*제\s*\d+\s*호)?"
 )
 WON_PATTERN = re.compile(r"(?<!\d)(\d[\d,]*)\s*원")
 ISO_DATE_PATTERN = re.compile(
@@ -43,6 +44,29 @@ UNSAFE_CLAIMS = (
     "반드시 처벌",
 )
 PROMPT_LEAK_MARKERS = ("system prompt", "시스템 프롬프트", "statute_evidence")
+DEMAND_MARKERS = (
+    "요청",
+    "요구",
+    "촉구",
+    "통보",
+    "반환",
+    "수리",
+    "지급",
+    "이행",
+    "해지",
+    "종료",
+    "갱신",
+)
+UNCONFIRMED_EVENT_PHRASES = (
+    "여러 차례 연락",
+    "수차례 연락",
+    "전화로 요청",
+    "문자로 요청",
+    "반환을 약속",
+    "수리를 약속",
+    "합의하였",
+    "거부하였",
+)
 
 
 class CertifiedLetterDraftValidator:
@@ -54,9 +78,11 @@ class CertifiedLetterDraftValidator:
     ) -> list[ValidationIssue]:
         issues = []
         issues.extend(_validate_parties(request, draft))
+        issues.extend(_validate_required_content(draft))
         issues.extend(_validate_citations(statute_evidence, draft.body))
         issues.extend(_validate_money(request, draft.body))
         issues.extend(_validate_dates(request, draft.body))
+        issues.extend(_validate_unconfirmed_events(request, draft.body))
         issues.extend(_validate_deadline(request, draft.body))
         issues.extend(_validate_safety(draft))
         return _deduplicate_issues(issues)
@@ -94,6 +120,27 @@ def _validate_parties(
     return issues
 
 
+def _validate_required_content(draft: LetterDraftData) -> list[ValidationIssue]:
+    issues = []
+    if not draft.title.strip():
+        issues.append(
+            ValidationIssue(
+                code="missing_title",
+                message="내용증명 제목이 없습니다.",
+            )
+        )
+    if not draft.body.strip() or not any(
+        marker in draft.body for marker in DEMAND_MARKERS
+    ):
+        issues.append(
+            ValidationIssue(
+                code="missing_demand",
+                message="본문에 구체적인 요구 또는 통보 내용이 없습니다.",
+            )
+        )
+    return issues
+
+
 def _validate_citations(
     statute_evidence: Sequence[StatuteEvidenceData],
     body: str,
@@ -122,6 +169,19 @@ def _validate_citations(
             ValidationIssue(
                 code="unsupported_statute_citation",
                 message=f"검색 근거에 없는 법령 인용이 있습니다: {formatted}",
+            )
+        )
+    if any(
+        match.group("paragraph") or match.group("item")
+        for match in LAW_CITATION_PATTERN.finditer(body)
+    ):
+        issues.append(
+            ValidationIssue(
+                code="unsupported_statute_detail_citation",
+                message=(
+                    "알파 근거는 조문 단위입니다. 확인되지 않은 항·호 인용을 "
+                    "본문에서 제거해야 합니다."
+                ),
             )
         )
     return issues
@@ -171,6 +231,29 @@ def _validate_dates(
             message=(
                 "입력에서 확인되지 않은 날짜가 본문에 있습니다: "
                 + ", ".join(value.isoformat() for value in unexpected)
+            ),
+        )
+    ]
+
+
+def _validate_unconfirmed_events(
+    request: NormalizedCertifiedLetterRequest,
+    body: str,
+) -> list[ValidationIssue]:
+    source = f"{request.purpose} {request.facts}"
+    unexpected = [
+        phrase
+        for phrase in UNCONFIRMED_EVENT_PHRASES
+        if phrase in body and phrase not in source
+    ]
+    if not unexpected:
+        return []
+    return [
+        ValidationIssue(
+            code="unconfirmed_event_claim",
+            message=(
+                "입력에서 확인되지 않은 연락·약속·합의 표현이 있습니다: "
+                + ", ".join(unexpected)
             ),
         )
     ]

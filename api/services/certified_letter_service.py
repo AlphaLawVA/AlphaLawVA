@@ -116,7 +116,7 @@ class CertifiedLetterService:
             is_new=is_new,
         )
 
-    def process(self, draft_id: UUID) -> None:
+    def process(self, draft_id: UUID) -> CertifiedLetterGraphState | None:
         if self.graph is None:
             raise CertifiedLetterGenerationUnavailableError(
                 "내용증명 생성 모델이 구성되지 않았습니다."
@@ -126,6 +126,12 @@ class CertifiedLetterService:
             request = self._requests[draft_id]
             state = self.graph.invoke({"request": request})
             if failure := state.get("failure"):
+                logger.warning(
+                    "내용증명 검증 실패: draft_id=%s issue_codes=%s repair_attempts=%s",
+                    draft_id,
+                    [item.code for item in state.get("validation_issues", ())],
+                    state.get("repair_attempts", 0),
+                )
                 self.jobs.mark_failed(
                     draft_id,
                     error=CertifiedLetterJobError(
@@ -134,7 +140,7 @@ class CertifiedLetterService:
                     ),
                     now=self.clock(),
                 )
-                return
+                return state
             outcome = CertifiedLetterOutcome(state["outcome"])
             result = _to_api_result(state) if outcome is CertifiedLetterOutcome.DRAFT_READY else None
             self.jobs.mark_completed(
@@ -145,6 +151,7 @@ class CertifiedLetterService:
                 message=state.get("message"),
                 now=self.clock(),
             )
+            return state
         except Exception as error:
             logger.exception(
                 "내용증명 생성 작업 실패: draft_id=%s error_type=%s",
@@ -159,6 +166,7 @@ class CertifiedLetterService:
                 ),
                 now=self.clock(),
             )
+            return None
         finally:
             self._requests.pop(draft_id, None)
 

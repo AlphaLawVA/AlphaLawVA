@@ -110,6 +110,7 @@ class RecordedAttempt(StrictModel):
     latency_ms: float = Field(ge=0)
     model_calls: int = Field(ge=0)
     execution_error: str | None = None
+    diagnostics: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_result_presence(self) -> RecordedAttempt:

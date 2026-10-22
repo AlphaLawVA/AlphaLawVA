@@ -65,6 +65,30 @@ The evaluator writes:
 - `manifest.json`: dataset and attempt hashes, versions, configuration, and the
   overall result.
 
+For an explicitly approved paid smoke run, use the resumable runner. It loads
+the API key from the specified local `.env`, writes all raw outputs below the
+gitignored output directory, and enforces a per-process session budget before
+each model call using a conservative token upper bound.
+
+```bash
+python -m ml.evaluation.certified_letters.run_generation \
+  --dataset ml/evaluation/certified_letters/datasets/certified_letter_eval_v01.jsonl \
+  --output-dir local_data/certified_letters/evaluation/runs/gemini_v03 \
+  --env-file /path/to/local/.env \
+  --project-data-root /path/to/AlphaLawVA \
+  --model gemini-3.5-flash-lite \
+  --max-output-tokens 2048 \
+  --max-cost-usd 0.50 \
+  --statute-reranker dense \
+  --precedent-reranker dense
+```
+
+Use `--resume` only to continue the same run. Existing case IDs are skipped so
+an interrupted run does not silently pay for the same case again. The runner
+does not itself authorize a paid call; the model, record count, transmitted
+fields, and maximum spend still require the explicit approval described in
+`docs/RULES.md`.
+
 Missing cases, unexpected case IDs, malformed responses, non-completed jobs,
 outcome mismatches, required-term omissions, and model-call limit violations
 fail the run. A malformed model response is recorded as a failed case instead
@@ -98,4 +122,3 @@ same-dataset model comparison remain required.
    that the retrieved statute was the best or legally sufficient authority.
 5. Compare candidate models against the same dataset version. Do not overwrite
    earlier runs.
-
