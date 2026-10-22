@@ -111,7 +111,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--review-top-k", type=int, default=DEFAULT_REVIEW_TOP_K)
     parser.add_argument("--max-length", type=int, default=DEFAULT_MAX_LENGTH)
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
-    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+        help="리랭커 실행 장치. MPS 사용 시 후보 검색은 CPU에서 실행한다.",
+    )
     parser.add_argument(
         "--variants",
         default="A,B,C",
@@ -394,7 +399,8 @@ def run_comparison(args: argparse.Namespace) -> None:
     output_dir = make_output_dir(args.output_dir)
 
     retrieval_started = time.perf_counter()
-    retriever = BgeM3PrecedentRetriever(device=args.device)
+    retrieval_device = "cpu" if args.device == "mps" else args.device
+    retriever = BgeM3PrecedentRetriever(device=retrieval_device)
     raw_dense_results = retriever.search_many(
         [query["query"] for query in queries],
         top_k=args.candidate_cases * 2,
@@ -436,7 +442,8 @@ def run_comparison(args: argparse.Namespace) -> None:
         "review_top_k": args.review_top_k,
         "max_length": args.max_length,
         "batch_size": args.batch_size,
-        "device": args.device,
+        "retrieval_device": retrieval_device,
+        "reranker_device": args.device,
         "dense_embedding_model": BGE_M3_MODEL_NAME,
         "chunking_strategy": DEFAULT_CHUNKING_STRATEGY,
         "retrieval_seconds_including_model_load": round(retrieval_seconds, 4),
