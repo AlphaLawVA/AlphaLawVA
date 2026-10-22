@@ -44,6 +44,9 @@ def test_request_uses_structured_output_and_minimal_thinking():
     assert "차이점의 개수를 미리 정하지 않는다" in (
         payload["systemInstruction"]["parts"][0]["text"]
     )
+    assert "유사성이 일부 내용에만 해당하더라도" in (
+        payload["systemInstruction"]["parts"][0]["text"]
+    )
 
 
 def test_parse_output_adds_fixed_notice():
@@ -71,29 +74,15 @@ def test_parse_output_adds_fixed_notice():
     assert len(parsed["similarities"]) == 1
 
 
-def test_parse_output_allows_empty_comparison_points():
-    parsed = parse_structured_output(
-        json.dumps(
-            {
-                "similarities": [],
-                "differences": [],
-                "comparison_text": (
-                    "제공된 자료에서는 현재 상황과 직접 겹치는 쟁점을 "
-                    "확인하기 어렵습니다."
-                ),
-            },
-            ensure_ascii=False,
-        )
-    )
-
-    assert parsed["similarities"] == []
-    assert parsed["differences"] == []
-
-
 @pytest.mark.parametrize(
     "payload",
     [
         {"similarities": [], "differences": []},
+        {
+            "similarities": [],
+            "differences": [],
+            "comparison_text": "비교 결과",
+        },
         {
             "similarities": [{"user_point": "", "case_point": "x", "explanation": "x"}],
             "differences": [],

@@ -53,7 +53,7 @@ from ml.rag.precedent_retriever import (  # noqa: E402
 from precedents.precedent_config import load_env_file  # noqa: E402
 
 
-PROMPT_VERSION = "v4_flexible_relevance"
+PROMPT_VERSION = "v5_search_reason_focused"
 DEFAULT_OUTPUT_ROOT = (
     PROJECT_ROOT
     / "local_data"
@@ -82,30 +82,27 @@ SYSTEM_PROMPT = """너는 AlphaLawVA의 판례 비교 도우미이다.
 1. 사용자 상황에서 당사자 관계, 발생한 일, 궁금한 쟁점을 파악한다.
 2. 매칭 청크에서 실제로 겹치는 사실이나 쟁점을 찾는다.
 3. 판례 요약으로 판례가 전체적으로 무엇을 다룬 사건인지 확인한다.
-4. 관련성이 높은지, 일부만 관련되는지, 핵심 쟁점은 다른지를 판단한다.
+4. 사용자 상황과 관련되는 부분과 구분해서 볼 부분을 판단한다.
 5. 판례가 검색된 이유를 중심으로 설명하고, 판례를 이해하는 데 필요한 차이가
    확인되면 함께 설명한다.
 
 [작성 규칙]
 1. 유사점은 매칭 청크를 1차 근거로 삼고 판례 요약은 전체 맥락을 확인하는 데 사용한다.
-2. 사실관계나 쟁점이 실제로 겹칠 때만 유사하다고 쓴다.
-   부동산, 임대차, 보증금처럼 대상이나 단어만 같은 것은 유사점으로 삼지 않는다.
-3. 관련성이 일부 내용에만 해당하면 그 범위를 분명히 하고 판례 전체가 같은 것처럼
-   과장하지 않는다. 핵심 쟁점이 다르면 그 사실도 자연스럽게 설명한다.
-4. 차이점의 개수를 미리 정하지 않는다. 제공된 자료에서 명확히 확인되고 판례의
+2. 유사성이 일부 내용에만 해당하더라도 어떤 부분이 관련되는지 구체적으로 설명한다.
+   판례 전체가 사용자 상황과 같은 것처럼 과장하지 않는다.
+3. 차이점의 개수를 미리 정하지 않는다. 제공된 자료에서 명확히 확인되고 판례의
    관련 범위를 이해하는 데 필요한 차이만 쓰며, 없으면 억지로 만들지 않는다.
-5. 사용자 상황, 매칭 청크, 판례 요약에 없는 사실을 추정하거나 추가하지 않는다.
-6. comparison_text는 판례가 검색된 이유가 중심이 되도록 자연스러운 존댓말 한 문단,
+4. 사용자 상황, 매칭 청크, 판례 요약에 없는 사실을 추정하거나 추가하지 않는다.
+5. comparison_text는 판례가 검색된 이유가 중심이 되도록 자연스러운 존댓말 한 문단,
    2~4문장으로 작성한다. 관련성이 충분하면 '이 판례에서도'로 시작할 수 있지만
    문장 순서나 표현을 고정하지 않는다.
-7. 차이를 설명하더라도 앞서 설명한 관련성을 불필요하게 뒤집거나 가리지 않는다.
-   직접적인 관련성이 부족하면 억지로 유사점을 만들지 말고 관련 범위를 솔직히 쓴다.
-8. 추가 질문, 정보 보충 요청, 증거 준비, 대응 방법을 제안하지 않는다.
-9. 사용자 사건의 결과나 승소 가능성을 예측하지 않고 법률 조언을 하지 않는다.
-10. 설명 없이 지정된 JSON만 출력한다.
+6. 차이를 설명하더라도 앞서 설명한 관련성을 불필요하게 뒤집거나 가리지 않는다.
+7. 추가 질문, 정보 보충 요청, 증거 준비, 대응 방법을 제안하지 않는다.
+8. 사용자 사건의 결과나 승소 가능성을 예측하지 않고 법률 조언을 하지 않는다.
+9. 설명 없이 지정된 JSON만 출력한다.
 
 [필드]
-- similarities: 실제로 겹치는 사용자 상황과 판례 내용을 정리한다. 없으면 빈 배열로 둔다.
+- similarities: 관련되는 사용자 상황과 판례 내용을 하나 이상 정리한다.
 - differences: 관련 범위를 이해하는 데 필요한 차이만 정리한다. 없으면 빈 배열로 둔다.
 - comparison_text: 위 판단을 바탕으로 사용자에게 보여줄 자연스러운 설명을 작성한다.
 """
@@ -126,6 +123,7 @@ OUTPUT_SCHEMA = {
     "properties": {
         "similarities": {
             "type": "array",
+            "minItems": 1,
             "items": COMPARISON_POINT_SCHEMA,
         },
         "differences": {
@@ -310,6 +308,8 @@ def parse_structured_output(raw_content: str) -> dict[str, Any]:
         items = parsed[field]
         if not isinstance(items, list):
             raise ValueError(f"{field}는 배열이어야 합니다.")
+        if field == "similarities" and not items:
+            raise ValueError("similarities에는 하나 이상의 유사점이 필요합니다.")
         for item in items:
             if not isinstance(item, dict) or set(item) != {
                 "user_point",
