@@ -1,13 +1,13 @@
 # main.py
 """
-Description: AlphaLawVA FastAPI 애플리케이션과 판례 API 의존성을 구성한다.
+Description: AlphaLawVA FastAPI 애플리케이션과 기능별 API 의존성을 구성한다.
 공통 오류 처리와 서버 상태 확인 엔드포인트를 제공한다.
 Author: choeminju
 Date: 2026-10-13
 Before:
     - api 패키지는 있지만 실행 가능한 FastAPI 애플리케이션이 없는 상태.
 After:
-    - api.main:app으로 서버를 실행하고 판례 API와 상태를 확인할 수 있음.
+    - api.main:app으로 서버를 실행하고 판례·내용증명 API와 상태를 확인할 수 있음.
 """
 
 from pathlib import Path
@@ -17,7 +17,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
-from api.routers import precedents_router
+from api.routers import certified_letters_router, precedents_router
+from api.services.certified_letter_jobs import (
+    CertifiedLetterIdempotencyConflictError,
+    CertifiedLetterJobNotFoundError,
+)
+from api.services.certified_letter_service import (
+    CertifiedLetterGenerationUnavailableError,
+    CertifiedLetterService,
+)
 from api.services.gemini_similarity_explainer import (
     create_gemini_similarity_explainer_from_env,
 )
@@ -183,13 +191,52 @@ async def search_backend_error_handler(
     )
 
 
+async def certified_letter_not_found_error_handler(
+    _request: Request,
+    _error: CertifiedLetterJobNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.CERTIFIED_LETTER_NOT_FOUND,
+        message="내용증명 생성 작업이 없거나 만료되었습니다.",
+    )
+
+
+async def certified_letter_idempotency_conflict_error_handler(
+    _request: Request,
+    _error: CertifiedLetterIdempotencyConflictError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=409,
+        code=ApiErrorCode.CERTIFIED_LETTER_IDEMPOTENCY_CONFLICT,
+        message="같은 중복 방지 키를 다른 요청에 사용할 수 없습니다.",
+    )
+
+
+async def certified_letter_generation_unavailable_error_handler(
+    _request: Request,
+    _error: CertifiedLetterGenerationUnavailableError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=503,
+        code=ApiErrorCode.GENERATION_SERVICE_UNAVAILABLE,
+        message="내용증명 생성 서비스를 사용할 수 없습니다.",
+    )
+
+
 def create_app(
     precedent_search_service: PrecedentSearchService | None = None,
+    certified_letter_service: CertifiedLetterService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AlphaLawVA API",
         description="AlphaLawVA backend API",
         version="0.1.0",
+    )
+    app.state.certified_letter_service = (
+        certified_letter_service
+        if certified_letter_service is not None
+        else CertifiedLetterService()
     )
     app.state.precedent_search_service = (
         precedent_search_service
@@ -198,6 +245,7 @@ def create_app(
             similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )
     )
+    app.include_router(certified_letters_router)
     app.include_router(precedents_router)
     app.add_exception_handler(
         RequestValidationError,
@@ -238,6 +286,18 @@ def create_app(
     app.add_exception_handler(
         PrecedentSearchBackendUnavailableError,
         search_backend_error_handler,
+    )
+    app.add_exception_handler(
+        CertifiedLetterJobNotFoundError,
+        certified_letter_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        CertifiedLetterIdempotencyConflictError,
+        certified_letter_idempotency_conflict_error_handler,
+    )
+    app.add_exception_handler(
+        CertifiedLetterGenerationUnavailableError,
+        certified_letter_generation_unavailable_error_handler,
     )
 
     @app.get("/health", tags=["health"])

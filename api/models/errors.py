@@ -28,6 +28,11 @@ class ApiErrorCode(str, Enum):
     SIMILARITY_EXPLANATION_UNAVAILABLE = "similarity_explanation_unavailable"
     PRECEDENT_DATA_UNAVAILABLE = "precedent_data_unavailable"
     SEARCH_BACKEND_UNAVAILABLE = "search_backend_unavailable"
+    CERTIFIED_LETTER_NOT_FOUND = "certified_letter_not_found"
+    CERTIFIED_LETTER_IDEMPOTENCY_CONFLICT = (
+        "certified_letter_idempotency_conflict"
+    )
+    GENERATION_SERVICE_UNAVAILABLE = "generation_service_unavailable"
 
 
 class ApiErrorModel(BaseModel):
