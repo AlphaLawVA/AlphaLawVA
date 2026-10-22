@@ -138,6 +138,62 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
             DenseSimilarityReranker,
         )
 
+    def test_can_plug_independent_local_cross_encoders_without_code_change(self):
+        environment = {
+            "GEMINI_API_KEY": "test-key",
+            "ALPHALAWVA_LOCAL_DATA_DIR": "local-fixtures",
+            "CERTIFIED_LETTER_STATUTE_RERANKER": "future-statute-model",
+            "CERTIFIED_LETTER_PRECEDENT_RERANKER": "future-precedent-model",
+            "CERTIFIED_LETTER_PRECEDENT_RERANKER_DIR": "custom/precedent-model",
+            "CERTIFIED_LETTER_RERANKER_TRUST_REMOTE_CODE": "true",
+        }
+        with (
+            patch(
+                "api.services.certified_letter_configuration.load_env_file"
+            ),
+            patch.dict(os.environ, environment, clear=True),
+            patch(
+                "api.services.certified_letter_configuration."
+                "create_certified_letter_workflow",
+                return_value=object(),
+            ) as create_workflow,
+        ):
+            create_certified_letter_service_from_env()
+
+        arguments = create_workflow.call_args.kwargs
+        statute = arguments["statute_reranker"]
+        precedent = arguments["precedent_reranker"]
+        self.assertIsInstance(statute, CrossEncoderReranker)
+        self.assertIsInstance(precedent, CrossEncoderReranker)
+        self.assertEqual(
+            statute.model_path,
+            PROJECT_ROOT
+            / "local-fixtures/models/rerankers/future-statute-model",
+        )
+        self.assertEqual(
+            precedent.model_path,
+            PROJECT_ROOT / "custom/precedent-model",
+        )
+        self.assertTrue(statute.trust_remote_code)
+        self.assertTrue(precedent.trust_remote_code)
+
+    def test_rejects_unsafe_implicit_reranker_name(self):
+        with (
+            patch(
+                "api.services.certified_letter_configuration.load_env_file"
+            ),
+            patch.dict(
+                os.environ,
+                {
+                    "GEMINI_API_KEY": "test-key",
+                    "CERTIFIED_LETTER_STATUTE_RERANKER": "../outside",
+                },
+                clear=True,
+            ),
+        ):
+            with self.assertRaisesRegex(ValueError, "이름에는"):
+                create_certified_letter_service_from_env()
+
 
 if __name__ == "__main__":
     unittest.main()

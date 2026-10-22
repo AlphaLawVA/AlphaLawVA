@@ -13,6 +13,7 @@ After:
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -140,30 +141,50 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
             model_loader=shared_model_loader,
         )
     )
-    precedent_reranker = _create_precedent_reranker(local_data_dir)
+    statute_reranker = _create_reranker(
+        role="STATUTE",
+        local_data_dir=local_data_dir,
+        default="dense",
+    )
+    precedent_reranker = _create_reranker(
+        role="PRECEDENT",
+        local_data_dir=local_data_dir,
+        default="bge-reranker-v2-m3",
+    )
     graph = create_certified_letter_workflow(
         model=model,
         statute_search=statute_search,
         precedent_search=precedent_search,
-        statute_reranker=DenseSimilarityReranker(),
+        statute_reranker=statute_reranker,
         precedent_reranker=precedent_reranker,
     )
     return CertifiedLetterService(graph=graph)
 
 
-def _create_precedent_reranker(local_data_dir: Path):
+def _create_reranker(
+    *,
+    role: str,
+    local_data_dir: Path,
+    default: str,
+):
+    prefix = f"CERTIFIED_LETTER_{role}_RERANKER"
     selected = os.environ.get(
-        "CERTIFIED_LETTER_PRECEDENT_RERANKER",
-        "bge-reranker-v2-m3",
+        prefix,
+        default,
     ).strip()
     if selected == "dense":
         return DenseSimilarityReranker()
-    if selected != "bge-reranker-v2-m3":
-        raise ValueError(f"지원하지 않는 내용증명 판례 리랭커: {selected}")
-    default_path = local_data_dir / "models/rerankers/bge-reranker-v2-m3"
+    if not selected:
+        raise ValueError(f"{prefix}는 비어 있을 수 없습니다.")
+    configured_path = os.environ.get(f"{prefix}_DIR", "").strip()
+    if not configured_path and re.fullmatch(r"[A-Za-z0-9._-]+", selected) is None:
+        raise ValueError(
+            f"{prefix} 이름에는 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다."
+        )
+    default_path = local_data_dir / "models/rerankers" / selected
     return CrossEncoderReranker(
         model_path=_path_from_env(
-            "CERTIFIED_LETTER_PRECEDENT_RERANKER_DIR",
+            f"{prefix}_DIR",
             default_path,
         ),
         max_length=int(
@@ -171,6 +192,10 @@ def _create_precedent_reranker(local_data_dir: Path):
         ),
         batch_size=int(os.environ.get("CERTIFIED_LETTER_RERANKER_BATCH_SIZE", "16")),
         device=os.environ.get("CERTIFIED_LETTER_RERANKER_DEVICE", "auto").strip(),
+        trust_remote_code=_enabled(
+            "CERTIFIED_LETTER_RERANKER_TRUST_REMOTE_CODE",
+            default=False,
+        ),
     )
 
 

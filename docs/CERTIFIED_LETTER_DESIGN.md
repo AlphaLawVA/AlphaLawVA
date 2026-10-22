@@ -255,6 +255,15 @@ addresses, and phone numbers are removed. Results from multiple deterministic
 queries are deduplicated by statute article or precedent ID; all matched chunks
 for a repeated precedent are retained for a later replaceable reranker.
 
+Stage 5 model comparison is intentionally deferred. The runtime exposes
+independent `CERTIFIED_LETTER_STATUTE_RERANKER` and
+`CERTIFIED_LETTER_PRECEDENT_RERANKER` selections. `dense` uses the retrieval
+score baseline; any other safe model name resolves to a local directory under
+`local_data/models/rerankers/`, or an explicit role-specific `*_DIR` may be
+provided. This allows a future same-dataset experiment to install the selected
+statute and precedent cross-encoders without changing graph or API code. An
+uncompared model must not be described as the final choice.
+
 ## Draft Validation
 
 Before returning a draft, deterministic checks validate:
