@@ -50,6 +50,10 @@ class CertifiedLetterIdempotencyConflictError(Exception):
     """같은 중복 방지 키를 다른 요청에 사용한 경우."""
 
 
+class CertifiedLetterJobTransitionError(Exception):
+    """현재 상태에서 허용되지 않는 작업 전이를 시도한 경우."""
+
+
 class CertifiedLetterJobStore:
     def __init__(self, *, ttl: timedelta = timedelta(hours=1)) -> None:
         if ttl <= timedelta(0):
@@ -167,7 +171,7 @@ class CertifiedLetterJobStore:
         with self._lock:
             job = self.get(draft_id, now=now)
             if job.status not in allowed:
-                raise RuntimeError(
+                raise CertifiedLetterJobTransitionError(
                     f"허용되지 않은 내용증명 작업 상태 전이: {job.status} -> {status}"
                 )
             updated = replace(

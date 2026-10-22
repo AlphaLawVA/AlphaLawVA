@@ -3,6 +3,7 @@
 
 import unittest
 from datetime import datetime, timedelta, timezone
+from threading import Event, Thread
 from uuid import UUID
 
 from api.models.certified_letters import (
@@ -148,6 +149,18 @@ class ExplodingGraph:
         raise RuntimeError("provider raw error must not be public")
 
 
+class BlockingReadyGraph(ReadyGraph):
+    def __init__(self):
+        super().__init__()
+        self.started = Event()
+        self.release = Event()
+
+    def invoke(self, input):
+        self.started.set()
+        self.release.wait(timeout=2)
+        return super().invoke(input)
+
+
 class CertifiedLetterServiceTests(unittest.TestCase):
     def make_service(self, graph):
         return CertifiedLetterService(
@@ -228,6 +241,55 @@ class CertifiedLetterServiceTests(unittest.TestCase):
     def test_rejects_submission_when_graph_is_unconfigured(self):
         with self.assertRaises(CertifiedLetterGenerationUnavailableError):
             CertifiedLetterService().submit(make_request())
+
+    def test_duplicate_worker_does_not_overwrite_active_job_as_failed(self):
+        graph = BlockingReadyGraph()
+        service = self.make_service(graph)
+        submission = service.submit(make_request())
+        worker = Thread(
+            target=service.process,
+            args=(submission.response.draft_id,),
+        )
+        worker.start()
+        self.assertTrue(graph.started.wait(timeout=2))
+
+        with self.assertLogs(
+            "api.services.certified_letter_service",
+            level="WARNING",
+        ):
+            duplicate_result = service.process(submission.response.draft_id)
+        graph.release.set()
+        worker.join(timeout=2)
+
+        self.assertIsNone(duplicate_result)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(
+            service.get(submission.response.draft_id).status,
+            CertifiedLetterJobStatus.COMPLETED,
+        )
+
+    def test_expired_queued_job_is_skipped_and_pending_request_is_removed(self):
+        now = datetime(2026, 10, 22, 5, 30, tzinfo=timezone.utc)
+        current = [now]
+        service = CertifiedLetterService(
+            graph=ReadyGraph(),
+            jobs=CertifiedLetterJobStore(ttl=timedelta(seconds=1)),
+            clock=lambda: current[0],
+            uuid_factory=lambda: DRAFT_ID,
+        )
+        submission = service.submit(make_request())
+        current[0] += timedelta(seconds=1)
+
+        with self.assertLogs(
+            "api.services.certified_letter_service",
+            level="WARNING",
+        ):
+            result = service.process(submission.response.draft_id)
+
+        self.assertIsNone(result)
+        self.assertNotIn(submission.response.draft_id, service._requests)
+        with self.assertRaises(CertifiedLetterJobNotFoundError):
+            service.get(submission.response.draft_id)
 
 
 class CertifiedLetterJobStoreTests(unittest.TestCase):

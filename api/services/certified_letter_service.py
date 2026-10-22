@@ -18,6 +18,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from threading import RLock
 from typing import Callable, Protocol
 from uuid import UUID, uuid4
 
@@ -39,6 +40,7 @@ from api.services.certified_letter_jobs import (
     CertifiedLetterJob,
     CertifiedLetterJobNotFoundError,
     CertifiedLetterJobStore,
+    CertifiedLetterJobTransitionError,
 )
 from ml.agent.certified_letter.state import (
     CertifiedLetterGraphState,
@@ -85,6 +87,7 @@ class CertifiedLetterService:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.uuid_factory = uuid_factory or uuid4
         self._requests: dict[UUID, CertifiedLetterRequestData] = {}
+        self._request_lock = RLock()
 
     def submit(
         self,
@@ -106,7 +109,8 @@ class CertifiedLetterService:
             now=now,
         )
         if is_new:
-            self._requests[job.draft_id] = _to_internal_request(request)
+            with self._request_lock:
+                self._requests[job.draft_id] = _to_internal_request(request)
         return CertifiedLetterSubmission(
             response=CertifiedLetterDraftAccepted(
                 draft_id=job.draft_id,
@@ -123,7 +127,16 @@ class CertifiedLetterService:
             )
         try:
             self.jobs.mark_processing(draft_id, now=self.clock())
-            request = self._requests[draft_id]
+        except (CertifiedLetterJobNotFoundError, CertifiedLetterJobTransitionError):
+            self._discard_request(draft_id)
+            logger.warning(
+                "내용증명 작업 실행 건너뜀: draft_id=%s reason=not_queued",
+                draft_id,
+            )
+            return None
+
+        try:
+            request = self._take_request(draft_id)
             state = self.graph.invoke({"request": request})
             if failure := state.get("failure"):
                 logger.warning(
@@ -167,11 +180,17 @@ class CertifiedLetterService:
                 now=self.clock(),
             )
             return None
-        finally:
-            self._requests.pop(draft_id, None)
 
     def get(self, draft_id: UUID) -> CertifiedLetterDraftJobResponse:
         return _to_job_response(self.jobs.get(draft_id, now=self.clock()))
+
+    def _take_request(self, draft_id: UUID) -> CertifiedLetterRequestData:
+        with self._request_lock:
+            return self._requests.pop(draft_id)
+
+    def _discard_request(self, draft_id: UUID) -> None:
+        with self._request_lock:
+            self._requests.pop(draft_id, None)
 
 
 def _to_internal_request(
