@@ -1,0 +1,77 @@
+:root {
+  --background: #f6f4eb;
+  --surface: #fffef9;
+  --surface-muted: #eeebda;
+  --navy: #00075d;
+  --navy-soft: #e9eafa;
+  --text: #3e3630;
+  --text-muted: #625b54;
+  --text-subtle: #8b857e;
+  --line: #ded9cc;
+  --line-strong: #b9b2a7;
+  --highlight: #ffefb9;
+  --warning: #b65c13;
+  --warning-bg: #fff5df;
+  --success: #16834a;
+  --success-bg: #edf8f0;
+  --danger: #b3261e;
+  --shadow: 0 16px 50px rgba(48, 42, 36, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100%;
+  color: var(--text);
+  background: var(--background);
+  font-family: "Wanted Sans Variable", "LINE Seed Sans KR", Pretendard, "Noto Sans KR", system-ui, sans-serif;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  color: white;
+  background: var(--navy);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
