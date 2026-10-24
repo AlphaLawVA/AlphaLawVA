@@ -1,0 +1,11 @@
+{
+  "dataset_id": "handwritten_contract_goldset_v02",
+  "dataset_version": "handwritten_contract_goldset_v02",
+  "description": "표준 전세·월세·매매 계약서의 독립 손글씨 검증셋",
+  "schema_version": "contract_extraction.v0.1",
+  "documents": [
+    {"source_filename":"전세_손글씨_02.pdf","contract_type":"jeonse","gold_filename":"jeonse_handwritten_02_gold.json","source_sha256":"7d79ee1754a2898eb5215bb86ec7121ec36cf99599ac6ecd607bc7446f77783a","page_count":3},
+    {"source_filename":"월세_손글씨_02.pdf","contract_type":"monthly_rent","gold_filename":"monthly_rent_handwritten_02_gold.json","source_sha256":"4bfe50b373a8fc7d9aa5250839d394d8847819c4b105ac5ab151b2933a41f75e","page_count":3},
+    {"source_filename":"매매_손글씨_02.pdf","contract_type":"sale","gold_filename":"sale_handwritten_02_gold.json","source_sha256":"19cc095a43512d1a9a8315c1c9490d20d8a58fc8b6574807ab4e31bf695fe125","page_count":3}
+  ]
+}

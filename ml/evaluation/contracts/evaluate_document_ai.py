@@ -114,12 +114,22 @@ def main():
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     documents = []
-    for name, kind, stem in (
-        ("jeonse", "jeonse", "jeonse_handwritten_01"),
-        ("monthly", "monthly_rent", "monthly_rent_handwritten_01"),
-        ("sale", "sale", "sale_handwritten_01"),
-    ):
-        path = getattr(args, name)
+    input_paths = {
+        "jeonse": args.jeonse,
+        "monthly_rent": args.monthly,
+        "sale": args.sale,
+    }
+    display_names = {
+        "jeonse": "jeonse",
+        "monthly_rent": "monthly",
+        "sale": "sale",
+    }
+    gold_manifest = json.loads((args.gold_dir / "manifest.json").read_text())
+    for item in gold_manifest["documents"]:
+        kind = item["contract_type"]
+        name = display_names[kind]
+        stem = Path(item["gold_filename"]).stem.removesuffix("_gold")
+        path = input_paths[kind]
         raw = path.read_bytes()
         # Extraction precedes loading the gold; no answer-dependent corrections.
         prediction = extract_document_ai(json.loads(raw), kind).model_dump(
@@ -128,7 +138,7 @@ def main():
         (args.output_dir / f"{stem}_extracted.json").write_text(
             json.dumps(prediction, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        gold_bytes = (args.gold_dir / f"{stem}_gold.json").read_bytes()
+        gold_bytes = (args.gold_dir / item["gold_filename"]).read_bytes()
         result = evaluate(json.loads(gold_bytes), prediction)
         result.update(
             name=name,
@@ -139,13 +149,14 @@ def main():
         documents.append(result)
     report = {
         "version": "document-ai-layout-baseline.v0.2",
+        "dataset_version": gold_manifest["dataset_version"],
         "ocr_elapsed_seconds": None,
         "timing_note": "Uploaded Document JSON has no request timing; file timestamps are not OCR latency.",
         "provider": "Google Document AI",
         "processor_version": "user-reported pretrained-ocr-v2.1-2024-08-07; not embedded in input",
         "limitations": [
-            "Three development samples, not held-out validation",
-            "No external calls",
+            "Three independent synthetic samples, not real-world generalization evidence",
+            "OCR input may originate from an approved live call or an uploaded JSON; inspect the accompanying manifest for timing and cost",
             "Contract type supplied by caller and excluded from accuracy",
             "Unmarked checkbox states and signatures remain unknown; no inference from label presence",
             "Unnumbered clause fragments preserved in warnings, not assigned a guessed clause number",

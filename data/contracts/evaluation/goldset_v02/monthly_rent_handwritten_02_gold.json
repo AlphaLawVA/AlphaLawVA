@@ -1,0 +1,43 @@
+{
+  "schema_version":"contract_extraction.v0.1","document_type":"contract",
+  "contract_type":{"value":"monthly_rent","raw_text":"보증금 있는 월세","source":{"page_number":1},"status":"user_confirmed"},
+  "contract_date":{"value":"2026-11-28","raw_text":"2026년 11월 28일","source":{"page_number":3},"status":"user_confirmed"},
+  "start_date":{"value":"2027-01-02","raw_text":"2027년 1월 2일","source":{"page_number":1},"status":"user_confirmed"},
+  "end_date":{"value":"2029-01-01","raw_text":"2029년 1월 1일","source":{"page_number":1},"status":"user_confirmed"},
+  "delivery_date":{"value":"2027-01-02","raw_text":"2027년 1월 2일","source":{"page_number":1},"status":"user_confirmed"},
+  "property":{
+    "address":{"value":"서울특별시 영등포구 엡실론길 19","raw_text":"서울특별시 영등포구 엡실론길 19","source":{"page_number":1},"status":"user_confirmed"},
+    "detail_address":{"value":"엡실론빌라 4층 401호","raw_text":"엡실론빌라 4층 401호","source":{"page_number":1},"status":"user_confirmed"},
+    "leased_part_description":{"value":"4층 401호 전부","raw_text":"4층 401호 전부","source":{"page_number":1},"status":"user_confirmed"},
+    "leased_area_m2":{"value":46.18,"raw_text":"46.18","source":{"page_number":1},"status":"user_confirmed"},
+    "land_category":{"value":"대","raw_text":"대","source":{"page_number":1},"status":"user_confirmed"},
+    "land_area_m2":{"value":518.26,"raw_text":"518.26","source":{"page_number":1},"status":"user_confirmed"},
+    "building_structure":{"value":"철근콘크리트조","raw_text":"철근콘크리트조","source":{"page_number":1},"status":"user_confirmed"},
+    "building_use":{"value":"다세대주택","raw_text":"다세대주택","source":{"page_number":1},"status":"user_confirmed"},
+    "building_area_m2":{"value":46.18,"raw_text":"46.18","source":{"page_number":1},"status":"user_confirmed"}
+  },
+  "parties":[{"role":"lessor","name":{"value":"백승우","raw_text":"백승우","source":{"page_number":3},"status":"user_confirmed"}},{"role":"lessee","name":{"value":"신가은","raw_text":"신가은","source":{"page_number":3},"status":"user_confirmed"}}],
+  "payment":{
+    "deposit":{"value":20000000,"raw_text":"20,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "monthly_rent":{"value":750000,"raw_text":"750,000","source":{"page_number":1},"status":"user_confirmed"},
+    "maintenance_fee":{"value":160000,"raw_text":"160,000","source":{"page_number":1},"status":"user_confirmed"},
+    "down_payment":{"value":2000000,"raw_text":"2,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "intermediate_payments":[{"label":"중도금","amount":{"value":3000000,"raw_text":"3,000,000","source":{"page_number":1},"status":"user_confirmed"},"due_date":{"value":"2026-12-18","raw_text":"2026년 12월 18일","source":{"page_number":1},"status":"user_confirmed"}}],
+    "remaining_balance":{"value":15000000,"raw_text":"15,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "remaining_balance_date":{"value":"2027-01-02","raw_text":"2027년 1월 2일","source":{"page_number":1},"status":"user_confirmed"},
+    "monthly_rent_payment_day":{"value":"매월 15일","raw_text":"매월 15일","source":{"page_number":1},"status":"user_confirmed"},
+    "payment_timing":{"value":"postpaid","raw_text":"후불","source":{"page_number":3},"status":"user_confirmed"}
+  },
+  "articles":[],
+  "special_terms":[
+    {"item_order":1,"original_text":"월 차임은 매월 15일 후불로 지급한다.","source":{"page_number":3}},
+    {"item_order":2,"original_text":"보일러, 수도배관 및 전기시설의 노후로 발생한 고장은 임대인이 수리한다.","source":{"page_number":3}},
+    {"item_order":3,"original_text":"임차인의 고의 또는 과실로 발생한 파손과 소모품 교체 비용은 임차인이 부담한다.","source":{"page_number":3}},
+    {"item_order":4,"original_text":"임차인은 임대인의 사전 동의 없이 반려동물을 사육하거나 실내에서 흡연할 수 없다.","source":{"page_number":3}},
+    {"item_order":5,"original_text":"퇴실 시 청소 상태가 통상적인 수준을 벗어난 경우 실제 발생한 청소비를 정산한다.","source":{"page_number":3}},
+    {"item_order":6,"original_text":"임대차 종료 시 임대인은 임차목적물 반환과 동시에 보증금을 반환한다.","source":{"page_number":3}}
+  ],
+  "disclosures":{"tax_arrears":{"value":"없음","raw_text":"없음","source":{"page_number":1},"status":"user_confirmed"},"senior_deposit_status":{"value":"해당 없음","raw_text":"해당 없음","source":{"page_number":1},"status":"user_confirmed"}},
+  "brokers":[{"office_name":{"value":"엡실론공인중개사사무소","raw_text":"엡실론공인중개사사무소","source":{"page_number":3},"status":"user_confirmed"},"office_registration_number":{"value":"가상-영등포-2026-004","raw_text":"가상-영등포-2026-004","source":{"page_number":3},"status":"user_confirmed"},"broker_in_charge":{"value":"임도현","raw_text":"임도현","source":{"page_number":3},"status":"user_confirmed"},"signature_present":{"value":true,"raw_text":"임도현 서명","source":{"page_number":3},"status":"user_confirmed"}}],
+  "warnings":[]
+}

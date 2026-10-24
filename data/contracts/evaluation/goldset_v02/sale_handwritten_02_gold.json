@@ -1,0 +1,32 @@
+{
+  "schema_version":"contract_extraction.v0.1","document_type":"contract",
+  "contract_type":{"value":"sale","raw_text":"부동산매매계약서","source":{"page_number":1},"status":"user_confirmed"},
+  "contract_date":{"value":"2026-12-03","raw_text":"2026년 12월 3일","source":{"page_number":3},"status":"user_confirmed"},
+  "delivery_date":{"value":"2027-03-15","raw_text":"2027년 3월 15일","source":{"page_number":2},"status":"user_confirmed"},
+  "ownership_transfer_date":{"value":"2027-03-15","raw_text":"2027년 3월 15일","source":{"page_number":2},"status":"user_confirmed"},
+  "property":{"address":{"value":"서울특별시 송파구 제타로 102","raw_text":"서울특별시 송파구 제타로 102","source":{"page_number":1},"status":"user_confirmed"},"detail_address":{"value":"제타아파트 307동 906호","raw_text":"제타아파트 307동 906호","source":{"page_number":1},"status":"user_confirmed"},"leased_area_m2":{"value":59.74,"raw_text":"59.74","source":{"page_number":1},"status":"user_confirmed"}},
+  "parties":[{"role":"seller","name":{"value":"한정우","raw_text":"한정우","source":{"page_number":1},"status":"user_confirmed"}},{"role":"buyer","name":{"value":"노서현","raw_text":"노서현","source":{"page_number":1},"status":"user_confirmed"}}],
+  "payment":{
+    "sale_price":{"value":640000000,"raw_text":"640,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "down_payment":{"value":64000000,"raw_text":"육천사백만원","source":{"page_number":1},"status":"user_confirmed"},
+    "intermediate_payments":[
+      {"label":"1차중도금","amount":{"value":96000000,"raw_text":"구천육백만원","source":{"page_number":1},"status":"user_confirmed"},"due_date":{"value":"2027-01-20","raw_text":"2027년 1월 20일","source":{"page_number":1},"status":"user_confirmed"}},
+      {"label":"2차중도금","amount":{"value":160000000,"raw_text":"일억육천만원","source":{"page_number":1},"status":"user_confirmed"},"due_date":{"value":"2027-02-20","raw_text":"2027년 2월 20일","source":{"page_number":1},"status":"user_confirmed"}}
+    ],
+    "remaining_balance":{"value":320000000,"raw_text":"삼억이천만원","source":{"page_number":1},"status":"user_confirmed"},
+    "remaining_balance_date":{"value":"2027-03-15","raw_text":"2027년 3월 15일","source":{"page_number":1},"status":"user_confirmed"}
+  },
+  "articles":[
+    {"item_order":1,"clause_number":"제3조 제2항","clause_title":"부동산에 대한 부담의 소멸 등","original_text":"관리비와 전기·수도·도시가스 요금은 2027년 3월 15일을 기준으로 정산한다.","source":{"page_number":2}},
+    {"item_order":2,"clause_number":"제4조 제1항","clause_title":"하자의 부담","original_text":"매도인이 책임지는 기간은 부동산을 넘겨준 날로부터 4개월로 한다.","source":{"page_number":2}},
+    {"item_order":3,"clause_number":"제5조 제2항","clause_title":"계약의 해제","original_text":"손해배상액은 매매대금의 10%로 한다.","source":{"page_number":2}}
+  ],
+  "special_terms":[
+    {"item_order":1,"original_text":"매도인은 잔금 지급일까지 새로운 근저당권, 전세권, 가압류 또는 가처분을 설정하지 않는다.","source":{"page_number":3}},
+    {"item_order":2,"original_text":"거실 에어컨, 식기세척기 및 붙박이장은 매매대금에 포함하며 인도일까지 현재 상태를 유지한다.","source":{"page_number":3}},
+    {"item_order":3,"original_text":"매도인은 인도 전에 발생한 관리비와 공과금을 잔금일까지 정산한다.","source":{"page_number":3}},
+    {"item_order":4,"original_text":"인도 후 발견된 하자 중 계약 체결 당시 매도인이 알고도 고지하지 않은 하자에 대해서는 매도인이 책임을 부담한다.","source":{"page_number":3}}
+  ],
+  "disclosures":{"registry_checked":{"value":true,"raw_text":"등기부등본(2026년 12월 2일자) 및 건축물대장, 토지대장","source":{"page_number":2},"status":"user_confirmed"}},
+  "brokers":[],"warnings":[]
+}

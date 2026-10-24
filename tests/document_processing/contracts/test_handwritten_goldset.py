@@ -20,39 +20,44 @@ from ml.document_processing.contracts.extraction_schema import ContractExtractio
 class HandwrittenContractGoldsetTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.goldset_dir = (
+        evaluation_dir = (
             Path(__file__).resolve().parents[3]
             / "data"
             / "contracts"
             / "evaluation"
-            / "goldset_v01"
         )
-        cls.manifest = json.loads(
-            (cls.goldset_dir / "manifest.json").read_text(encoding="utf-8")
-        )
+        cls.goldsets = []
+        for goldset_dir in sorted(evaluation_dir.glob("goldset_v*")):
+            manifest = json.loads(
+                (goldset_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            cls.goldsets.append((goldset_dir, manifest))
 
     def test_all_manifest_documents_have_valid_gold_json(self):
-        self.assertEqual(len(self.manifest["documents"]), 3)
+        self.assertGreaterEqual(len(self.goldsets), 2)
+        for goldset_dir, manifest in self.goldsets:
+            with self.subTest(goldset=goldset_dir.name):
+                self.assertEqual(len(manifest["documents"]), 3)
+                for document in manifest["documents"]:
+                    gold_path = goldset_dir / document["gold_filename"]
+                    payload = json.loads(gold_path.read_text(encoding="utf-8"))
+                    contract = ContractExtraction.model_validate(payload)
 
-        for document in self.manifest["documents"]:
-            gold_path = self.goldset_dir / document["gold_filename"]
-            payload = json.loads(gold_path.read_text(encoding="utf-8"))
-            contract = ContractExtraction.model_validate(payload)
-
-            self.assertEqual(
-                contract.contract_type.value.value,
-                document["contract_type"],
-            )
-            self.assertEqual(len(document["source_sha256"]), 64)
-            self.assertEqual(document["page_count"], 3)
+                    self.assertEqual(
+                        contract.contract_type.value.value,
+                        document["contract_type"],
+                    )
+                    self.assertEqual(len(document["source_sha256"]), 64)
+                    self.assertEqual(document["page_count"], 3)
 
     def test_gold_json_excludes_resident_numbers_and_phone_numbers(self):
-        for document in self.manifest["documents"]:
-            text = (self.goldset_dir / document["gold_filename"]).read_text(
-                encoding="utf-8"
-            )
-            self.assertNotRegex(text, r"\d{6}\s*-?\s*\d{7}")
-            self.assertNotRegex(text, r"01[016789]-\d{3,4}-\d{4}")
+        for goldset_dir, manifest in self.goldsets:
+            for document in manifest["documents"]:
+                text = (goldset_dir / document["gold_filename"]).read_text(
+                    encoding="utf-8"
+                )
+                self.assertNotRegex(text, r"\d{6}\s*-?\s*\d{7}")
+                self.assertNotRegex(text, r"01[016789]-\d{3,4}-\d{4}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,42 @@
+{
+  "schema_version":"contract_extraction.v0.1","document_type":"contract",
+  "contract_type":{"value":"jeonse","raw_text":"전세","source":{"page_number":1},"status":"user_confirmed"},
+  "contract_date":{"value":"2026-11-22","raw_text":"2026년 11월 22일","source":{"page_number":3},"status":"user_confirmed"},
+  "start_date":{"value":"2027-01-08","raw_text":"2027년 1월 8일","source":{"page_number":1},"status":"user_confirmed"},
+  "end_date":{"value":"2029-01-07","raw_text":"2029년 1월 7일","source":{"page_number":1},"status":"user_confirmed"},
+  "delivery_date":{"value":"2027-01-08","raw_text":"2027년 1월 8일","source":{"page_number":1},"status":"user_confirmed"},
+  "property":{
+    "address":{"value":"서울특별시 강서구 델타로 36","raw_text":"서울시 강서구 델타로 36","source":{"page_number":1},"status":"user_confirmed"},
+    "detail_address":{"value":"델타아파트 105동 704호","raw_text":"델타A 105동 704호","source":{"page_number":1},"status":"user_confirmed"},
+    "leased_part_description":{"value":"105동 704호 전부","raw_text":"델타아파트 105동 704호 전부","source":{"page_number":1},"status":"user_confirmed"},
+    "leased_area_m2":{"value":72.84,"raw_text":"72.84","source":{"page_number":1},"status":"user_confirmed"},
+    "land_category":{"value":"대","raw_text":"대","source":{"page_number":1},"status":"user_confirmed"},
+    "land_area_m2":{"value":2846.75,"raw_text":"2,846.75","source":{"page_number":1},"status":"user_confirmed"},
+    "building_structure":{"value":"철근콘크리트조","raw_text":"철근콘크리트조","source":{"page_number":1},"status":"user_confirmed"},
+    "building_use":{"value":"아파트","raw_text":"아파트","source":{"page_number":1},"status":"user_confirmed"},
+    "building_area_m2":{"value":72.84,"raw_text":"72.84","source":{"page_number":1},"status":"user_confirmed"}
+  },
+  "parties":[
+    {"role":"lessor","name":{"value":"강지우","raw_text":"강지우","source":{"page_number":3},"status":"user_confirmed"}},
+    {"role":"lessee","name":{"value":"문예린","raw_text":"문예린","source":{"page_number":3},"status":"user_confirmed"}}
+  ],
+  "payment":{
+    "deposit":{"value":180000000,"raw_text":"180,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "maintenance_fee":{"value":90000,"raw_text":"90,000","source":{"page_number":1},"status":"user_confirmed"},
+    "down_payment":{"value":18000000,"raw_text":"18,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "intermediate_payments":[{"label":"중도금","amount":{"value":40000000,"raw_text":"40,000,000","source":{"page_number":1},"status":"user_confirmed"},"due_date":{"value":"2026-12-10","raw_text":"2026년 12월 10일","source":{"page_number":1},"status":"user_confirmed"}}],
+    "remaining_balance":{"value":122000000,"raw_text":"122,000,000","source":{"page_number":1},"status":"user_confirmed"},
+    "remaining_balance_date":{"value":"2027-01-08","raw_text":"2027년 1월 8일","source":{"page_number":1},"status":"user_confirmed"}
+  },
+  "articles":[],
+  "special_terms":[
+    {"item_order":1,"original_text":"임대인은 잔금 지급일까지 임차주택에 새로운 근저당권, 전세권 또는 가압류를 설정하지 않는다.","source":{"page_number":3}},
+    {"item_order":2,"original_text":"임대인은 임차인의 전세보증금 반환보증 가입에 필요한 서류 제출에 협조한다.","source":{"page_number":3}},
+    {"item_order":3,"original_text":"거실 에어컨과 붙박이장은 임대차 목적물에 포함하며, 노후로 인한 고장은 임대인이 수리한다.","source":{"page_number":3}},
+    {"item_order":4,"original_text":"임차인의 고의 또는 과실로 발생한 시설 파손은 임차인이 수리비를 부담한다.","source":{"page_number":3}},
+    {"item_order":5,"original_text":"임대차 종료 시 임대인은 신규 임차인의 입주 여부와 관계없이 임차목적물 반환과 동시에 보증금을 반환한다.","source":{"page_number":3}}
+  ],
+  "disclosures":{"tax_arrears":{"value":"없음","raw_text":"없음","source":{"page_number":1},"status":"user_confirmed"},"senior_deposit_status":{"value":"해당 있음","raw_text":"해당 있음","source":{"page_number":1},"status":"user_confirmed"}},
+  "brokers":[{"office_name":{"value":"델타공인중개사사무소","raw_text":"델타공인중개사사무소","source":{"page_number":3},"status":"user_confirmed"},"office_registration_number":{"value":"가상-강서-2026-003","raw_text":"가상-강서-2026-003","source":{"page_number":3},"status":"user_confirmed"},"broker_in_charge":{"value":"서준혁","raw_text":"서준혁","source":{"page_number":3},"status":"user_confirmed"},"signature_present":{"value":true,"raw_text":"서준혁 서명","source":{"page_number":3},"status":"user_confirmed"}}],
+  "warnings":[]
+}
