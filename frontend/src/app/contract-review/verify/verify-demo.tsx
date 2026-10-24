@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { DemoDocument } from "@/components/demo-document";
 import { contractFields, registryFields } from "@/lib/mock-data";
 import type { DocumentMode } from "@/lib/demo-types";
@@ -31,11 +31,14 @@ export function VerifyDemo() {
   const confirmed = tab === "contract" ? contractConfirmed : registryConfirmed;
   const setConfirmed = tab === "contract" ? setContractConfirmed : setRegistryConfirmed;
   const requiredConfirmed = mode === "both" ? contractConfirmed && registryConfirmed : confirmed;
+  const missingFields = fields.filter((field) => !field.value.trim());
+  const allFieldsComplete = missingFields.length === 0;
 
   function updateField(index: number, value: string) {
     setFields((current) => current.map((field, fieldIndex) => (
       fieldIndex === index ? { ...field, value } : field
     )));
+    setConfirmed(false);
   }
 
   return (
@@ -73,14 +76,16 @@ export function VerifyDemo() {
             {fields.map((field, index) => (
               <div className={`${styles.field} ${field.wide ? styles.fieldWide : ""}`} key={field.label}>
                 <label htmlFor={`${tab}-field-${index}`}>{field.label}</label>
-                <input id={`${tab}-field-${index}`} value={field.value} onChange={(event) => updateField(index, event.target.value)} />
+                <input className={!field.value.trim() ? styles.invalidInput : ""} id={`${tab}-field-${index}`} value={field.value} onChange={(event) => updateField(index, event.target.value)} />
               </div>
             ))}
           </div>
 
+          {!allFieldsComplete && <div className={styles.validationBanner} role="alert"><AlertCircle size={19} /><div><strong>확인하지 못한 정보가 있습니다</strong><span>{missingFields.map((field) => field.label).join(", ")} 값을 원문에서 확인해 입력해주세요.</span></div></div>}
+
           <div className={styles.checkRow}>
             <label>
-              <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+              <input type="checkbox" checked={confirmed} disabled={!allFieldsComplete} onChange={(event) => setConfirmed(event.target.checked)} />
               <span>{tab === "contract" ? "계약서 원문과 비교해 위 계약정보를 확인했습니다." : "등기사항증명서 원문과 비교해 위 권리정보를 확인했습니다."}</span>
             </label>
           </div>
@@ -92,9 +97,9 @@ export function VerifyDemo() {
           <div className={styles.actions}>
             <Link className={styles.secondaryButton} href="/contract-review">문서 다시 선택</Link>
             {mode === "both" && !registryConfirmed && tab === "contract" ? (
-              <button className={styles.primaryButton} type="button" disabled={!contractConfirmed} onClick={() => setTab("registry")}>등본 정보 확인</button>
+              <button className={styles.primaryButton} type="button" disabled={!contractConfirmed || !allFieldsComplete} onClick={() => setTab("registry")}>등본 정보 확인</button>
             ) : (
-              <button className={styles.primaryButton} type="button" disabled={!requiredConfirmed} onClick={() => router.push(`/contract-review/result?documents=${mode}`)}>검토 결과 보기</button>
+              <button className={styles.primaryButton} type="button" disabled={!requiredConfirmed || !allFieldsComplete} onClick={() => router.push(`/contract-review/result?documents=${mode}`)}>검토 결과 보기</button>
             )}
           </div>
         </section>

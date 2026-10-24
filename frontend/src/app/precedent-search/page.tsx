@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Bookmark, ExternalLink, Search } from "lucide-react";
+import { ArrowLeft, Bookmark, ExternalLink, LoaderCircle, Search } from "lucide-react";
+import { validateRealEstateInput } from "@/lib/demo-validation";
 import styles from "../feature-demo.module.css";
 
-type Stage = "search" | "results" | "detail";
+type Stage = "search" | "searching" | "results" | "empty" | "detail";
 
 const cases = [
   {
@@ -50,7 +51,35 @@ function PrecedentSearchDemo() {
   const initialCase = Math.max(0, cases.findIndex((item) => item.caseNumber === requestedCase));
   const [selected, setSelected] = useState(initialCase);
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [progress, setProgress] = useState(10);
+  const [error, setError] = useState("");
   const current = cases[selected];
+
+  useEffect(() => {
+    if (stage !== "searching") return;
+    const timer = window.setInterval(() => setProgress((value) => Math.min(100, value + 5)), 100);
+    return () => window.clearInterval(timer);
+  }, [stage]);
+
+  useEffect(() => {
+    if (stage !== "searching" || progress < 100) return;
+    const timer = window.setTimeout(() => setStage(/층간소음|주차|소음/.test(query) ? "empty" : "results"), 350);
+    return () => window.clearTimeout(timer);
+  }, [progress, query, stage]);
+
+  function startSearch(nextQuery?: string) {
+    const value = nextQuery ?? query;
+    const validationError = validateRealEstateInput(value, 10);
+    if (validationError) {
+      setError(validationError);
+      setStage("search");
+      return;
+    }
+    if (nextQuery) setQuery(nextQuery);
+    setError("");
+    setProgress(10);
+    setStage("searching");
+  }
 
   function toggleFavorite(index: number) {
     setFavorites((items) => items.includes(index) ? items.filter((item) => item !== index) : [...items, index]);
@@ -88,11 +117,20 @@ function PrecedentSearchDemo() {
         <label htmlFor="case-query">상황을 알려주세요</label>
         <div className={styles.searchBox}>
           <input id="case-query" value={query} onChange={(event) => setQuery(event.target.value)} />
-          <button className={styles.primaryButton} type="button" onClick={() => setStage("results")}><Search size={17} />검색</button>
+          <button className={styles.primaryButton} type="button" onClick={() => startSearch()}><Search size={17} />검색</button>
         </div>
         <p className={styles.searchGuide}>부동산 매매·임대차와 관련해 계약 종류, 문제 발생 시점, 상대방의 행동을 함께 적어주세요.</p>
-        {stage === "search" && <div className={styles.recentSearches}><span>최근 검색</span>{recentQueries.map((item) => <button type="button" key={item} onClick={() => { setQuery(item); setStage("results"); }}>{item}</button>)}</div>}
+        {error && <div className={styles.validationNotice} role="alert"><Search size={19} /><div><strong>검색 범위를 확인해주세요</strong><span>{error}</span></div></div>}
+        {stage === "search" && <div className={styles.recentSearches}><span>최근 검색</span>{recentQueries.map((item) => <button type="button" key={item} onClick={() => startSearch(item)}>{item}</button>)}</div>}
       </section>
+
+      {stage === "searching" && (
+        <section className={styles.processingCard}>
+          <span><LoaderCircle className={styles.spinner} size={28} aria-hidden="true" /></span>
+          <h2>비슷한 쟁점의 판례를 찾고 있습니다</h2>
+          <p>입력한 상황의 핵심 쟁점을 정리하고 판례 데이터베이스를 검색하고 있습니다.</p>
+        </section>
+      )}
 
       {stage === "results" && (
         <section className={styles.caseResults}>
@@ -109,6 +147,15 @@ function PrecedentSearchDemo() {
               </article>
             ))}
           </div>
+        </section>
+      )}
+
+      {stage === "empty" && (
+        <section className={styles.emptyState}>
+          <Search size={30} aria-hidden="true" />
+          <h2>비슷한 쟁점의 판례를 찾지 못했습니다</h2>
+          <p>표현을 바꾸거나 계약 종류, 문제 발생 시점과 상대방의 행동을 더 구체적으로 적어보세요.</p>
+          <button className={styles.primaryButton} type="button" onClick={() => setStage("search")}>검색어 수정</button>
         </section>
       )}
     </main>

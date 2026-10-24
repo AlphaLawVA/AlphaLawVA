@@ -19,7 +19,7 @@
 
 .brand {
   color: var(--navy);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
 }
 
@@ -28,7 +28,7 @@
   align-items: center;
   gap: 30px;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 650;
 }
 
@@ -81,7 +81,7 @@
     align-items: center;
     border-bottom: 1px solid var(--line);
     color: var(--text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
   }
 

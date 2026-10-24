@@ -19,7 +19,7 @@ export function ResultDemo() {
   const mode = readMode(searchParams.get("documents"));
   const initialTab: ResultTab = mode === "registry" ? "registry" : "clauses";
   const [tab, setTab] = useState<ResultTab>(initialTab);
-  const [selectedId, setSelectedId] = useState(clauseReviews[2].id);
+  const [selectedId, setSelectedId] = useState(clauseReviews[0].id);
   const selectedClause = useMemo(
     () => clauseReviews.find((clause) => clause.id === selectedId) ?? clauseReviews[0],
     [selectedId],

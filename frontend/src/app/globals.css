@@ -34,6 +34,7 @@ body {
   color: var(--text);
   background: var(--background);
   font-family: "Wanted Sans Variable", "LINE Seed Sans KR", Pretendard, "Noto Sans KR", system-ui, sans-serif;
+  font-size: 17px;
   letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
 }

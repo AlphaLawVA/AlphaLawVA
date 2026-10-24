@@ -143,6 +143,27 @@
   border: 1px solid var(--navy);
   color: var(--navy);
   background: white;
+  cursor: pointer;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.sampleTextButton {
+  margin-top: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  color: var(--navy);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 750;
 }
 
 .primaryButton {
@@ -459,18 +480,50 @@
   box-shadow: 0 0 0 3px var(--navy-soft);
 }
 
+.field .invalidInput {
+  border-color: var(--warning);
+  background: #fffaf0;
+}
+
+.fieldInvalid input {
+  border-color: var(--warning);
+  background: #fffaf0;
+}
+
+.validationBanner {
+  margin-top: 20px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #d49a58;
+  border-radius: 6px;
+  color: #633b18;
+  background: #fff4df;
+  line-height: 1.55;
+}
+
+.validationBanner svg { flex: 0 0 auto; margin-top: 2px; }
+.validationBanner strong, .validationBanner span { display: block; }
+.validationBanner strong { font-size: 16px; }
+.validationBanner span { margin-top: 4px; font-size: 15px; }
+
 .checkRow {
   margin-top: 22px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
+  padding: 18px;
+  border: 1px solid #e4bc72;
+  border-left: 4px solid var(--warning);
+  border-radius: 6px;
+  background: var(--warning-bg);
+  animation: confirmAttention 1.8s ease-out 2;
 }
 
 .checkRow label {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  color: var(--text-muted);
-  font-size: 14px;
+  color: #5c432d;
+  font-size: 16px;
   line-height: 1.55;
 }
 
@@ -481,10 +534,19 @@
 }
 
 .checkRow input {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   margin-top: 1px;
   accent-color: var(--navy);
+}
+
+@keyframes confirmAttention {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(182, 92, 19, 0); }
+  45% { box-shadow: 0 0 0 5px rgba(182, 92, 19, 0.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkRow { animation: none; }
 }
 
 .resultHeader {
@@ -956,5 +1018,35 @@
   .actions button {
     width: 100%;
   }
+}
+
+/* Match result readability and caution styling across feature pages. */
+.heading p { font-size: 17px; }
+.heading h1 { font-size: 38px; }
+.sectionTitle { font-size: 23px; }
+.modeButton strong { font-size: 17px; }
+.modeButton span { font-size: 15px; }
+.dropzone strong { font-size: 19px; }
+.dropzone p { font-size: 15px; }
+.sampleButton, .secondaryButton, .primaryButton { font-size: 15px; }
+.aiNotice {
+  margin-bottom: 30px;
+  padding: 18px 20px;
+  border: 1px solid #e4bc72;
+  border-left: 4px solid var(--warning);
+  border-radius: 6px;
+  color: #5c432d;
+  background: var(--warning-bg);
+  font-size: 16px;
+}
+
+.detailPanel h2 { font-size: 28px; }
+.detailSection h3, .detailPanel summary { font-size: 19px; }
+.detailSection p { font-size: 17px; }
+.detailPanel details p, .detailPanel details ul { font-size: 16px; }
+.evidenceHeading strong, .evidenceCard > strong { font-size: 17px; }
+
+@media (max-width: 620px) {
+  .heading h1 { font-size: 31px; }
 }
 

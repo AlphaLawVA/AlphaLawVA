@@ -16,6 +16,14 @@ export const restorationLaw = {
   url: "https://www.law.go.kr/법령/민법/제654조",
 };
 
+export const lessorMaintenanceLaw = {
+  law: "민법",
+  article: "제623조",
+  excerpt: "임대인은 계약이 존속하는 동안 임차인이 목적물을 사용·수익하는 데 필요한 상태를 유지할 의무를 부담합니다.",
+  explanation: "시설의 유지·수리 책임을 정할 때 임차인의 원상회복 범위와 임대인의 유지의무를 함께 검토하기 위한 근거입니다.",
+  url: "https://www.law.go.kr/법령/민법/제623조",
+};
+
 export const restorationCase = {
   title: "토지인도",
   caseNumber: "대법원 2023. 11. 2. 선고 2023다249661 판결",
@@ -57,7 +65,7 @@ export const clauseReviews: ClauseReview[] = [
       "통상적인 사용으로 발생한 노후·마모를 제외하고 임차인의 고의 또는 과실로 생긴 손상만 원상회복한다.",
     negotiation:
       "입주 전 사진을 남기고 기존 하자의 위치와 수리 책임을 별지에 기록하는 방안을 협의하세요.",
-    statutes: [restorationLaw],
+    statutes: [restorationLaw, lessorMaintenanceLaw],
     precedents: [restorationCase],
   },
   {

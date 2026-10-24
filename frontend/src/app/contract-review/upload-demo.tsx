@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FileText, LockKeyhole, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Upload } from "lucide-react";
+import { UploadGuide } from "@/components/upload-guide";
 import type { DocumentMode } from "@/lib/demo-types";
+import { validateDemoFile } from "@/lib/demo-validation";
 import styles from "./contract-review.module.css";
 
 const modeOptions: Array<{ mode: DocumentMode; title: string; description: string }> = [
@@ -16,6 +18,8 @@ export function UploadDemo() {
   const router = useRouter();
   const [mode, setMode] = useState<DocumentMode>("both");
   const [loaded, setLoaded] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [fileError, setFileError] = useState("");
 
   const files = mode === "contract"
     ? ["전세_손글씨_샘플.pdf"]
@@ -26,6 +30,37 @@ export function UploadDemo() {
   function selectMode(nextMode: DocumentMode) {
     setMode(nextMode);
     setLoaded(false);
+    setSelectedFiles([]);
+    setFileError("");
+  }
+
+  function selectFiles(fileList: FileList | null) {
+    const nextFiles = Array.from(fileList ?? []);
+    const validationError = nextFiles.map(validateDemoFile).find(Boolean);
+    const requiredCount = mode === "both" ? 2 : 1;
+
+    if (validationError) {
+      setFileError(validationError);
+      setSelectedFiles([]);
+      setLoaded(false);
+      return;
+    }
+    if (nextFiles.length < requiredCount) {
+      setFileError(mode === "both" ? "계약서와 등기사항증명서를 각각 한 개씩 선택해주세요." : "검토할 문서 한 개를 선택해주세요.");
+      setSelectedFiles(nextFiles.map((file) => file.name));
+      setLoaded(false);
+      return;
+    }
+
+    setFileError("");
+    setSelectedFiles(nextFiles.map((file) => file.name));
+    setLoaded(true);
+  }
+
+  function loadSamples() {
+    setSelectedFiles(files);
+    setFileError("");
+    setLoaded(true);
   }
 
   return (
@@ -51,15 +86,19 @@ export function UploadDemo() {
             <span className={styles.dropIcon}><Upload size={23} aria-hidden="true" /></span>
             <strong>PDF 또는 이미지 파일을 올려주세요</strong>
             <p>PDF, JPG, PNG · 문서별 최대 20MB</p>
-            <button className={styles.sampleButton} type="button" onClick={() => setLoaded(true)}>
-              <FileText size={17} aria-hidden="true" />
-              샘플 문서 불러오기
-            </button>
+            <label className={styles.sampleButton}>
+              <Upload size={17} aria-hidden="true" />
+              내 파일 선택
+              <input className={styles.fileInput} type="file" multiple={mode === "both"} accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => selectFiles(event.target.files)} />
+            </label>
+            <button className={styles.sampleTextButton} type="button" onClick={loadSamples}><FileText size={16} aria-hidden="true" />샘플 문서 사용</button>
           </div>
 
-          {loaded && (
+          {fileError && <div className={styles.validationBanner} role="alert"><AlertCircle size={19} /><div><strong>업로드할 문서를 확인해주세요</strong><span>{fileError}</span></div></div>}
+
+          {selectedFiles.length > 0 && (
             <div className={styles.fileList} aria-live="polite">
-              {files.map((file) => (
+              {selectedFiles.map((file) => (
                 <div className={styles.fileItem} key={file}>
                   <div className={styles.fileName}>
                     <FileText size={17} aria-hidden="true" />
@@ -72,18 +111,7 @@ export function UploadDemo() {
           )}
         </section>
 
-        <aside className={styles.sidePanel}>
-          <h2 className={styles.sectionTitle}>업로드 전에 확인하세요</h2>
-          <ol className={styles.guideList}>
-            <li><b>01</b><span>계약서 전체 페이지가 잘리지 않고 선명하게 보여야 합니다.</span></li>
-            <li><b>02</b><span>등본은 발급일과 표제부·갑구·을구가 모두 포함된 문서를 사용하세요.</span></li>
-            <li><b>03</b><span>주민등록번호는 수집하거나 저장하지 않으며 검토 대상에서도 제외합니다.</span></li>
-          </ol>
-          <div className={styles.privacyNotice}>
-            <LockKeyhole size={18} aria-hidden="true" />
-            <span>필요한 계약정보는 암호화하여 보관하고, 분석에 불필요한 정보는 마스킹 후 폐기합니다.</span>
-          </div>
-        </aside>
+        <UploadGuide purpose="review" includesRegistry={mode !== "contract"} />
       </div>
 
       <div className={styles.actions}>

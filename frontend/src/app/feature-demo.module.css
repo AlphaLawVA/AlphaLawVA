@@ -261,6 +261,41 @@
   line-height: 1.6;
 }
 
+.validationNotice {
+  margin-top: 16px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #d49a58;
+  border-radius: 6px;
+  color: #633b18;
+  background: #fff4df;
+  line-height: 1.55;
+}
+
+.validationNotice svg { flex: 0 0 auto; margin-top: 2px; }
+.validationNotice strong, .validationNotice span { display: block; }
+.validationNotice strong { font-size: 16px; }
+.validationNotice span { margin-top: 4px; font-size: 15px; }
+
+.emptyState {
+  width: min(620px, 100%);
+  margin: 42px auto 0;
+  padding: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.emptyState > svg { color: var(--navy); }
+.emptyState h2 { margin-top: 18px; color: var(--text); font-size: 24px; }
+.emptyState p { margin: 10px auto 22px; max-width: 480px; color: var(--text-muted); font-size: 16px; line-height: 1.65; }
+
+.fileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.textButton { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; border: 0; color: var(--navy); background: transparent; font-size: 14px; font-weight: 750; }
+
 .resultSplit {
   display: grid;
   grid-template-columns: 330px minmax(0, 1fr);
@@ -701,4 +736,77 @@
   .searchBox button {
     width: 100%;
   }
+}
+
+/* Readability pass shared by the four demo flows. */
+.eyebrow { font-size: 15px; }
+.header h1 { font-size: 38px; }
+.header p:last-child { font-size: 17px; }
+.steps span { font-size: 14px; }
+.panel h2, .sidePanel h2 { font-size: 23px; }
+.panelLead { font-size: 17px; }
+.field label, .requestNumber { font-size: 15px; }
+.field input, .field textarea, .field select, .requestItem input, .searchBox input { font-size: 16px; }
+.addButton, .primaryButton, .secondaryButton { font-size: 15px; }
+.summaryItem span { font-size: 14px; }
+.summaryItem p { font-size: 17px; }
+
+.notice {
+  margin-bottom: 28px;
+  padding: 18px 20px;
+  border: 1px solid #e4bc72;
+  border-left: 4px solid var(--warning);
+  border-radius: 6px;
+  color: #5c432d;
+  background: var(--warning-bg);
+  font-size: 16px;
+}
+
+.notice + .resultSplit,
+.notice + .letterPaper {
+  margin-top: 0;
+}
+
+.resultButton strong { font-size: 17px; }
+.resultButton span { font-size: 15px; }
+.detail > h2 { font-size: 28px; }
+.detailSection h3, .detailDisclosure summary { font-size: 19px; }
+.detailSection p, .detailSection li, .detailDisclosure > p { font-size: 17px; }
+.basisCard strong { font-size: 17px; }
+.basisCard p { font-size: 16px; }
+.basisCard span { font-size: 16px; }
+.basisCard a { font-size: 15px; }
+.searchHero > label { font-size: 23px; }
+.resultsHeading p { font-size: 15px; }
+.resultsHeading h2 { font-size: 23px; }
+.resultsHeading > span { font-size: 16px; }
+.caseCard h3 { font-size: 25px; }
+.caseCard > div strong { font-size: 16px; }
+.caseCard > div p, .caseSummary { font-size: 17px; }
+.caseDetailHead h1 { font-size: 34px; }
+.caseDetailHead > div > p:last-child { font-size: 16px; }
+.caseIssue p { font-size: 17px; }
+.summaryColumns h2, .similarBox h2 { font-size: 21px; }
+.summaryColumns p, .similarBox p { font-size: 17px; }
+.letterBody { font-size: 16px; }
+.letterDropzone strong { font-size: 18px; }
+.letterDropzone p { font-size: 15px; }
+.processingCard h2 { font-size: 27px; }
+.processingCard > p { font-size: 17px; line-height: 1.6; }
+.progressHeader { font-size: 16px; }
+.letterPartyGrid span { font-size: 14px; }
+.letterPartyGrid strong { font-size: 18px; }
+.letterPartyGrid p { font-size: 15px; }
+.preflight h2 { font-size: 23px; }
+.preflight p { font-size: 16px; }
+
+.spinner { animation: spin 900ms linear infinite; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .header h1 { font-size: 31px; }
+  .caseDetailHead h1 { font-size: 29px; }
 }

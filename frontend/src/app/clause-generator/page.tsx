@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertCircle, ArrowRight, ExternalLink, Plus, X } from "lucide-react";
-import { restorationCase, restorationLaw } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
+import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
+import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
 import styles from "../feature-demo.module.css";
 
-type Stage = "input" | "review" | "result";
+type Stage = "input" | "review" | "generating" | "result";
 type RequestItem = { id: number; value: string };
 type GeneratedClause = {
   title: string;
@@ -26,7 +27,7 @@ function buildClause(request: string, index: number): GeneratedClause {
       clause: "임대인은 임차인이 반려동물 1마리를 사육하는 데 동의한다. 임차인은 사육으로 인해 통상적인 사용 범위를 넘는 시설 훼손이 발생한 경우 그 부분을 원상회복한다.",
       reason: "반려동물 사육 가능 여부와 실제 훼손이 발생했을 때의 책임 범위를 계약 전에 명확히 하기 위한 문구입니다.",
       strategy: "동물의 종류와 수, 공용공간 이용 수칙, 입주 당시 마감재 상태를 함께 기록해 두는 방안을 협의하세요.",
-      statutes: [restorationLaw],
+      statutes: [restorationLaw, lessorMaintenanceLaw],
       precedents: [restorationCase],
     };
   }
@@ -37,7 +38,7 @@ function buildClause(request: string, index: number): GeneratedClause {
       clause: "임차인은 생활에 필요한 범위에서 벽면을 타공할 수 있다. 퇴거 시 통상적인 보수가 가능한 타공은 임대인과 보수 방법을 협의하고, 타일·대리석 등 복구가 어려운 마감재는 사전 동의를 받는다.",
       reason: "벽면 타공을 전부 금지하거나 작은 흔적까지 일률적으로 복구하도록 요구하는 분쟁을 줄이기 위한 문구입니다.",
       strategy: "허용 위치와 개수, 제외할 벽면을 사진에 표시하고 퇴거 시 보수 방법을 구체적으로 정하세요.",
-      statutes: [restorationLaw],
+      statutes: [restorationLaw, lessorMaintenanceLaw],
       precedents: [restorationCase],
     };
   }
@@ -48,7 +49,7 @@ function buildClause(request: string, index: number): GeneratedClause {
       clause: "임차인은 실내 흡연 여부와 그 범위를 임대인과 합의하고, 흡연으로 인해 통상적인 사용 범위를 넘는 벽지 변색이나 냄새 제거 비용이 발생한 경우 실제 손상 부분의 복구 방법을 협의한다.",
       reason: "흡연 허용 여부와 냄새·변색에 대한 복구 범위를 미리 정해 퇴거 시 책임 다툼을 줄이기 위한 문구입니다.",
       strategy: "실내 전체 또는 지정 공간 중 어디까지 허용할지, 입주 전 상태를 어떤 방식으로 기록할지 함께 정하세요.",
-      statutes: [restorationLaw],
+      statutes: [restorationLaw, lessorMaintenanceLaw],
       precedents: [restorationCase],
     };
   }
@@ -71,9 +72,23 @@ export default function ClauseGeneratorPage() {
     { id: 2, value: "액자 설치를 위해 벽에 작은 못을 박고 싶어요." },
   ]);
   const [selected, setSelected] = useState(0);
+  const [progress, setProgress] = useState(12);
+  const [error, setError] = useState("");
   const validRequests = useMemo(() => requests.map((item) => item.value.trim()).filter(Boolean), [requests]);
   const generated = useMemo(() => validRequests.map(buildClause), [validRequests]);
   const current = generated[selected] ?? generated[0];
+
+  useEffect(() => {
+    if (stage !== "generating") return;
+    const timer = window.setInterval(() => setProgress((value) => Math.min(100, value + 4)), 110);
+    return () => window.clearInterval(timer);
+  }, [stage]);
+
+  useEffect(() => {
+    if (stage !== "generating" || progress < 100) return;
+    const timer = window.setTimeout(() => setStage("result"), 400);
+    return () => window.clearTimeout(timer);
+  }, [progress, stage]);
 
   function updateRequest(id: number, value: string) {
     setRequests((items) => items.map((item) => item.id === id ? { ...item, value } : item));
@@ -88,6 +103,33 @@ export default function ClauseGeneratorPage() {
     setRequests((items) => items.filter((item) => item.id !== id));
   }
 
+  function generateClauses() {
+    setSelected(0);
+    setProgress(12);
+    setStage("generating");
+  }
+
+  function reviewRequests() {
+    const invalid = validRequests.map((value) => validateRealEstateInput(value, 8)).find(Boolean);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    if (hasContradictoryRequests(validRequests)) {
+      setError("서로 반대되는 요청이 함께 입력되어 있습니다. 허용할 조건과 금지할 조건을 다시 확인해주세요.");
+      return;
+    }
+    setError("");
+    setStage("review");
+  }
+
+  function startNewRequest() {
+    setRequests([{ id: nextId, value: "" }]);
+    setNextId((value) => value + 1);
+    setSelected(0);
+    setStage("input");
+  }
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -96,8 +138,8 @@ export default function ClauseGeneratorPage() {
         <p>원하는 조건을 평소 사용하는 말로 적으면 협의에 사용할 특약 초안을 만듭니다.</p>
       </header>
       <div className={styles.steps} aria-label="특약 생성 단계">
-        {(["input", "review", "result"] as Stage[]).map((item, index) => (
-          <span className={stage === item ? styles.activeStep : ""} key={item}>
+        {(["input", "review", "result"] as const).map((item, index) => (
+          <span className={stage === item || (stage === "generating" && item === "result") ? styles.activeStep : ""} key={item}>
             {String(index + 1).padStart(2, "0")} {index === 0 ? "요청 입력" : index === 1 ? "입력 확인" : "생성 결과"}
           </span>
         ))}
@@ -117,6 +159,7 @@ export default function ClauseGeneratorPage() {
                 </div>
               ))}
             </div>
+            {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>요청을 다시 확인해주세요</strong><span>{error}</span></div></div>}
             <button className={styles.addButton} type="button" onClick={addRequest}><Plus size={16} aria-hidden="true" />요청 추가</button>
           </section>
           <aside className={styles.sidePanel}>
@@ -138,6 +181,16 @@ export default function ClauseGeneratorPage() {
           <div className={styles.summaryList}>
             {validRequests.map((request, index) => <div className={styles.summaryItem} key={`${index}-${request}`}><span>요청 {index + 1}</span><p>{request}</p></div>)}
           </div>
+        </section>
+      )}
+
+      {stage === "generating" && (
+        <section className={styles.processingCard}>
+          <span><LoaderCircle className={styles.spinner} size={28} aria-hidden="true" /></span>
+          <h2>요청에 맞는 특약을 만들고 있습니다</h2>
+          <p>요청별 문구를 구성하고 관련 법령과 판례 근거를 연결하고 있습니다.</p>
+          <div className={styles.progressHeader}><span>특약 초안 및 근거 구성</span><strong>{progress}%</strong></div>
+          <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
         </section>
       )}
 
@@ -169,8 +222,10 @@ export default function ClauseGeneratorPage() {
       )}
 
       <div className={styles.actions}>
-        {stage !== "input" && <button className={styles.secondaryButton} type="button" onClick={() => setStage(stage === "result" ? "review" : "input")}>이전</button>}
-        {stage !== "result" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={() => { setSelected(0); setStage(stage === "input" ? "review" : "result"); }}>{stage === "input" ? "입력 내용 확인" : "특약 생성"}<ArrowRight size={17} aria-hidden="true" /></button>}
+        {stage === "review" && <button className={styles.secondaryButton} type="button" onClick={() => setStage("input")}>이전</button>}
+        {stage === "input" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={reviewRequests}>입력 내용 확인<ArrowRight size={17} aria-hidden="true" /></button>}
+        {stage === "review" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={generateClauses}>특약 생성<ArrowRight size={17} aria-hidden="true" /></button>}
+        {stage === "result" && <button className={styles.primaryButton} type="button" onClick={startNewRequest}><Plus size={17} aria-hidden="true" />새 요청 작성</button>}
       </div>
     </main>
   );
