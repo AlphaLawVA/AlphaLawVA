@@ -237,17 +237,22 @@
     .notice strong { display: block; margin-bottom: 2px; }
     .error-banner { border-color: #efd0d0; color: var(--danger); background: #fff7f7; }
 
-    .query-bar {
-      margin-top: 22px;
-      padding: 13px 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-      border-bottom: 1px solid var(--line);
+    .search-results {
+      margin-top: 48px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
     }
 
-    .query-text { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+    .results-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 16px;
+    }
+
+    .results-heading .view-title { color: var(--navy); }
+    .result-count { color: var(--muted); font-size: 14px; font-weight: 700; }
 
     .result-list { border-bottom: 1px solid var(--line); }
 
@@ -277,20 +282,6 @@
       -webkit-line-clamp: 2;
     }
 
-    .match-preview {
-      margin-top: 14px;
-      padding-left: 12px;
-      border-left: 3px solid #d8daf0;
-      color: #666;
-      font-size: 14px;
-      display: -webkit-box;
-      overflow: hidden;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-    }
-
-    .match-preview strong { color: #444; }
-
     .result-actions {
       min-width: 206px;
       display: grid;
@@ -317,7 +308,6 @@
     }
 
     .detail-title { margin: 7px 0 0; font-size: 26px; line-height: 1.4; }
-    .detail-meta { margin: 20px 0 0; color: var(--muted); font-size: 14px; }
 
     .detail-actions { display: flex; align-items: center; gap: 9px; }
 
@@ -380,7 +370,6 @@
       background: var(--soft);
     }
 
-    .chunk-meta { margin: 0 0 5px; color: var(--navy); font-size: 13px; font-weight: 800; }
     .chunk-text { margin: 0; white-space: pre-wrap; }
 
     .comparison {
@@ -478,6 +467,15 @@
     .full-text-section h3 { margin: 0 0 10px; color: var(--navy); font-size: 18px; }
     .full-text-section p { margin: 0; white-space: pre-wrap; }
 
+    .match-highlight {
+      padding: 1px 2px;
+      border-radius: 2px;
+      color: inherit;
+      background: #fff0a8;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
     .sr-only {
       position: absolute;
       width: 1px;
@@ -504,7 +502,7 @@
       .steps { gap: 8px; font-size: 12px; }
       .view-title { font-size: 22px; }
       .search-form { margin-top: 34px; }
-      .query-bar, .detail-topline, .detail-footer { align-items: flex-start; flex-direction: column; }
+      .detail-topline, .detail-footer { align-items: flex-start; flex-direction: column; }
       .result-row { grid-template-columns: 1fr; gap: 14px; padding-inline: 0; }
       .result-actions { width: 100%; min-width: 0; justify-content: start; }
       .summary-grid { grid-template-columns: 1fr; }
@@ -553,6 +551,8 @@
         <button id="search-submit" class="primary-button" type="submit">판례 검색 →</button>
       </form>
 
+      <section id="search-results" class="search-results" aria-live="polite" hidden></section>
+
       <div class="examples">
         <h3>이런 질문으로 검색해 보세요</h3>
         <div class="example-list">
@@ -564,7 +564,6 @@
       <p class="disclaimer">검색 결과는 유사한 법률 자료 탐색을 돕는 정보이며 사건의 결론을 예측하지 않습니다.</p>
     </section>
 
-    <section id="results-view" class="view" hidden></section>
     <section id="detail-view" class="view" hidden></section>
     <section id="favorites-view" class="view" hidden></section>
   </main>
@@ -591,7 +590,6 @@
 
     const views = {
       search: document.querySelector("#search-view"),
-      results: document.querySelector("#results-view"),
       detail: document.querySelector("#detail-view"),
       favorites: document.querySelector("#favorites-view"),
     };
@@ -605,6 +603,7 @@
     const errorBanner = document.querySelector("#global-error");
     const queryInput = document.querySelector("#query");
     const searchButton = document.querySelector("#search-submit");
+    const searchResults = document.querySelector("#search-results");
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -613,6 +612,106 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    function normalizeWithPositions(value) {
+      const text = String(value ?? "");
+      let normalized = "";
+      const positions = [];
+      let pendingSpace = null;
+
+      for (let index = 0; index < text.length; index += 1) {
+        if (/\s/.test(text[index])) {
+          if (normalized && pendingSpace === null) pendingSpace = index;
+          continue;
+        }
+        if (pendingSpace !== null) {
+          normalized += " ";
+          positions.push(pendingSpace);
+          pendingSpace = null;
+        }
+        normalized += text[index];
+        positions.push(index);
+      }
+      return { normalized, positions };
+    }
+
+    function matchRanges(text, chunks) {
+      const source = String(text ?? "");
+      const normalizedSource = normalizeWithPositions(source);
+      const ranges = [];
+
+      (chunks || []).forEach((chunk) => {
+        const excerpt = String(chunk?.text ?? "").trim();
+        if (!excerpt) return;
+        const normalizedExcerpt = normalizeWithPositions(excerpt).normalized;
+        const normalizedStart = normalizedSource.normalized.indexOf(normalizedExcerpt);
+        if (normalizedStart < 0 || !normalizedExcerpt) return;
+        const start = normalizedSource.positions[normalizedStart];
+        const endPosition = normalizedStart + normalizedExcerpt.length - 1;
+        const end = normalizedSource.positions[endPosition] + 1;
+        ranges.push([start, end]);
+      });
+
+      return ranges
+        .sort((left, right) => left[0] - right[0])
+        .reduce((merged, range) => {
+          const previous = merged.at(-1);
+          if (previous && range[0] <= previous[1]) {
+            previous[1] = Math.max(previous[1], range[1]);
+          } else {
+            merged.push([...range]);
+          }
+          return merged;
+        }, []);
+    }
+
+    function highlightedText(text, chunks) {
+      const source = String(text ?? "");
+      const ranges = matchRanges(source, chunks);
+      if (!ranges.length) return escapeHtml(source);
+
+      let cursor = 0;
+      const parts = [];
+      ranges.forEach(([start, end]) => {
+        parts.push(escapeHtml(source.slice(cursor, start)));
+        parts.push(`<mark class="match-highlight">${escapeHtml(source.slice(start, end))}</mark>`);
+        cursor = end;
+      });
+      parts.push(escapeHtml(source.slice(cursor)));
+      return parts.join("");
+    }
+
+    function chunkSource(chunk) {
+      return `${chunk?.section || ""} ${chunk?.chunk_type || ""} ${chunk?.chunk_id || ""}`.toLowerCase();
+    }
+
+    function summaryChunks(chunks, kind) {
+      return (chunks || []).filter((chunk) => {
+        const source = chunkSource(chunk);
+        if (kind === "easy") return source.includes("쉬운요약") || source.includes("easy_summary");
+        if (source.includes("쉬운요약") || source.includes("easy_summary")) return false;
+        return source.includes("생성요약") || source.includes("precedent_summary") || source.includes(":summary:");
+      });
+    }
+
+    function isSummaryChunk(chunk) {
+      return summaryChunks([chunk], "precedent").length > 0 || summaryChunks([chunk], "easy").length > 0;
+    }
+
+    function matchedChunksForPrecedent(precedentId) {
+      const normalizedId = String(precedentId);
+      if (String(state.detail?.precedent?.precedent_id) === normalizedId) {
+        return state.detail.similarity_explanation?.matched_chunks || [];
+      }
+      const searchResult = state.searchResponse?.results?.find(
+        (item) => String(item.precedent?.precedent_id) === normalizedId,
+      );
+      if (searchResult) return searchResult.matched_chunks || [];
+      const favorite = state.favorites.find(
+        (item) => String(item.precedent?.precedent_id) === normalizedId,
+      );
+      return favorite?.similarity_explanation?.matched_chunks || [];
     }
 
     function formatDate(value) {
@@ -655,7 +754,8 @@
     }
 
     function setView(name, { push = true } = {}) {
-      Object.entries(views).forEach(([key, element]) => { element.hidden = key !== name; });
+      const visibleView = name === "results" ? "search" : name;
+      Object.entries(views).forEach(([key, element]) => { element.hidden = key !== visibleView; });
       Object.values(stepElements).forEach((element) => element.classList.remove("active"));
       stepElements[name === "favorites" ? "search" : name]?.classList.add("active");
       clearError();
@@ -668,10 +768,13 @@
     }
 
     function metadataLine(precedent) {
-      return [precedent.court_name, precedent.case_number, formatDate(precedent.decision_date)]
-        .filter(Boolean)
+      return [precedent.court_name || "법원 미상", formatDate(precedent.decision_date), "선고"]
         .map(escapeHtml)
         .join(" · ");
+    }
+
+    function caseNumberText(precedent) {
+      return precedent.case_number || precedent.case_numbers?.join(", ") || "사건번호 정보 없음";
     }
 
     function favoriteButton(searchId, precedentId, isFavorited, favoriteId = "") {
@@ -686,14 +789,12 @@
         const precedent = item.precedent;
         const key = resultKey(data.search_id, precedent.precedent_id);
         const favoriteId = state.favoriteByResult.get(key) || "";
-        const firstChunk = item.matched_chunks?.[0];
         return `
           <article class="result-row">
             <div>
               <div class="eyebrow">${metadataLine(precedent)}</div>
-              <h3 class="result-title">${escapeHtml(precedent.case_name || "사건명 없음")}</h3>
+              <h3 class="result-title">${escapeHtml(caseNumberText(precedent))}</h3>
               <p class="summary-preview">${escapeHtml(item.preview?.summary || "등록된 요약이 없습니다.")}</p>
-              ${firstChunk ? `<p class="match-preview"><strong>검색 근거</strong> · ${escapeHtml(firstChunk.text)}</p>` : ""}
             </div>
             <div class="result-actions">
               <button class="text-button full-text-open" type="button" data-path="${escapeHtml(item.links.full_text)}">판례 전문 ↗</button>
@@ -703,17 +804,15 @@
           </article>`;
       }).join("");
 
-      views.results.innerHTML = `
-        <h2 class="view-title">비슷한 쟁점의 판례를 살펴보세요</h2>
-        <p class="view-copy">검색 결과마다 입력한 상황과 실제로 가까웠던 판례 부분을 함께 확인할 수 있습니다.</p>
-        <div class="notice"><strong>판례 검색 결과 · ${data.result_count}건</strong>사건번호와 출처를 확인한 뒤 각 판례의 내용을 살펴보세요.</div>
-        <div class="query-bar">
-          <p class="query-text">내가 입력한 내용 · ${escapeHtml(data.query.text)}</p>
-          <button class="secondary-button" type="button" data-route="search">검색 내용 수정</button>
+      searchResults.innerHTML = `
+        <div class="results-heading">
+          <h2 class="view-title">유사 판례 목록</h2>
+          <span class="result-count">${data.result_count}건</span>
         </div>
         <div class="result-list">${rows || `<div class="favorite-empty">${escapeHtml(data.message || "검색 결과가 없습니다.")}</div>`}</div>
         <p class="disclaimer">관련 판례라도 절차와 사실관계가 다를 수 있습니다. 원문을 확인하고 내 사건의 결론으로 단정하지 마세요.</p>`;
-      bindDynamicActions(views.results);
+      searchResults.hidden = false;
+      bindDynamicActions(searchResults);
     }
 
     function officialRows(fields) {
@@ -733,7 +832,6 @@
     function chunksMarkup(chunks) {
       return (chunks || []).map((chunk) => `
         <div class="chunk">
-          <p class="chunk-meta">${escapeHtml(chunk.section || chunk.chunk_type || "판례 본문")} · 검색 순위 ${escapeHtml(chunk.rank)} · 유사도 ${Number(chunk.similarity_score).toFixed(3)}</p>
           <p class="chunk-text">${escapeHtml(chunk.text)}</p>
         </div>`).join("");
     }
@@ -757,6 +855,7 @@
       const data = state.detail;
       if (!data) return;
       const precedent = data.precedent;
+      const matchedChunks = data.similarity_explanation.matched_chunks || [];
       const favoriteId = data.favorite_id || state.favoriteByResult.get(resultKey(data.search_id, precedent.precedent_id)) || "";
       const isFavorited = Boolean(favoriteId || data.is_favorited);
       const backLabel = state.detailOrigin === "favorite" ? "즐겨찾기 목록으로 ←" : "검색 결과로 ←";
@@ -769,19 +868,18 @@
           <div class="detail-topline">
             <div>
               <div class="eyebrow">${escapeHtml(precedent.court_name || "법원 미상")} ${formatDate(precedent.decision_date)} 선고 · ${escapeHtml(precedent.judgment_type || "판결")}</div>
-              <h3 class="detail-title">${escapeHtml(precedent.case_name || "사건명 없음")}</h3>
+              <h3 class="detail-title">${escapeHtml(caseNumberText(precedent))}</h3>
             </div>
             <div class="detail-actions">
               <button class="secondary-button full-text-open" type="button" data-path="${escapeHtml(data.links.full_text)}">판례 전문 보기 ↗</button>
               ${favoriteButton(data.search_id, precedent.precedent_id, isFavorited, favoriteId)}
             </div>
           </div>
-          <p class="detail-meta">사건번호 ${escapeHtml(precedent.case_number || "정보 없음")} · 국가법령정보센터 판례일련번호 ${escapeHtml(precedent.precedent_id)}</p>
         </div>
 
         <div class="summary-grid">
-          <section class="summary-panel"><h3>판례요약</h3><p>${escapeHtml(data.summaries.precedent_summary || "등록된 판례요약이 없습니다.")}</p></section>
-          <section class="summary-panel"><h3>쉬운요약</h3><p>${escapeHtml(data.summaries.easy_summary || "등록된 쉬운요약이 없습니다.")}</p></section>
+          <section class="summary-panel"><h3>판례요약</h3><p>${highlightedText(data.summaries.precedent_summary || "등록된 판례요약이 없습니다.", summaryChunks(matchedChunks, "precedent"))}</p></section>
+          <section class="summary-panel"><h3>쉬운요약</h3><p>${highlightedText(data.summaries.easy_summary || "등록된 쉬운요약이 없습니다.", summaryChunks(matchedChunks, "easy"))}</p></section>
         </div>
 
         ${officialRows(data.official_fields)}
@@ -791,7 +889,7 @@
 
         <h3 class="section-heading">검색 근거</h3>
         <details class="evidence-details">
-          <summary>실제로 적중한 판례 부분 ${data.similarity_explanation.matched_chunks.length}개 보기</summary>
+          <summary>내 상황과 비슷한 부분 보기</summary>
           <div class="chunk-list">${chunksMarkup(data.similarity_explanation.matched_chunks)}</div>
         </details>
 
@@ -808,7 +906,7 @@
         <article class="result-row">
           <div>
             <div class="eyebrow">${metadataLine(favorite.precedent)}</div>
-            <h3 class="result-title">${escapeHtml(favorite.precedent.case_name || "사건명 없음")}</h3>
+            <h3 class="result-title">${escapeHtml(caseNumberText(favorite.precedent))}</h3>
             <p class="summary-preview">${escapeHtml(favorite.summaries.easy_summary || favorite.summaries.precedent_summary || "등록된 요약이 없습니다.")}</p>
             <p class="favorite-query"><strong>저장한 검색</strong> · ${escapeHtml(favorite.query.text)}</p>
             <p class="status-label">${favorite.similarity_explanation.status === "generated" ? "내 상황과 비교 완료" : "내 상황과 비교 전"}</p>
@@ -847,6 +945,7 @@
         await refreshFavorites(false);
         renderResults();
         setView("results");
+        searchResults.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (error) {
         showError(error);
       } finally {
@@ -925,7 +1024,7 @@
             resultKey(state.detail.search_id, state.detail.precedent.precedent_id),
           );
         }
-        if (!views.results.hidden) renderResults();
+        if (!views.search.hidden && state.searchResponse) renderResults();
         if (!views.detail.hidden) {
           if (state.detailOrigin === "favorite" && favoriteId) {
             await openFavorites();
@@ -979,10 +1078,13 @@
       renderLoading(body, "판례 원문을 불러오고 있습니다.");
       try {
         const data = await api(path);
-        document.querySelector("#full-text-title").textContent = data.precedent.case_name || "판례 원문";
+        const matchedChunks = matchedChunksForPrecedent(data.precedent.precedent_id)
+          .filter((chunk) => !isSummaryChunk(chunk));
+        document.querySelector("#full-text-title").textContent = `${caseNumberText(data.precedent)} 판례 원문`;
         body.innerHTML = data.sections.length
-          ? data.sections.map((section) => `<section class="full-text-section"><h3>${escapeHtml(section.title)}</h3><p>${escapeHtml(section.content)}</p></section>`).join("")
+          ? data.sections.map((section) => `<section class="full-text-section"><h3>${escapeHtml(section.title)}</h3><p>${highlightedText(section.content, matchedChunks)}</p></section>`).join("")
           : `<div class="favorite-empty">표시할 원문 내용이 없습니다.</div>`;
+        body.querySelector(".match-highlight")?.scrollIntoView({ behavior: "smooth", block: "center" });
       } catch (error) {
         body.innerHTML = `<div class="error-banner">${escapeHtml(error.message)}</div>`;
       }
