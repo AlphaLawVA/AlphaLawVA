@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, BookOpen, ChevronRight, CircleCheck, CircleHelp, ExternalLink } from "lucide-react";
+import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink } from "lucide-react";
+import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { clauseReviews, registryReviews } from "@/lib/mock-data";
-import type { DocumentMode } from "@/lib/demo-types";
+import type { CaseBasis, DocumentMode } from "@/lib/demo-types";
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
@@ -20,6 +21,7 @@ export function ResultDemo() {
   const initialTab: ResultTab = mode === "registry" ? "registry" : "clauses";
   const [tab, setTab] = useState<ResultTab>(initialTab);
   const [selectedId, setSelectedId] = useState(clauseReviews[0].id);
+  const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const selectedClause = useMemo(
     () => clauseReviews.find((clause) => clause.id === selectedId) ?? clauseReviews[0],
     [selectedId],
@@ -128,7 +130,7 @@ export function ResultDemo() {
               <p>{selectedClause.negotiation}</p>
             </section>
             <details>
-              <summary>관련 법령</summary>
+              <summary>관련 법령 {selectedClause.statutes.length}건</summary>
               <div className={styles.evidenceList}>
                 {selectedClause.statutes.map((statute) => (
                   <article className={styles.evidenceCard} key={`${statute.law}-${statute.article}`}>
@@ -143,19 +145,11 @@ export function ResultDemo() {
               </div>
             </details>
             <details>
-              <summary>관련 판례</summary>
+              <summary>관련 판례 {selectedClause.precedents.length}건</summary>
               {selectedClause.precedents.length > 0 ? (
                 <div className={styles.evidenceList}>
                   {selectedClause.precedents.map((precedent) => (
-                    <article className={styles.evidenceCard} key={precedent.caseNumber}>
-                      <strong>{precedent.title}</strong>
-                      <p className={styles.caseNumber}>{precedent.caseNumber} · {precedent.precedentId}</p>
-                      <p>{precedent.summary}</p>
-                      <div className={styles.evidenceActions}>
-                        <Link href={`/precedent-search?case=${encodeURIComponent(precedent.caseNumber)}`}><BookOpen size={15} />판례 상세보기</Link>
-                        <a href={precedent.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a>
-                      </div>
-                    </article>
+                    <PrecedentListItem key={precedent.caseNumber} onOpenDetail={() => setPrecedentModal({ precedent, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent, initialView: "fullText" })} precedent={precedent} />
                   ))}
                 </div>
               ) : <p className={styles.noEvidence}>이 조항의 판단 근거로 직접 연결된 판례는 없습니다.</p>}
@@ -181,6 +175,7 @@ export function ResultDemo() {
       <div className={styles.actions}>
         <Link className={styles.secondaryButton} href="/contract-review">새 문서 검토</Link>
       </div>
+      {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
     </>
   );
 }

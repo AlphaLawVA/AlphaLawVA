@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, CheckCircle2, Download, FileText, LoaderCircle, ScanText, Upload } from "lucide-react";
 import { DemoDocument } from "@/components/demo-document";
+import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { UploadGuide } from "@/components/upload-guide";
-import { contractFields } from "@/lib/mock-data";
+import { contractFields, depositReturnCase } from "@/lib/mock-data";
+import type { CaseBasis } from "@/lib/demo-types";
 import { validateDemoFile, validateRealEstateInput } from "@/lib/demo-validation";
 import styles from "../feature-demo.module.css";
 import reviewStyles from "../contract-review/contract-review.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
-const sampleRequest = "전세 계약이 끝났는데 임대인이 보증금 2억 5천만 원을 돌려주지 않고 있습니다. 2028년 11월 7일까지 반환해 달라는 내용증명을 보내고 싶습니다.";
+const sampleRequest = "예: 전세 계약이 끝났는데 임대인이 보증금 2억 5천만 원을 돌려주지 않고 있습니다. 2028년 11월 7일까지 반환해 달라는 내용증명을 보내고 싶습니다.";
 
 export default function CertifiedLetterPage() {
   const [stage, setStage] = useState<Stage>("upload");
@@ -18,10 +20,12 @@ export default function CertifiedLetterPage() {
   const [progress, setProgress] = useState(8);
   const [fields, setFields] = useState(contractFields);
   const [confirmed, setConfirmed] = useState(false);
-  const [request, setRequest] = useState(sampleRequest);
+  const [request, setRequest] = useState("");
+  const [requestFocused, setRequestFocused] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
+  const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const missingFields = fields.filter((field) => !field.value.trim());
 
   useEffect(() => {
@@ -103,7 +107,7 @@ export default function CertifiedLetterPage() {
 
       {stage === "request" && (
         <div className={styles.split}>
-          <section className={styles.panel}><h2>상대방에게 무엇을 전달할까요?</h2><p className={styles.panelLead}>계약정보는 이미 확인했습니다. 있었던 일과 요구사항, 이행 기한을 자유롭게 적어주세요.</p><div className={styles.field}><label htmlFor="letter-request">상황과 요청</label><textarea id="letter-request" value={request} onChange={(event) => setRequest(event.target.value)} /></div>{error && <div className={styles.notice}><AlertCircle size={18} /><span>{error}</span></div>}<div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={generateLetter}><FileText size={17} />초안 만들기</button></div></section>
+          <section className={styles.panel}><h2>상대방에게 무엇을 전달할까요?</h2><p className={styles.panelLead}>계약정보는 이미 확인했습니다. 있었던 일과 요구사항, 이행 기한을 자유롭게 적어주세요.</p><div className={styles.field}><label htmlFor="letter-request">상황과 요청</label><textarea id="letter-request" onBlur={() => setRequestFocused(false)} onFocus={() => setRequestFocused(true)} placeholder={requestFocused ? "" : sampleRequest} value={request} onChange={(event) => setRequest(event.target.value)} /></div>{error && <div className={styles.notice}><AlertCircle size={18} /><span>{error}</span></div>}<div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={generateLetter}><FileText size={17} />초안 만들기</button></div></section>
           <aside className={styles.sidePanel}><h2>이 내용을 포함하면 좋습니다</h2><div className={styles.exampleList}><p><b>문제가 생긴 사실</b><span>계약이 끝났지만 보증금을 받지 못했습니다.</span></p><p><b>구체적인 요구</b><span>보증금 전액을 반환해 주세요.</span></p><p><b>이행 기한</b><span>문서를 받은 날부터 7일 이내처럼 적어주세요.</span></p></div></aside>
         </div>
       )}
@@ -147,9 +151,24 @@ export default function CertifiedLetterPage() {
             <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>계약 종료, 미반환 사실, 반환 금액과 기한을 순서대로 명확히 적고 협의 가능성을 남겼습니다. 과도한 위협 표현은 피하고 후속 절차는 검토 가능성으로 표현했습니다.</p></section>
             <section className={styles.panel}><h2>발송 후 대응</h2><p className={styles.panelLead}>기한까지 답변이 없다면 계약서, 보증금 지급 내역, 반환 요청 기록과 내용증명 발송 증명을 보관한 뒤 민사조정이나 보증금 반환 청구 절차를 검토하세요.</p></section>
           </div>
-          <section className={styles.panel} style={{ marginTop: 18 }}><h2>관련 법령·판례</h2><div className={styles.basisGrid}><article className={styles.basisCard}><strong>주택임대차보호법 제3조의2</strong><p>보증금 회수와 우선변제권에 관한 조문</p><span>임차인이 보증금을 회수할 때 확인할 수 있는 대항요건과 우선변제권의 요건을 규정합니다. 실제 적용 여부는 주택 인도, 전입신고와 확정일자 등 사실관계에 따라 달라집니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제3조의2" target="_blank" rel="noreferrer">원문 보기</a></article><article className={styles.basisCard}><strong>주택임대차보호법 제3조의3</strong><p>임차권등기명령에 관한 조문</p><span>임대차가 끝난 뒤에도 보증금을 돌려받지 못한 임차인이 법원에 임차권등기명령을 신청할 수 있는 요건과 효과를 규정합니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제3조의3" target="_blank" rel="noreferrer">원문 보기</a></article><article className={styles.basisCard}><strong>주택임대차보호법 제4조 제2항</strong><p>보증금 반환 전 임대차관계의 존속</p><span>임대차기간이 끝난 경우에도 임차인이 보증금을 반환받을 때까지 임대차관계가 존속하는 것으로 보는 규정입니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제4조" target="_blank" rel="noreferrer">원문 보기</a></article><article className={styles.basisCard}><strong>대법원 1987. 6. 23. 선고 87다카98 판결</strong><p>임대차보증금의 법적 성질과 반환 범위</p><span>임대차가 끝난 뒤 목적물을 반환할 때까지 발생한 임차인의 채무를 공제하고 남은 보증금의 반환의무와 목적물 반환의무가 동시이행 관계에 있다고 본 판례입니다.</span><a href="https://law.go.kr/LSW/precInfoP.do?precSeq=103300" target="_blank" rel="noreferrer">판례 원문 보기</a></article></div></section>
+          <section className={styles.panel} style={{ marginTop: 18 }}>
+            <h2>관련 근거</h2>
+            <details className={styles.detailDisclosure}>
+              <summary>관련 법령 3건</summary>
+              <div className={styles.basisGrid}>
+                <article className={styles.basisCard}><strong>주택임대차보호법 제3조의2</strong><p>보증금 회수와 우선변제권에 관한 조문</p><span>임차인이 보증금을 회수할 때 확인할 수 있는 대항요건과 우선변제권의 요건을 규정합니다. 실제 적용 여부는 주택 인도, 전입신고와 확정일자 등 사실관계에 따라 달라집니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제3조의2" target="_blank" rel="noreferrer">원문 보기</a></article>
+                <article className={styles.basisCard}><strong>주택임대차보호법 제3조의3</strong><p>임차권등기명령에 관한 조문</p><span>임대차가 끝난 뒤에도 보증금을 돌려받지 못한 임차인이 법원에 임차권등기명령을 신청할 수 있는 요건과 효과를 규정합니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제3조의3" target="_blank" rel="noreferrer">원문 보기</a></article>
+                <article className={styles.basisCard}><strong>주택임대차보호법 제4조 제2항</strong><p>보증금 반환 전 임대차관계의 존속</p><span>임대차기간이 끝난 경우에도 임차인이 보증금을 반환받을 때까지 임대차관계가 존속하는 것으로 보는 규정입니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제4조" target="_blank" rel="noreferrer">원문 보기</a></article>
+              </div>
+            </details>
+            <details className={styles.detailDisclosure}>
+              <summary>관련 판례 1건</summary>
+              <PrecedentListItem onOpenDetail={() => setPrecedentModal({ precedent: depositReturnCase, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent: depositReturnCase, initialView: "fullText" })} precedent={depositReturnCase} />
+            </details>
+          </section>
           <section className={styles.preflight}><h2>발송 전에 확인하세요</h2>{["수신인과 발신인의 이름·주소가 정확한지", "계약 종료일·보증금·반환 기한이 실제 사실과 같은지", "계약서·입금내역·대화 기록을 별도로 보관했는지", "우체국 발송본과 배달증명 등 발송 기록을 보관할지"].map((item) => <p key={item}><Check size={16} />{item}</p>)}</section>
           <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => window.print()}><Download size={16} />인쇄·PDF 저장</button><button className={styles.primaryButton} type="button" onClick={() => { setLoaded(false); setConfirmed(false); setStage("upload"); }}>새 내용증명 작성</button></div>
+          {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
         </>
       )}
     </main>

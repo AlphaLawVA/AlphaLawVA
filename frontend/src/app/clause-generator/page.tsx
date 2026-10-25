@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
+import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
@@ -66,14 +67,15 @@ function buildClause(request: string, index: number): GeneratedClause {
 
 export default function ClauseGeneratorPage() {
   const [stage, setStage] = useState<Stage>("input");
-  const [nextId, setNextId] = useState(3);
+  const [nextId, setNextId] = useState(2);
   const [requests, setRequests] = useState<RequestItem[]>([
-    { id: 1, value: "반려견 한 마리를 키우고 싶어요." },
-    { id: 2, value: "액자 설치를 위해 벽에 작은 못을 박고 싶어요." },
+    { id: 1, value: "" },
   ]);
   const [selected, setSelected] = useState(0);
   const [progress, setProgress] = useState(12);
   const [error, setError] = useState("");
+  const [focusedRequestId, setFocusedRequestId] = useState<number | null>(null);
+  const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const validRequests = useMemo(() => requests.map((item) => item.value.trim()).filter(Boolean), [requests]);
   const generated = useMemo(() => validRequests.map(buildClause), [validRequests]);
   const current = generated[selected] ?? generated[0];
@@ -154,7 +156,7 @@ export default function ClauseGeneratorPage() {
               {requests.map((request, index) => (
                 <div className={styles.requestItem} key={request.id}>
                   <span className={styles.requestNumber}>{String(index + 1).padStart(2, "0")}</span>
-                  <input aria-label={`요청 ${index + 1}`} placeholder="예: 반려묘 한 마리를 키우고 싶어요." value={request.value} onChange={(event) => updateRequest(request.id, event.target.value)} />
+                  <input aria-label={`요청 ${index + 1}`} onBlur={() => setFocusedRequestId(null)} onFocus={() => setFocusedRequestId(request.id)} placeholder={focusedRequestId === request.id ? "" : "예: 반려견 한 마리를 키우고 싶어요."} value={request.value} onChange={(event) => updateRequest(request.id, event.target.value)} />
                   <button className={styles.iconButton} type="button" onClick={() => removeRequest(request.id)} title="요청 삭제"><X size={16} aria-hidden="true" /></button>
                 </div>
               ))}
@@ -210,11 +212,11 @@ export default function ClauseGeneratorPage() {
               <section className={styles.detailSection}><h3>생성된 특약</h3><p className={styles.generatedText}>{current.clause}</p></section>
               <section className={styles.detailSection}><h3>생성된 이유</h3><p>{current.reason}</p></section>
               <section className={styles.detailSection}><h3>협상 전략</h3><p>{current.strategy}</p></section>
-              <details className={styles.detailDisclosure}><summary>관련 법령</summary>
+              <details className={styles.detailDisclosure}><summary>관련 법령 {current.statutes.length}건</summary>
                 {current.statutes.length ? current.statutes.map((law) => <article className={styles.basisCard} key={law.article}><strong>{law.law} {law.article}</strong><p>{law.excerpt}</p><span>{law.explanation}</span><a href={law.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a></article>) : <p>이 초안에 직접 연결된 법령 근거는 없습니다.</p>}
               </details>
-              <details className={styles.detailDisclosure}><summary>관련 판례</summary>
-                {current.precedents.length ? current.precedents.map((item) => <article className={styles.basisCard} key={item.caseNumber}><strong>{item.title}</strong><p>{item.caseNumber} · {item.precedentId}</p><span>{item.summary}</span><a href={item.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a></article>) : <p>이 초안에 직접 연결된 판례는 없습니다.</p>}
+              <details className={styles.detailDisclosure}><summary>관련 판례 {current.precedents.length}건</summary>
+                {current.precedents.length ? current.precedents.map((item) => <PrecedentListItem key={item.caseNumber} onOpenDetail={() => setPrecedentModal({ precedent: item, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent: item, initialView: "fullText" })} precedent={item} />) : <p>이 초안에 직접 연결된 판례는 없습니다.</p>}
               </details>
             </article>
           </div>
@@ -227,6 +229,7 @@ export default function ClauseGeneratorPage() {
         {stage === "review" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={generateClauses}>특약 생성<ArrowRight size={17} aria-hidden="true" /></button>}
         {stage === "result" && <button className={styles.primaryButton} type="button" onClick={startNewRequest}><Plus size={17} aria-hidden="true" />새 요청 작성</button>}
       </div>
+      {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
     </main>
   );
 }

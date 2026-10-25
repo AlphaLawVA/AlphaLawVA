@@ -471,7 +471,7 @@
 .basisCard a { margin-top: 12px; display: inline-flex; align-items: center; gap: 5px; color: var(--navy); font-size: 13px; font-weight: 750; }
 
 .searchHero {
-  padding: 34px;
+  padding: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -509,7 +509,7 @@
   font-size: 13px;
 }
 
-.caseResults { margin-top: 34px; }
+.caseResults { margin-top: 46px; }
 
 .resultsHeading {
   display: flex;
@@ -524,7 +524,7 @@
 .resultsHeading h2 { margin-top: 6px; color: var(--text); font-size: 20px; font-weight: 750; }
 .resultsHeading > span { color: var(--navy); font-size: 14px; font-weight: 800; }
 
-.caseCardList { margin-top: 16px; display: grid; gap: 14px; }
+.caseCardList { margin-top: 22px; display: grid; gap: 20px; }
 
 .caseCard {
   position: relative;
@@ -571,7 +571,7 @@
 }
 
 .backButton { margin-bottom: 20px; }
-.caseDetailPage { padding: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.caseDetailPage { padding: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .caseDetailHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .caseDetailHead h1 { color: var(--navy); font-size: 30px; }
 .caseDetailHead > div > p:last-child { margin-top: 9px; color: var(--text-subtle); font-size: 14px; }
@@ -583,7 +583,7 @@
 .summaryColumns h2, .similarBox h2 { color: var(--text); font-size: 18px; }
 .summaryColumns p, .similarBox p { margin-top: 12px; color: var(--text-muted); font-size: 15px; line-height: 1.75; }
 .easySummary { background: var(--navy-soft); }
-.similarBox { margin-top: 16px; }
+.similarBox { margin-top: 22px; }
 
 .caseMeta {
   margin: 8px 0 4px;
@@ -799,6 +799,11 @@
 .letterPartyGrid p { font-size: 15px; }
 .preflight h2 { font-size: 23px; }
 .preflight p { font-size: 16px; }
+.headerLine { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.detailHeadActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.loadingInline { display: flex; align-items: center; gap: 8px; }
+.favoriteCase { display: grid; gap: 8px; }
+.savedQuery, .comparisonState { margin: 0; color: var(--text-muted); font-size: 14px; }
 
 .spinner { animation: spin 900ms linear infinite; }
 
@@ -809,4 +814,6 @@
 @media (max-width: 600px) {
   .header h1 { font-size: 31px; }
   .caseDetailHead h1 { font-size: 29px; }
+  .headerLine { flex-direction: column; }
+  .detailHeadActions { justify-content: flex-start; }
 }

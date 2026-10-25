@@ -1,4 +1,4 @@
-import type { ClauseReview, RegistryReview } from "./demo-types";
+import type { CaseBasis, ClauseReview, RegistryReview } from "./demo-types";
 
 export const leaseSuccessionLaw = {
   law: "주택임대차보호법",
@@ -24,12 +24,93 @@ export const lessorMaintenanceLaw = {
   url: "https://www.law.go.kr/법령/민법/제623조",
 };
 
-export const restorationCase = {
+// UI demonstration data only. Retrieval records will replace these fields when the API is connected.
+export const restorationCase: CaseBasis = {
   title: "토지인도",
-  caseNumber: "대법원 2023. 11. 2. 선고 2023다249661 판결",
+  caseNumber: "2023다249661",
   precedentId: "국가법령정보센터 판례일련번호 237925",
   summary: "임차인은 원칙적으로 임차목적물을 반환할 때 원상회복의무를 부담하지만, 임대 당시 이미 존재하던 시설까지 당연히 복구해야 하는 것은 아니며 계약 경위와 당시 상태 등을 구체적으로 살펴야 한다고 본 판례입니다.",
+  easySummary: "세입자가 들어오기 전부터 있던 시설까지 무조건 원래대로 돌려놓아야 하는 것은 아니며, 누가 무엇을 바꿨는지와 계약 내용을 따져봐야 한다는 뜻입니다.",
+  court: "대법원",
+  decisionDate: "2023. 11. 2.",
+  judgmentType: "판결",
+  evidenceChunks: [
+    { section: "판례요약", content: "임대 당시 존재하던 시설까지 당연히 철거해야 하는 것은 아니며, 계약 경위와 당시 상태를 구체적으로 살펴야 합니다." },
+    { section: "판결 이유", content: "원상회복 범위는 계약 당시 상태와 임차인이 실제로 변경한 부분을 구분하여 판단할 필요가 있습니다." },
+  ],
+  fullText: {
+    order: "상고를 기각한다.\n상고비용은 원고가 부담한다.",
+    claim: "원고는 임대차 종료 후 목적물 반환과 원상회복 범위에 관하여 청구하였다.",
+    lowerCourt: "원심은 계약 당시의 상태와 당사자 사이의 약정을 살펴 원상회복 범위를 판단하였다.",
+    reason: "임차인은 자신이 변경하거나 훼손한 부분에 관하여 원상회복의무를 부담할 수 있다. 다만 임대 당시부터 존재하던 시설까지 일률적으로 철거·복구 대상으로 볼 수 있는지는 계약 내용과 실제 사용 경위를 함께 살펴야 한다.",
+  },
   url: "https://www.law.go.kr/LSW/precInfoP.do?precSeq=237925",
+};
+
+export const searchPrecedents: CaseBasis[] = [
+  {
+    title: "임대차보증금",
+    caseNumber: "2021다210720",
+    precedentId: "국가법령정보센터 판례일련번호 227209",
+    court: "대법원",
+    decisionDate: "2022. 3. 17.",
+    judgmentType: "판결",
+    summary: "대항요건을 갖춘 임차주택의 양수인은 임대인의 지위를 승계하며, 보증금 반환채무도 소유권과 결합하여 양수인에게 이전된다고 판단한 판례입니다.",
+    easySummary: "세입자가 대항력을 갖춘 상태에서 집주인이 바뀌면, 새 집주인이 기존 임대차와 보증금 반환 책임을 이어받는다는 취지입니다.",
+    evidenceChunks: [
+      { section: "판례요약", content: "대항요건을 갖춘 임차주택의 양수인은 임대인의 지위를 승계하고, 보증금 반환채무도 함께 이전될 수 있습니다." },
+      { section: "판결 이유", content: "임차인의 대항요건과 소유권 이전 시점을 함께 확인할 필요가 있습니다." },
+    ],
+    fullText: {
+      order: "상고를 기각한다.\n상고비용은 원고가 부담한다.",
+      claim: "원고는 주택 소유권 이전 뒤 보증금 반환의무의 귀속을 다투었다.",
+      reason: "임차인이 법에서 정한 대항요건을 갖춘 경우에는 주택의 양수인이 임대인의 지위를 승계하는지가 문제된다. 구체적 책임 범위는 계약관계와 소유권 변동 경위를 함께 살펴 판단한다.",
+    },
+    url: "https://www.law.go.kr/LSW/precInfoP.do?precSeq=227209",
+  },
+  {
+    title: "임대차보증금반환",
+    caseNumber: "2012다84370",
+    precedentId: "국가법령정보센터 판례일련번호 178111",
+    court: "대법원",
+    decisionDate: "2015. 5. 29.",
+    judgmentType: "판결",
+    summary: "매수인이 보증금 반환채무를 인수하고 매매대금에서 공제했더라도, 기존 임대인을 면책하려면 원칙적으로 임차인의 승낙이 필요하다고 본 판례입니다.",
+    easySummary: "새 소유자가 보증금을 돌려주기로 했다는 사정만으로 기존 임대인의 책임이 자동으로 사라지는 것은 아니며, 세입자의 동의 여부를 신중히 봐야 한다는 취지입니다.",
+    evidenceChunks: [
+      { section: "판례요약", content: "새 소유자가 보증금 반환채무를 인수한 사정만으로 기존 임대인의 책임이 당연히 사라지는 것은 아닙니다." },
+      { section: "쉬운요약", content: "누구에게 보증금을 요구할 수 있는지는 세입자의 동의 여부와 계약 내용을 함께 확인해야 합니다." },
+    ],
+    fullText: {
+      order: "상고를 기각한다.\n상고비용은 원고가 부담한다.",
+      claim: "원고는 소유권 이전 뒤 기존 임대인의 보증금 반환책임이 남는지를 다투었다.",
+      lowerCourt: "원심은 임차인의 승낙 여부와 당사자 사이의 약정을 살펴 판단하였다.",
+      reason: "보증금 반환채무의 인수와 기존 임대인의 면책 여부는 임차인의 의사와 계약 관계를 함께 고려하여 판단할 필요가 있다.",
+    },
+    url: "https://www.law.go.kr/LSW/precInfoP.do?precSeq=178111",
+  },
+  restorationCase,
+];
+
+export const depositReturnCase: CaseBasis = {
+  title: "임대차보증금",
+  caseNumber: "87다카98",
+  precedentId: "국가법령정보센터 판례일련번호 103300",
+  court: "대법원",
+  decisionDate: "1987. 6. 23.",
+  judgmentType: "판결",
+  summary: "임대차가 끝난 뒤 목적물을 반환할 때까지 발생한 임차인의 채무를 공제하고 남은 보증금의 반환의무와 목적물 반환의무가 동시이행 관계에 있다고 본 판례입니다.",
+  easySummary: "계약이 끝났다고 해도 집을 넘겨주는 문제와 보증금을 돌려받는 문제는 함께 확인해야 할 수 있다는 뜻입니다.",
+  evidenceChunks: [
+    { section: "판례요약", content: "임대차 종료 뒤 보증금 반환과 목적물 반환의 관계를 함께 살펴야 합니다." },
+    { section: "판결 이유", content: "반환할 금액과 당사자의 이행 상황은 실제 계약 내용에 따라 구체적으로 확인할 필요가 있습니다." },
+  ],
+  fullText: {
+    order: "상고를 기각한다.\n상고비용은 원고가 부담한다.",
+    claim: "원고는 임대차 종료 뒤 임대차보증금의 반환을 청구하였다.",
+    reason: "임대차 종료 뒤 보증금 반환의무와 목적물 반환의무는 당사자 사이의 약정과 실제 이행 상황을 함께 살펴 판단할 필요가 있다.",
+  },
+  url: "https://law.go.kr/LSW/precInfoP.do?precSeq=103300",
 };
 
 export const clauseReviews: ClauseReview[] = [

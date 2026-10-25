@@ -15,6 +15,17 @@ export type CaseBasis = {
   caseNumber: string;
   precedentId: string;
   summary: string;
+  easySummary?: string;
+  court?: string;
+  decisionDate?: string;
+  judgmentType?: string;
+  evidenceChunks?: Array<{ section: string; content: string }>;
+  fullText?: {
+    order?: string;
+    claim?: string;
+    lowerCourt?: string;
+    reason?: string;
+  };
   url: string;
 };
 
