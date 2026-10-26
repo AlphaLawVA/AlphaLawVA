@@ -13,6 +13,7 @@ After:
 from __future__ import annotations
 
 from threading import RLock
+from typing import Protocol
 from uuid import UUID
 
 from api.models.contract_snapshots import ConfirmedContractSnapshot
@@ -21,6 +22,24 @@ from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 
 class SnapshotNotFoundError(Exception):
     """요청한 사용자 확인 스냅샷이 현재 저장소에 없을 때 발생한다."""
+
+
+class ConfirmedSnapshotRepository(Protocol):
+    """확정 계약서·등본 스냅샷 저장소가 제공해야 하는 최소 동작이다."""
+
+    def save_contract(
+        self,
+        snapshot: ConfirmedContractSnapshot,
+    ) -> ConfirmedContractSnapshot: ...
+
+    def save_registry(
+        self,
+        snapshot: ConfirmedRegistrySnapshot,
+    ) -> ConfirmedRegistrySnapshot: ...
+
+    def get_contract(self, snapshot_id: UUID) -> ConfirmedContractSnapshot: ...
+
+    def get_registry(self, snapshot_id: UUID) -> ConfirmedRegistrySnapshot: ...
 
 
 class ConfirmedSnapshotStore:

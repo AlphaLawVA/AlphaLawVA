@@ -24,13 +24,13 @@ from api.models.contracts import (
 )
 from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
-from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 
 
 class ContractReviewService:
     """RAG 연결 전 계약서 검토 입력 상태를 구성한다."""
 
-    def __init__(self, snapshot_store: ConfirmedSnapshotStore) -> None:
+    def __init__(self, snapshot_store: ConfirmedSnapshotRepository) -> None:
         self._snapshot_store = snapshot_store
 
     def review(self, payload: ContractReviewRequest) -> ContractReviewResponse:

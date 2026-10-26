@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
 from api.routers import contracts_router, precedents_router
 from api.services.contract_review_service import ContractReviewService
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
 from api.services.confirmed_snapshot_store import SnapshotNotFoundError
 from api.services.gemini_similarity_explainer import (
@@ -41,6 +42,7 @@ from api.services.precedent_search_sessions import (
     SimilarityExplanationInProgressError,
 )
 from api.services.special_clause_service import SpecialClauseService
+from api.services.mysql_snapshot_store import create_mysql_snapshot_store_from_env
 
 
 PRECEDENT_DEMO_PATH = (
@@ -203,7 +205,7 @@ def create_app(
     *,
     contract_review_service: ContractReviewService | None = None,
     special_clause_service: SpecialClauseService | None = None,
-    confirmed_snapshot_store: ConfirmedSnapshotStore | None = None,
+    confirmed_snapshot_store: ConfirmedSnapshotRepository | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AlphaLawVA API",
@@ -217,10 +219,8 @@ def create_app(
             similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )
     )
-    app.state.confirmed_snapshot_store = (
-        confirmed_snapshot_store
-        if confirmed_snapshot_store is not None
-        else ConfirmedSnapshotStore()
+    app.state.confirmed_snapshot_store = confirmed_snapshot_store or (
+        create_mysql_snapshot_store_from_env() or ConfirmedSnapshotStore()
     )
     app.state.contract_review_service = (
         contract_review_service

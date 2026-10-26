@@ -25,7 +25,7 @@ from api.models.contracts import (
 from api.models.contract_snapshots import ConfirmedContractSnapshot
 from api.models.errors import ApiErrorResponse
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
-from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.contract_review_service import ContractReviewService
 from api.services.special_clause_service import SpecialClauseService
 
@@ -48,7 +48,7 @@ def get_contract_review_service(request: Request) -> ContractReviewService:
     return service
 
 
-def get_confirmed_snapshot_store(request: Request) -> ConfirmedSnapshotStore:
+def get_confirmed_snapshot_store(request: Request) -> ConfirmedSnapshotRepository:
     store = getattr(request.app.state, "confirmed_snapshot_store", None)
     if store is None:
         raise RuntimeError("확정 스냅샷 저장소가 초기화되지 않았습니다.")
@@ -67,7 +67,7 @@ ContractReviewServiceDependency = Annotated[
     Depends(get_contract_review_service),
 ]
 ConfirmedSnapshotStoreDependency = Annotated[
-    ConfirmedSnapshotStore,
+    ConfirmedSnapshotRepository,
     Depends(get_confirmed_snapshot_store),
 ]
 SpecialClauseServiceDependency = Annotated[
