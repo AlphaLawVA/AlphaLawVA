@@ -1,0 +1,51 @@
+{
+  "schema_version": "confirmed_contract_snapshot.v0.1",
+  "snapshot_id": "00000000-0000-4000-8000-000000000003",
+  "document_id": "00000000-0000-4000-8000-000000000004",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-25T12:00:00+09:00"
+  },
+  "contract": {
+    "contract_type": "monthly_rent",
+    "document_title": "주택임대차표준계약서",
+    "page_count": 3,
+    "contract_kind": "신규 계약 또는 갱신 계약",
+    "contract_date": "2026-10-25",
+    "property": {
+      "address": "목적물 주소",
+      "detail_address": "동·호수",
+      "property_type": "주택 유형",
+      "leased_portion": null,
+      "leased_area_m2": null
+    },
+    "parties": [
+      {"role": "lessor", "name": "임대인 이름"},
+      {"role": "lessee", "name": "임차인 이름"}
+    ],
+    "brokers": [],
+    "lease_deposit": {"amount": 0, "korean_text": null},
+    "monthly_rent": {
+      "amount": {"amount": 0, "korean_text": null},
+      "payment_day": null,
+      "timing": "unknown",
+      "account_masked": null
+    },
+    "down_payment": null,
+    "intermediate_payments": [],
+    "remaining_balance": null,
+    "remaining_balance_date": null,
+    "start_date": "2026-10-25",
+    "end_date": "2028-10-24",
+    "handover_date": null,
+    "management_fee": null,
+    "clauses": [],
+    "special_terms": [],
+    "disclosures": {},
+    "signatures": [],
+    "attachment_names": []
+  },
+  "field_confirmations": [],
+  "warnings": []
+}

@@ -1,0 +1,66 @@
+{
+  "schema_version": "confirmed_contract_snapshot.v0.1",
+  "snapshot_id": "10000000-0000-4000-8000-000000000001",
+  "document_id": "10000000-0000-4000-8000-000000000002",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-05T12:00:00+09:00"
+  },
+  "contract": {
+    "contract_type": "jeonse",
+    "document_title": "주택임대차표준계약서",
+    "page_count": 3,
+    "contract_kind": "신규 계약",
+    "contract_date": "2026-10-05",
+    "property": {
+      "address": "서울특별시 성동구 알파로 27",
+      "detail_address": "알파아파트 101동 1203호",
+      "property_type": "아파트",
+      "land_category": "대",
+      "land_area_m2": 3215.4,
+      "building_structure": "철근콘크리트조",
+      "building_use": "아파트",
+      "building_area_m2": 84.97,
+      "leased_portion": "101동 1203호 전부",
+      "leased_area_m2": 84.97
+    },
+    "parties": [
+      {"role": "lessor", "name": "박도윤"},
+      {"role": "lessee", "name": "김서연"}
+    ],
+    "brokers": [
+      {
+        "office_name": "알파공인중개사사무소",
+        "office_registration_number": "가상-성동-2026-001",
+        "signature_present": false
+      }
+    ],
+    "lease_deposit": {"amount": 250000000},
+    "down_payment": {"amount": 25000000},
+    "intermediate_payments": [
+      {"label": "중도금", "amount": {"amount": 25000000}, "due_date": "2026-10-20"}
+    ],
+    "remaining_balance": {"amount": 200000000},
+    "remaining_balance_date": "2026-10-31",
+    "start_date": "2026-10-31",
+    "end_date": "2028-10-30",
+    "handover_date": "2026-10-31",
+    "management_fee": {"total": {"amount": 180000}, "items": []},
+    "clauses": [],
+    "special_terms": [
+      {"term_id": "term-1", "order": 1, "original_text": "임대인은 잔금 지급일 다음 날까지 근저당권 등 새로운 권리를 설정하지 않는다.", "source": {"page_number": 3}},
+      {"term_id": "term-2", "order": 2, "original_text": "임대인은 임차인의 전세보증금반환보증 가입에 필요한 서류 제출에 협조한다.", "source": {"page_number": 3}},
+      {"term_id": "term-3", "order": 3, "original_text": "옵션인 에어컨, 세탁기, 냉장고의 노후 고장은 임대인이 수리한다.", "source": {"page_number": 3}},
+      {"term_id": "term-4", "order": 4, "original_text": "임차인은 통상적인 사용으로 발생한 손모를 포함하여 퇴거 시 모든 시설을 원상복구한다.", "source": {"page_number": 3}},
+      {"term_id": "term-5", "order": 5, "original_text": "임대차 종료 후 신규 임차인이 입주한 때에 보증금을 반환한다.", "source": {"page_number": 3}}
+    ],
+    "disclosures": {"tax_arrears": "없음", "senior_deposit_status": "해당 없음"},
+    "signatures": [],
+    "attachment_names": []
+  },
+  "field_confirmations": [],
+  "warnings": [
+    "01 골드셋에 없는 당사자 주소·서명 및 전체 조항은 임의로 채우지 않음"
+  ]
+}

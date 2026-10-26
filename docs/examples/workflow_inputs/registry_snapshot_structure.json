@@ -1,0 +1,46 @@
+{
+  "schema_version": "confirmed_registry_snapshot.v0.1",
+  "snapshot_id": "00000000-0000-4000-8000-000000000007",
+  "document_id": "00000000-0000-4000-8000-000000000008",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-25T12:00:00+09:00"
+  },
+  "issued_at": "2026-10-25T11:30:00+09:00",
+  "unique_property_number_masked": null,
+  "address": "등본상 소재지",
+  "detail_address": null,
+  "property_description": [
+    {
+      "order": 1,
+      "original_text": "표제부의 건물 표시 원문",
+      "source": {"page_number": 1, "bounding_box": null}
+    }
+  ],
+  "owners": [
+    {
+      "name": "소유자 이름",
+      "ownership_share": null,
+      "registration_date": null,
+      "registration_cause": null,
+      "status": "active"
+    }
+  ],
+  "encumbrances": [
+    {
+      "section": "eulgu",
+      "rank_number": "순위번호",
+      "registration_purpose": "등기 목적",
+      "registration_date": null,
+      "holder": null,
+      "debtor": null,
+      "maximum_claim_amount": null,
+      "raw_text": "권리자 및 기타사항 원문",
+      "source": {"page_number": 1, "bounding_box": null},
+      "status": "unknown"
+    }
+  ],
+  "field_confirmations": [],
+  "warnings": []
+}

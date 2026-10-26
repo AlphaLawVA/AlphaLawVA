@@ -1,0 +1,74 @@
+{
+  "schema_version": "confirmed_contract_snapshot.v0.1",
+  "snapshot_id": "20000000-0000-4000-8000-000000000001",
+  "document_id": "20000000-0000-4000-8000-000000000002",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-07T12:00:00+09:00"
+  },
+  "contract": {
+    "contract_type": "monthly_rent",
+    "document_title": "주택임대차표준계약서",
+    "page_count": 3,
+    "contract_kind": "신규 계약",
+    "contract_date": "2026-10-07",
+    "property": {
+      "address": "서울특별시 관악구 베타로 54",
+      "detail_address": "베타빌 302호",
+      "property_type": "다세대주택",
+      "land_category": "대",
+      "land_area_m2": 426.8,
+      "building_structure": "철근콘크리트구조",
+      "building_use": "다세대주택",
+      "building_area_m2": 58.32,
+      "leased_portion": "3층 302호 전부",
+      "leased_area_m2": 58.32
+    },
+    "parties": [
+      {"role": "lessor", "name": "정하늘"},
+      {"role": "lessee", "name": "오민준"}
+    ],
+    "brokers": [
+      {
+        "office_name": "베타공인중개사사무소",
+        "office_registration_number": "가상-관악-2026-002",
+        "broker_in_charge": "한유진",
+        "signature_present": true
+      }
+    ],
+    "lease_deposit": {"amount": 30000000},
+    "monthly_rent": {
+      "amount": {"amount": 900000},
+      "payment_day": 1,
+      "timing": "unknown",
+      "account_masked": null
+    },
+    "down_payment": {"amount": 3000000},
+    "intermediate_payments": [
+      {"label": "중도금", "amount": {"amount": 7000000}, "due_date": "2026-10-20"}
+    ],
+    "remaining_balance": {"amount": 20000000},
+    "remaining_balance_date": "2026-11-01",
+    "start_date": "2026-11-01",
+    "end_date": "2028-10-31",
+    "handover_date": "2026-11-01",
+    "management_fee": {"total": {"amount": 120000}, "items": []},
+    "clauses": [],
+    "special_terms": [
+      {"term_id": "term-1", "order": 1, "original_text": "계약기간 중 월 차임은 당사자 합의 없이 인상하지 않는다.", "source": {"page_number": 3}},
+      {"term_id": "term-2", "order": 2, "original_text": "보일러·배관 등 주요 설비의 노후 고장은 임대인이 수리한다.", "source": {"page_number": 3}},
+      {"term_id": "term-3", "order": 3, "original_text": "임차인의 고의·과실로 발생한 파손과 소모품 교체는 임차인이 부담한다.", "source": {"page_number": 3}},
+      {"term_id": "term-4", "order": 4, "original_text": "실내 흡연과 반려동물 사육을 금지한다.", "source": {"page_number": 3}},
+      {"term_id": "term-5", "order": 5, "original_text": "퇴실 청소비 150,000원은 오염 여부와 관계없이 임차인이 부담한다.", "source": {"page_number": 3}},
+      {"term_id": "term-6", "order": 6, "original_text": "임차인이 중도 퇴실할 경우 새 임차인을 구하고 임대인 측 중개보수까지 부담해야 보증금을 반환한다.", "source": {"page_number": 3}}
+    ],
+    "disclosures": {"tax_arrears": "없음", "senior_deposit_status": "해당 없음"},
+    "signatures": [],
+    "attachment_names": []
+  },
+  "field_confirmations": [],
+  "warnings": [
+    "01 골드셋에 없는 당사자 주소·서명 및 전체 조항은 임의로 채우지 않음"
+  ]
+}

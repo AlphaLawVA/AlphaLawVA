@@ -17,7 +17,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
-from api.routers import precedents_router
+from api.routers import contracts_router, precedents_router
+from api.services.contract_review_service import ContractReviewService
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
+from api.services.confirmed_snapshot_store import SnapshotNotFoundError
 from api.services.gemini_similarity_explainer import (
     create_gemini_similarity_explainer_from_env,
 )
@@ -37,6 +40,7 @@ from api.services.precedent_search_sessions import (
     SearchSessionNotFoundError,
     SimilarityExplanationInProgressError,
 )
+from api.services.special_clause_service import SpecialClauseService
 
 
 PRECEDENT_DEMO_PATH = (
@@ -183,8 +187,23 @@ async def search_backend_error_handler(
     )
 
 
+async def snapshot_not_found_error_handler(
+    _request: Request,
+    _error: SnapshotNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.SNAPSHOT_NOT_FOUND,
+        message="확정 계약서 또는 등본 정보를 찾을 수 없습니다.",
+    )
+
+
 def create_app(
     precedent_search_service: PrecedentSearchService | None = None,
+    *,
+    contract_review_service: ContractReviewService | None = None,
+    special_clause_service: SpecialClauseService | None = None,
+    confirmed_snapshot_store: ConfirmedSnapshotStore | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AlphaLawVA API",
@@ -198,6 +217,22 @@ def create_app(
             similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )
     )
+    app.state.confirmed_snapshot_store = (
+        confirmed_snapshot_store
+        if confirmed_snapshot_store is not None
+        else ConfirmedSnapshotStore()
+    )
+    app.state.contract_review_service = (
+        contract_review_service
+        if contract_review_service is not None
+        else ContractReviewService(app.state.confirmed_snapshot_store)
+    )
+    app.state.special_clause_service = (
+        special_clause_service
+        if special_clause_service is not None
+        else SpecialClauseService()
+    )
+    app.include_router(contracts_router)
     app.include_router(precedents_router)
     app.add_exception_handler(
         RequestValidationError,
@@ -238,6 +273,10 @@ def create_app(
     app.add_exception_handler(
         PrecedentSearchBackendUnavailableError,
         search_backend_error_handler,
+    )
+    app.add_exception_handler(
+        SnapshotNotFoundError,
+        snapshot_not_found_error_handler,
     )
 
     @app.get("/health", tags=["health"])

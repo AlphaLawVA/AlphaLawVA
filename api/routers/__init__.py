@@ -11,5 +11,6 @@ After:
 """
 
 from api.routers.precedents import router as precedents_router
+from api.routers.contracts import router as contracts_router
 
-__all__ = ["precedents_router"]
+__all__ = ["contracts_router", "precedents_router"]

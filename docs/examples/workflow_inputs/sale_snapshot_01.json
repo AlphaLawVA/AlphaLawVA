@@ -1,0 +1,58 @@
+{
+  "schema_version": "confirmed_contract_snapshot.v0.1",
+  "snapshot_id": "30000000-0000-4000-8000-000000000001",
+  "document_id": "30000000-0000-4000-8000-000000000002",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-10T12:00:00+09:00"
+  },
+  "contract": {
+    "contract_type": "sale",
+    "document_title": "부동산매매계약서",
+    "page_count": 3,
+    "contract_kind": null,
+    "contract_date": "2026-10-10",
+    "property": {
+      "address": "서울특별시 마포구 감마로 88",
+      "detail_address": "감마아파트 203동 1502호",
+      "property_type": "아파트",
+      "building_area_m2": 84.62
+    },
+    "parties": [
+      {"role": "seller", "name": "최은호"},
+      {"role": "buyer", "name": "윤하린"}
+    ],
+    "brokers": [],
+    "sale_price": {"amount": 780000000},
+    "down_payment": {"amount": 78000000, "korean_text": "칠천팔백만원"},
+    "intermediate_payments": [
+      {"label": "1차중도금", "amount": {"amount": 122000000, "korean_text": "일억이천이백만원"}, "due_date": "2026-11-10"},
+      {"label": "2차중도금", "amount": {"amount": 200000000, "korean_text": "이억원"}, "due_date": "2026-12-10"}
+    ],
+    "remaining_balance": {"amount": 380000000, "korean_text": "삼억팔천만원"},
+    "remaining_balance_date": "2027-01-15",
+    "handover_date": "2027-01-15",
+    "ownership_transfer_date": "2027-01-15",
+    "encumbrance_handling": null,
+    "loan_assumption": null,
+    "existing_occupancies": [],
+    "clauses": [
+      {"clause_id": "clause-1", "order": 1, "clause_number": "제3조 제2항", "title": "부동산에 대한 부담의 소멸 등", "original_text": "관리비, 전기·수도·도시가스 요금은 2027년 1월 15일을 기준으로 정산한다.", "source": {"page_number": 2}},
+      {"clause_id": "clause-2", "order": 2, "clause_number": "제4조 제1항", "title": "하자의 부담", "original_text": "매도인이 책임지는 기간은 부동산을 넘겨준 날로부터 6개월로 한다.", "source": {"page_number": 2}},
+      {"clause_id": "clause-3", "order": 3, "clause_number": "제5조 제2항", "title": "계약의 해제", "original_text": "손해배상액은 매매대금의 10%로 한다.", "source": {"page_number": 2}}
+    ],
+    "special_terms": [
+      {"term_id": "term-1", "order": 1, "original_text": "매도인은 잔금일까지 새로운 근저당권·가압류 등 권리를 설정하지 않는다.", "source": {"page_number": 3}},
+      {"term_id": "term-2", "order": 2, "original_text": "에어컨·붙박이장·인덕션은 매매대금에 포함하며 인도일까지 현재 상태를 유지한다.", "source": {"page_number": 3}},
+      {"term_id": "term-3", "order": 3, "original_text": "본 계약은 현 시설 상태의 매매이며, 인도 후 발견되는 모든 하자에 대해 매도인은 책임지지 않는다.", "source": {"page_number": 3}}
+    ],
+    "disclosures": {"registry_checked": true},
+    "signatures": [],
+    "attachment_names": ["등기사항전부증명서", "건축물대장", "토지대장"]
+  },
+  "field_confirmations": [],
+  "warnings": [
+    "01 골드셋에 없는 당사자 주소·서명은 임의로 채우지 않음"
+  ]
+}

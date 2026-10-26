@@ -28,6 +28,7 @@ class ApiErrorCode(str, Enum):
     SIMILARITY_EXPLANATION_UNAVAILABLE = "similarity_explanation_unavailable"
     PRECEDENT_DATA_UNAVAILABLE = "precedent_data_unavailable"
     SEARCH_BACKEND_UNAVAILABLE = "search_backend_unavailable"
+    SNAPSHOT_NOT_FOUND = "snapshot_not_found"
 
 
 class ApiErrorModel(BaseModel):

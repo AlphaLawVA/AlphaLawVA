@@ -1,0 +1,97 @@
+{
+  "schema_version": "confirmed_registry_snapshot.v0.1",
+  "snapshot_id": "40000000-0000-4000-8000-000000000001",
+  "document_id": "40000000-0000-4000-8000-000000000002",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-25T12:00:00+09:00"
+  },
+  "issued_at": "2026-06-26T14:17:29+09:00",
+  "unique_property_number_masked": null,
+  "address": "경기도 광주시 장지동",
+  "detail_address": null,
+  "property_description": [
+    {
+      "order": 1,
+      "original_text": "철근콘크리트구조 (철근)콘크리트(경사지붕) 지상4층 단독주택(다가구주택), 제2종근생(사무소) 1층 41.16㎡, 2층 174.05㎡, 3층 174.05㎡, 4층 131.52㎡, 옥탑1층 12.69㎡",
+      "source": {"page_number": 1}
+    }
+  ],
+  "owners": [
+    {
+      "name": "장*5",
+      "ownership_share": "소유권 전부",
+      "registration_date": "2013-06-20",
+      "registration_cause": "2012년 11월 16일 매매",
+      "status": "active"
+    }
+  ],
+  "encumbrances": [
+    {
+      "section": "eulgu",
+      "rank_number": "4",
+      "registration_purpose": "근저당권설정",
+      "registration_date": "2015-08-20",
+      "holder": "중앙농업협동조합",
+      "debtor": null,
+      "maximum_claim_amount": 300000000,
+      "raw_text": "채권최고액 금300,000,000원, 근저당권자 중앙농업협동조합, 공동담보 토지 경기도 광주시",
+      "source": {"page_number": 1},
+      "status": "active"
+    },
+    {
+      "section": "eulgu",
+      "rank_number": "4-1",
+      "registration_purpose": "4번근저당권공동담보변경",
+      "registration_date": "2018-05-15",
+      "holder": null,
+      "debtor": null,
+      "maximum_claim_amount": null,
+      "raw_text": "공동담보 토지 추가, 토지 분필로 인하여 2018년 5월 15일 부기",
+      "source": {"page_number": 2},
+      "status": "active"
+    },
+    {
+      "section": "eulgu",
+      "rank_number": "4-2",
+      "registration_purpose": "4번근저당권공동담보일부소멸",
+      "registration_date": "2018-05-28",
+      "holder": null,
+      "debtor": null,
+      "maximum_claim_amount": null,
+      "raw_text": "근저당권말소등기로 인하여 2018년 5월 28일 부기",
+      "source": {"page_number": 2},
+      "status": "cancelled"
+    },
+    {
+      "section": "eulgu",
+      "rank_number": "4-3",
+      "registration_purpose": "4번근저당권변경",
+      "registration_date": "2018-05-28",
+      "holder": null,
+      "debtor": null,
+      "maximum_claim_amount": null,
+      "raw_text": "2016년 10월 6일 전거, 권리자 주소 변경",
+      "source": {"page_number": 2},
+      "status": "active"
+    },
+    {
+      "section": "eulgu",
+      "rank_number": "4-5",
+      "registration_purpose": "4번근저당권담보추가",
+      "registration_date": "2018-05-28",
+      "holder": null,
+      "debtor": null,
+      "maximum_claim_amount": null,
+      "raw_text": "공동담보 토지 추가, 2018년 5월 28일 부기",
+      "source": {"page_number": 2},
+      "status": "active"
+    }
+  ],
+  "field_confirmations": [],
+  "warnings": [
+    "고유번호와 일부 성명·주소·채무자 정보가 원본에서 마스킹되어 복원하지 않음",
+    "등본 값은 사용자 확인 전 예시이며 실제 기능에서는 원문 대조 확인이 필요함"
+  ]
+}
