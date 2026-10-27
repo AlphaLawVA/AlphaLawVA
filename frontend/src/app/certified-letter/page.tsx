@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, Check, CheckCircle2, Download, FileText, LoaderCircle, ScanText, Upload } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { UploadGuide } from "@/components/upload-guide";
-import { depositReturnCase } from "@/lib/mock-data";
+import { certifiedLetterContractSnapshot, certifiedLetterPrecedents, certifiedLetterResult, certifiedLetterSampleRequest, certifiedLetterStatutes } from "@/lib/certified-letter-data";
 import type { CaseBasis } from "@/lib/demo-types";
 import { validateDemoFile, validateRealEstateInput } from "@/lib/demo-validation";
 import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
@@ -12,13 +12,13 @@ import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-de
 import styles from "../feature-demo.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
-const sampleRequest = "예: 전세 계약이 끝났는데 임대인이 보증금 2억 5천만 원을 돌려주지 않고 있습니다. 2028년 11월 7일까지 반환해 달라는 내용증명을 보내고 싶습니다.";
+const sampleRequest = certifiedLetterSampleRequest;
 
 export default function CertifiedLetterPage() {
   const [stage, setStage] = useState<Stage>("upload");
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(8);
-  const [request, setRequest] = useState("");
+  const [request, setRequest] = useState(sampleRequest);
   const [requestFocused, setRequestFocused] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
@@ -96,7 +96,7 @@ export default function CertifiedLetterPage() {
         <section className={styles.processingCard}><span><ScanText size={28} /></span><h2>계약정보를 읽고 있습니다</h2><p>당사자, 목적물, 금액과 주요 날짜를 구조화하고 있습니다.</p><div className={styles.progressHeader}><span>계약서 OCR 및 필드 추출</span><strong>{progress}%</strong></div><div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div></section>
       )}
 
-      {stage === "verify" && <VerifySnapshotDemo modeOverride="contract" onBack={() => setStage("upload")} onComplete={() => setStage("request")} submitLabel="요청 입력으로" />}
+      {stage === "verify" && <VerifySnapshotDemo initialContractSnapshot={certifiedLetterContractSnapshot} modeOverride="contract" onBack={() => setStage("upload")} onComplete={() => setStage("request")} submitLabel="요청 입력으로" />}
 
       {stage === "request" && (
         <div className={styles.split}>
@@ -119,44 +119,25 @@ export default function CertifiedLetterPage() {
         <>
           <div className={styles.notice}><AlertCircle size={18} /><span>이 문서는 AI가 계약서와 입력 내용을 바탕으로 작성한 초안입니다. 발송만으로 사실관계나 법적 효과가 확정되지는 않으므로 실제 정보와 최신 근거를 다시 확인하세요.</span></div>
           <article className={styles.letterPaper}>
-            <h2>임대차보증금 반환 촉구서</h2>
-            <div className={styles.letterPartyGrid}><section><span>수신인</span><strong>박도윤</strong><p>서울특별시 성동구 알파로 27</p></section><section><span>발신인</span><strong>김서연</strong><p>서울특별시 성동구 알파로 27, 101동 1203호</p></section></div>
-            <div className={styles.letterBody}>{`수신인 귀하께서는 발신인과 체결한 임대차계약과 관련하여 다음과 같이 통지합니다.
-
-【 계약 개요 】
-- 임대차 목적물: 서울특별시 성동구 알파로 27, 알파아파트 101동 1203호
-- 계약기간: 2026년 10월 31일 ~ 2028년 10월 30일
-- 임대차보증금: 250,000,000원
-
-【 사실관계 】
-위 임대차계약이 2028년 10월 30일 종료되었으나, 발신인은 현재까지 임대차보증금을 반환받지 못했습니다.
-
-【 요구사항 】
-발신인은 수신인에게 임대차보증금 250,000,000원 전액을 2028년 11월 7일까지 반환할 것을 요청합니다.
-
-【 협의 제안 및 후속 조치 】
-발신인은 원만한 해결을 위해 반환 일정과 방법을 협의할 의사가 있습니다. 위 기한까지 반환 또는 구체적인 협의가 이루어지지 않을 경우, 보증금 반환을 위한 민사상 절차를 검토할 수 있음을 알려드립니다.
-
-2028년 10월 31일
-발신인: 김서연 (서명)`}</div>
+            <h2>{certifiedLetterResult.title}</h2>
+            <div className={styles.letterPartyGrid}><section><span>수신인</span><strong>{certifiedLetterResult.recipient.name}</strong><p>{certifiedLetterResult.recipient.address}, {certifiedLetterResult.recipient.detailAddress}</p></section><section><span>발신인</span><strong>{certifiedLetterResult.sender.name}</strong><p>{certifiedLetterResult.sender.address}, {certifiedLetterResult.sender.detailAddress}</p></section></div>
+            <div className={styles.letterBody} style={{ whiteSpace: "pre-wrap" }}>{certifiedLetterResult.body}</div>
           </article>
           <div className={styles.letterAnalysisGrid}>
-            <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>계약 종료, 미반환 사실, 반환 금액과 기한을 순서대로 명확히 적고 협의 가능성을 남겼습니다. 과도한 위협 표현은 피하고 후속 절차는 검토 가능성으로 표현했습니다.</p></section>
-            <section className={styles.panel}><h2>발송 후 대응</h2><p className={styles.panelLead}>기한까지 답변이 없다면 계약서, 보증금 지급 내역, 반환 요청 기록과 내용증명 발송 증명을 보관한 뒤 민사조정이나 보증금 반환 청구 절차를 검토하세요.</p></section>
+            <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>{certifiedLetterResult.strategy}</p></section>
+            <section className={styles.panel}><h2>다음 단계</h2><div className={styles.exampleList}>{certifiedLetterResult.nextSteps.map((step, index) => <p key={step}><b>{String(index + 1).padStart(2, "0")}</b><span>{step}</span></p>)}</div></section>
           </div>
           <section className={styles.panel} style={{ marginTop: 18 }}>
             <h2>관련 근거</h2>
             <details className={styles.detailDisclosure}>
-              <summary>관련 법령 3건</summary>
+              <summary>관련 법령 {certifiedLetterStatutes.length}건</summary>
               <div className={styles.basisGrid}>
-                <article className={styles.basisCard}><strong>주택임대차보호법 제3조의2</strong><p>보증금 회수와 우선변제권에 관한 조문</p><span>임차인이 보증금을 회수할 때 확인할 수 있는 대항요건과 우선변제권의 요건을 규정합니다. 실제 적용 여부는 주택 인도, 전입신고와 확정일자 등 사실관계에 따라 달라집니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제3조의2" target="_blank" rel="noreferrer">원문 보기</a></article>
-                <article className={styles.basisCard}><strong>주택임대차보호법 제3조의3</strong><p>임차권등기명령에 관한 조문</p><span>임대차가 끝난 뒤에도 보증금을 돌려받지 못한 임차인이 법원에 임차권등기명령을 신청할 수 있는 요건과 효과를 규정합니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제3조의3" target="_blank" rel="noreferrer">원문 보기</a></article>
-                <article className={styles.basisCard}><strong>주택임대차보호법 제4조 제2항</strong><p>보증금 반환 전 임대차관계의 존속</p><span>임대차기간이 끝난 경우에도 임차인이 보증금을 반환받을 때까지 임대차관계가 존속하는 것으로 보는 규정입니다.</span><a href="https://www.law.go.kr/법령/주택임대차보호법/제4조" target="_blank" rel="noreferrer">원문 보기</a></article>
+                {certifiedLetterStatutes.map((statute) => <article className={styles.basisCard} key={`${statute.lawName}-${statute.articleLabel}`}><strong>{statute.lawName} {statute.articleLabel}</strong><p>{statute.articleTitle}</p><span>{statute.explanation}</span><p style={{ whiteSpace: "pre-wrap" }}>{statute.content}</p><a href={statute.url} target="_blank" rel="noreferrer">원문 보기</a></article>)}
               </div>
             </details>
             <details className={styles.detailDisclosure}>
-              <summary>관련 판례 1건</summary>
-              <PrecedentListItem onOpenDetail={() => setPrecedentModal({ precedent: depositReturnCase, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent: depositReturnCase, initialView: "fullText" })} precedent={depositReturnCase} />
+              <summary>관련 판례 {certifiedLetterPrecedents.length}건</summary>
+              {certifiedLetterPrecedents.map((precedent) => <PrecedentListItem key={precedent.caseNumber} onOpenDetail={() => setPrecedentModal({ precedent, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent, initialView: "fullText" })} precedent={precedent} />)}
             </details>
           </section>
           <section className={styles.preflight}><h2>발송 전에 확인하세요</h2>{["수신인과 발신인의 이름·주소가 정확한지", "계약 종료일·보증금·반환 기한이 실제 사실과 같은지", "계약서·입금내역·대화 기록을 별도로 보관했는지", "우체국 발송본과 배달증명 등 발송 기록을 보관할지"].map((item) => <p key={item}><Check size={16} />{item}</p>)}</section>
