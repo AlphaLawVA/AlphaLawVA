@@ -1,4 +1,10 @@
-import type { CaseBasis, ClauseReview, RegistryReview } from "./demo-types";
+import type {
+  CaseBasis,
+  ClauseReview,
+  ConfirmedContractSnapshot,
+  ConfirmedRegistrySnapshot,
+  RegistryReview,
+} from "./demo-types";
 
 export const leaseSuccessionLaw = {
   law: "주택임대차보호법",
@@ -194,30 +200,134 @@ export const registryReviews: RegistryReview[] = [
   },
 ];
 
-export const contractFields = [
-  { label: "계약 유형", value: "전세" },
-  { label: "계약일", value: "2026.10.05" },
-  { label: "소재지", value: "서울특별시 성동구 알파로 27, 알파아파트 101동 1203호", wide: true },
-  { label: "건물 용도", value: "아파트" },
-  { label: "임차 면적", value: "84.97㎡" },
-  { label: "임대인", value: "박도윤" },
-  { label: "임차인", value: "김서연" },
-  { label: "보증금", value: "250,000,000원" },
-  { label: "계약금", value: "25,000,000원" },
-  { label: "중도금·지급일", value: "25,000,000원 · 2026.10.20", wide: true },
-  { label: "잔금·지급일", value: "200,000,000원 · 2026.10.31", wide: true },
-  { label: "계약 기간", value: "2026.10.31 - 2028.10.30", wide: true },
-  { label: "특약사항", value: "권리관계 유지, 보증 가입 협조, 원상회복, 보증금 반환 시기", wide: true },
-];
+export const confirmedContractSnapshot: ConfirmedContractSnapshot = {
+  contractType: "전세",
+  fields: [
+    { id: "contract-type", label: "계약 유형", value: "전세", group: "문서·계약 기본정보", priority: "priority", status: "user-confirmed", required: true, source: { page: 1, label: "계약 종류" } },
+    { id: "renewal-type", label: "갱신 구분", value: "", group: "문서·계약 기본정보", priority: "needs-confirmation", status: "needs-confirmation", source: { page: 1, label: "계약 갱신 여부" } },
+    { id: "contract-date", label: "계약일", value: "2026.10.05", group: "문서·계약 기본정보", priority: "priority", status: "needs-confirmation", required: true, source: { page: 1, label: "계약 체결일" } },
+    { id: "page-count", label: "문서 페이지 수", value: "2", group: "문서·계약 기본정보", priority: "automatic", status: "automatic", source: { page: 1, label: "문서 정보" } },
+    { id: "property-address", label: "주소", value: "서울특별시 성동구 알파로 27", group: "목적물", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "소재지" } },
+    { id: "property-detail", label: "상세주소", value: "알파아파트 101동 1203호", group: "목적물", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "임차할 부분" } },
+    { id: "land-category", label: "토지 지목·면적", value: "대 · 38.12㎡", group: "목적물", priority: "automatic", status: "automatic", source: { page: 1, label: "토지" } },
+    { id: "building-info", label: "건물 구조·용도·면적", value: "철근콘크리트조 · 아파트 · 84.97㎡", group: "목적물", priority: "priority", status: "automatic", source: { page: 1, label: "건물" } },
+    { id: "leased-part", label: "임차 부분·면적", value: "101동 1203호 · 84.97㎡", group: "목적물", priority: "automatic", status: "automatic", source: { page: 1, label: "임차할 부분" } },
+    { id: "land-right", label: "대지권 정보", value: "대지권의 목적인 토지 지분", group: "목적물", priority: "automatic", status: "automatic", source: { page: 1, label: "대지권" } },
+    { id: "lessor", label: "임대인", value: "박도윤", group: "당사자·중개사", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 2, label: "임대인" } },
+    { id: "lessee", label: "임차인", value: "김서연", group: "당사자·중개사", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 2, label: "임차인" } },
+    { id: "representative", label: "대리인 여부·성명", value: "대리인 없음", group: "당사자·중개사", priority: "automatic", status: "automatic", source: { page: 2, label: "대리인" } },
+    { id: "broker", label: "중개사무소·등록번호", value: "알파공인중개사사무소 · 12345-2026-00001", group: "당사자·중개사", priority: "automatic", status: "automatic", source: { page: 2, label: "개업공인중개사" } },
+    { id: "broker-sign", label: "담당 공인중개사·서명 여부", value: "최중개 · 서명 확인", group: "당사자·중개사", priority: "automatic", status: "automatic", source: { page: 2, label: "중개대상물 확인·설명" } },
+    { id: "deposit", label: "보증금", value: "250,000,000", group: "금액·지급일정", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "보증금" } },
+    { id: "deposit-korean", label: "보증금 한글 원문", value: "금 이억오천만원정", group: "금액·지급일정", priority: "priority", status: "automatic", source: { page: 1, label: "보증금 한글" } },
+    { id: "down-payment", label: "계약금·지급일", value: "25,000,000 · 2026.10.05", group: "금액·지급일정", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "계약금" } },
+    { id: "interim-payment", label: "중도금·지급일", value: "25,000,000 · 2026.10.20", group: "금액·지급일정", priority: "priority", status: "needs-confirmation", source: { page: 1, label: "중도금" } },
+    { id: "balance", label: "잔금·지급일", value: "200,000,000 · 2026.10.31", group: "금액·지급일정", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "잔금" } },
+    { id: "maintenance-fee", label: "관리비", value: "월 120,000원", group: "금액·지급일정", priority: "automatic", status: "automatic", source: { page: 1, label: "관리비" } },
+    { id: "lease-period", label: "임대차 시작·종료일", value: "2026.10.31 - 2028.10.30", group: "기간·인도", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "임대차 기간" } },
+    { id: "move-in-date", label: "인도일", value: "2026.10.31", group: "기간·인도", priority: "priority", status: "needs-confirmation", source: { page: 1, label: "인도일" } },
+    { id: "tax-arrears", label: "체납 여부", value: "미납 국세·지방세 열람 필요", group: "고지·권리 관련 사항", priority: "needs-confirmation", status: "needs-confirmation", source: { page: 2, label: "체납 관련 고지" } },
+    { id: "senior-deposit", label: "선순위 보증금", value: "확인되지 않음", group: "고지·권리 관련 사항", priority: "priority", status: "automatic", source: { page: 2, label: "선순위 임차보증금" } },
+    { id: "registry-checked", label: "등기 확인 여부", value: "등기사항증명서 첨부", group: "고지·권리 관련 사항", priority: "priority", status: "automatic", source: { page: 2, label: "등기사항증명서" } },
+    { id: "right-restriction", label: "권리 설정 제한 특약", value: "잔금 지급일 다음 날까지 새로운 권리를 설정하지 않는다.", group: "고지·권리 관련 사항", priority: "needs-confirmation", status: "needs-confirmation", multiline: true, source: { page: 2, label: "특약 1" } },
+    { id: "insurance", label: "보증보험 관련 문구", value: "전세보증금반환보증 가입에 필요한 서류 제출에 협조한다.", group: "고지·권리 관련 사항", priority: "priority", status: "automatic", multiline: true, source: { page: 2, label: "특약 2" } },
+    { id: "special-terms", label: "특약 원문", value: "1. 잔금 지급일 다음 날까지 새로운 권리를 설정하지 않는다.\n2. 전세보증금반환보증 가입에 필요한 서류 제출에 협조한다.\n3. 통상적인 사용으로 발생한 손모를 포함하여 원상복구한다.\n4. 신규 임차인이 입주한 때에 보증금을 반환한다.", group: "조항·특약", priority: "needs-confirmation", status: "needs-confirmation", required: true, multiline: true, source: { page: 2, label: "특약사항" } },
+    { id: "general-clause", label: "분석 대상 일반 조항", value: "계약 해제·손해배상 및 목적물 반환 조항", group: "조항·특약", priority: "automatic", status: "automatic", source: { page: 2, label: "일반 조항" } },
+  ],
+};
 
-export const registryFields = [
-  { label: "발급일", value: "2026.10.22" },
-  { label: "소재지", value: "서울특별시 성동구 알파로 27, 알파아파트 101동 1203호", wide: true },
-  { label: "건물 용도", value: "공동주택(아파트)" },
-  { label: "전유면적", value: "84.97㎡" },
-  { label: "현재 소유자", value: "박도윤" },
-  { label: "소유권 변동", value: "2021.04.12 매매로 소유권 이전", wide: true },
-  { label: "압류·가압류·가등기", value: "확인되지 않음", wide: true },
-  { label: "근저당권", value: "채권최고액 180,000,000원 · 알파은행", wide: true },
-];
+function copySnapshotWithChanges(
+  contractType: ConfirmedContractSnapshot["contractType"],
+  changes: Record<string, Partial<ConfirmedContractSnapshot["fields"][number]>>,
+  omitIds: string[] = [],
+): ConfirmedContractSnapshot {
+  return {
+    contractType,
+    fields: confirmedContractSnapshot.fields
+      .filter((field) => !omitIds.includes(field.id))
+      .map((field) => ({ ...field, ...changes[field.id], source: { ...field.source } })),
+  };
+}
+
+export const contractSnapshots: Record<ConfirmedContractSnapshot["contractType"], ConfirmedContractSnapshot> = {
+  전세: confirmedContractSnapshot,
+  월세: {
+    ...copySnapshotWithChanges("월세", {
+      "contract-type": { value: "월세", status: "user-confirmed" },
+      deposit: { value: "50,000,000" },
+      "deposit-korean": { value: "금 오천만원정" },
+      "down-payment": { value: "5,000,000 · 2026.10.05" },
+      "interim-payment": { value: "없음" },
+      balance: { value: "45,000,000 · 2026.10.31" },
+      "maintenance-fee": { value: "월 100,000원" },
+    }, ["insurance"]),
+    fields: [
+      ...copySnapshotWithChanges("월세", {
+        "contract-type": { value: "월세", status: "user-confirmed" },
+        deposit: { value: "50,000,000" },
+        "deposit-korean": { value: "금 오천만원정" },
+        "down-payment": { value: "5,000,000 · 2026.10.05" },
+        "interim-payment": { value: "없음" },
+        balance: { value: "45,000,000 · 2026.10.31" },
+        "maintenance-fee": { value: "월 100,000원" },
+      }, ["insurance"]).fields,
+      { id: "monthly-rent", label: "월 차임", value: "1,200,000", group: "금액·지급일정", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "차임" } },
+      { id: "rent-payment-date", label: "차임 납부일", value: "매월 25일", group: "금액·지급일정", priority: "priority", status: "needs-confirmation", source: { page: 1, label: "차임 지급일" } },
+      { id: "rent-payment-method", label: "선불·후불", value: "선불", group: "금액·지급일정", priority: "automatic", status: "automatic", source: { page: 1, label: "차임 지급" } },
+    ],
+  },
+  매매: {
+    ...copySnapshotWithChanges("매매", {
+      "contract-type": { value: "매매", status: "user-confirmed" },
+      lessor: { label: "매도인", value: "박도윤" },
+      lessee: { label: "매수인", value: "김서연" },
+      deposit: { label: "매매대금", value: "650,000,000" },
+      "deposit-korean": { label: "매매대금 한글 원문", value: "금 육억오천만원정" },
+      "down-payment": { value: "65,000,000 · 2026.10.05" },
+      "interim-payment": { value: "130,000,000 · 2026.10.20" },
+      balance: { value: "455,000,000 · 2026.10.31" },
+    }, ["lease-period", "move-in-date", "insurance", "senior-deposit"]),
+    fields: [
+      ...copySnapshotWithChanges("매매", {
+        "contract-type": { value: "매매", status: "user-confirmed" },
+        lessor: { label: "매도인", value: "박도윤" },
+        lessee: { label: "매수인", value: "김서연" },
+        deposit: { label: "매매대금", value: "650,000,000" },
+        "deposit-korean": { label: "매매대금 한글 원문", value: "금 육억오천만원정" },
+        "down-payment": { value: "65,000,000 · 2026.10.05" },
+        "interim-payment": { value: "130,000,000 · 2026.10.20" },
+        balance: { value: "455,000,000 · 2026.10.31" },
+      }, ["lease-period", "move-in-date", "insurance", "senior-deposit"]).fields,
+      { id: "handover-date", label: "인도일", value: "2026.10.31", group: "기간·인도", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 2, label: "인도일" } },
+      { id: "ownership-transfer-date", label: "소유권이전 예정일", value: "2026.10.31", group: "기간·인도", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 2, label: "소유권이전" } },
+    ],
+  },
+};
+
+export const confirmedRegistrySnapshot: ConfirmedRegistrySnapshot = {
+  fields: [
+    { id: "registry-issued-at", label: "발급일시", value: "2026.10.22 10:31", group: "발급·부동산 정보", priority: "automatic", status: "automatic", source: { page: 1, label: "발급 정보" } },
+    { id: "registry-address", label: "소재지", value: "서울특별시 성동구 알파로 27", group: "발급·부동산 정보", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "표제부 소재지" } },
+    { id: "registry-detail", label: "상세주소", value: "알파아파트 101동 1203호", group: "발급·부동산 정보", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "건물내역" } },
+    { id: "registry-building-original", label: "표제부 건물 표시 원문", value: "철근콘크리트조 · 공동주택 · 전유부분 84.97㎡", group: "발급·부동산 정보", priority: "automatic", status: "automatic", multiline: true, source: { page: 1, label: "표제부" } },
+    { id: "owner-name", label: "현재 소유자 성명", value: "박도윤", group: "현재 소유자", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "갑구 소유권이전" } },
+    { id: "owner-share", label: "소유권 지분", value: "전부", group: "현재 소유자", priority: "priority", status: "automatic", source: { page: 1, label: "갑구 소유권이전" } },
+    { id: "owner-cause", label: "등기원인·접수일", value: "2021.04.12 매매 · 2021.04.12 접수", group: "현재 소유자", priority: "priority", status: "automatic", source: { page: 1, label: "갑구 소유권이전" } },
+    { id: "owner-status", label: "소유권 상태", value: "유효", group: "현재 소유자", priority: "priority", status: "automatic", source: { page: 1, label: "갑구 소유권이전" } },
+  ],
+  rights: [
+    { id: "right-owner", section: "갑구", rank: "2", purpose: "소유권이전", receivedDate: "2021.04.12", holder: "박도윤", status: "active", source: { page: 1, label: "갑구 2번" } },
+    { id: "right-mortgage", section: "을구", rank: "1", purpose: "근저당권설정", receivedDate: "2024.02.14", holder: "알파은행", debtor: "박도윤", maximumAmount: "180,000,000원", status: "active", source: { page: 1, label: "을구 1번" } },
+    { id: "right-cancelled", section: "을구", rank: "2", purpose: "근저당권설정", receivedDate: "2020.08.21", holder: "베타은행", debtor: "박도윤", maximumAmount: "90,000,000원", status: "cancelled", source: { page: 1, label: "을구 2번" } },
+  ],
+};
+
+// Content-proofing flow still consumes the compact field representation until its
+// real OCR response contract is connected.
+export const contractFields = confirmedContractSnapshot.fields
+  .filter((field) => ["contract-type", "contract-date", "property-address", "building-info", "leased-part", "lessor", "lessee", "deposit", "down-payment", "interim-payment", "balance", "lease-period", "special-terms"].includes(field.id))
+  .map((field) => ({ label: field.label, value: field.value, wide: field.multiline || field.value.length > 34 }));
+
+export const registryFields = confirmedRegistrySnapshot.fields
+  .map((field) => ({ label: field.label, value: field.value, wide: field.multiline || field.value.length > 34 }));
 

@@ -49,3 +49,52 @@ export type RegistryReview = {
   summary: string;
   action?: string;
 };
+
+export type FieldPriority = "needs-confirmation" | "priority" | "automatic";
+
+export type FieldStatus =
+  | "automatic"
+  | "needs-confirmation"
+  | "user-confirmed"
+  | "user-modified"
+  | "confirmed-empty";
+
+export type SourceAnchor = {
+  page: number;
+  label: string;
+};
+
+export type SnapshotField = {
+  id: string;
+  label: string;
+  value: string;
+  group: string;
+  priority: FieldPriority;
+  status: FieldStatus;
+  required?: boolean;
+  multiline?: boolean;
+  source: SourceAnchor;
+};
+
+export type ConfirmedContractSnapshot = {
+  contractType: "전세" | "월세" | "매매";
+  fields: SnapshotField[];
+};
+
+export type RegistryRight = {
+  id: string;
+  section: "갑구" | "을구";
+  rank: string;
+  purpose: string;
+  receivedDate: string;
+  holder: string;
+  debtor?: string;
+  maximumAmount?: string;
+  status: "active" | "cancelled" | "unclear";
+  source: SourceAnchor;
+};
+
+export type ConfirmedRegistrySnapshot = {
+  fields: SnapshotField[];
+  rights: RegistryRight[];
+};

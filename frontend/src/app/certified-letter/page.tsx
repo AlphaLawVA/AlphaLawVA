@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, CheckCircle2, Download, FileText, LoaderCircle, ScanText, Upload } from "lucide-react";
-import { DemoDocument } from "@/components/demo-document";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { UploadGuide } from "@/components/upload-guide";
-import { contractFields, depositReturnCase } from "@/lib/mock-data";
+import { depositReturnCase } from "@/lib/mock-data";
 import type { CaseBasis } from "@/lib/demo-types";
 import { validateDemoFile, validateRealEstateInput } from "@/lib/demo-validation";
+import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
+import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-demo";
 import styles from "../feature-demo.module.css";
-import reviewStyles from "../contract-review/contract-review.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
 const sampleRequest = "예: 전세 계약이 끝났는데 임대인이 보증금 2억 5천만 원을 돌려주지 않고 있습니다. 2028년 11월 7일까지 반환해 달라는 내용증명을 보내고 싶습니다.";
@@ -18,15 +18,12 @@ export default function CertifiedLetterPage() {
   const [stage, setStage] = useState<Stage>("upload");
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(8);
-  const [fields, setFields] = useState(contractFields);
-  const [confirmed, setConfirmed] = useState(false);
   const [request, setRequest] = useState("");
   const [requestFocused, setRequestFocused] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
-  const missingFields = fields.filter((field) => !field.value.trim());
 
   useEffect(() => {
     if (stage !== "processing" && stage !== "generating") return;
@@ -58,6 +55,10 @@ export default function CertifiedLetterPage() {
     setFileError(validationError);
     setLoaded(!validationError);
     setFileName(validationError ? "" : file.name);
+    if (!validationError) {
+      clearDocumentPreviews();
+      setDocumentPreview("contract", file);
+    }
   }
 
   const stepIndex = stage === "upload" || stage === "processing" ? 0 : stage === "verify" ? 1 : stage === "request" ? 2 : 3;
@@ -81,7 +82,7 @@ export default function CertifiedLetterPage() {
             <div className={styles.letterDropzone}>
               <span><Upload size={24} /></span><strong>PDF 또는 이미지 파일</strong><p>PDF, JPG, PNG · 최대 20MB</p>
               <label className={styles.secondaryButton}><Upload size={17} />내 파일 선택<input className={styles.fileInput} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => selectFile(event.target.files?.[0])} /></label>
-              <button className={styles.textButton} type="button" onClick={() => { setLoaded(true); setFileName("전세_손글씨_샘플.pdf"); setFileError(""); }}><FileText size={16} />샘플 계약서 사용</button>
+              <button className={styles.textButton} type="button" onClick={() => { clearDocumentPreviews(); setLoaded(true); setFileName("전세_손글씨_샘플.pdf"); setFileError(""); }}><FileText size={16} />샘플 계약서 사용</button>
             </div>
             {fileError && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>파일을 읽을 수 없습니다</strong><span>{fileError}</span></div></div>}
             {loaded && <div className={styles.uploadedFile}><div><FileText size={17} /><span>{fileName || "전세_손글씨_샘플.pdf"}</span></div><CheckCircle2 size={18} /></div>}
@@ -95,15 +96,7 @@ export default function CertifiedLetterPage() {
         <section className={styles.processingCard}><span><ScanText size={28} /></span><h2>계약정보를 읽고 있습니다</h2><p>당사자, 목적물, 금액과 주요 날짜를 구조화하고 있습니다.</p><div className={styles.progressHeader}><span>계약서 OCR 및 필드 추출</span><strong>{progress}%</strong></div><div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div></section>
       )}
 
-      {stage === "verify" && (
-        <>
-          <div className={styles.notice}><AlertCircle size={18} /><span>자동으로 읽은 값에는 오류가 있을 수 있습니다. 원문과 비교해 당사자, 주소, 날짜와 금액을 확인해주세요.</span></div>
-          <div className={reviewStyles.verifyLayout}>
-            <aside className={reviewStyles.documentPreview}><DemoDocument kind="contract" /></aside>
-            <section className={reviewStyles.formPanel}><div className={reviewStyles.formHeading}><span>계약서</span><h2>내용증명에 사용할 계약정보</h2><p>틀린 값은 직접 수정할 수 있습니다.</p></div><div className={reviewStyles.formGrid}>{fields.map((field, index) => <div className={`${reviewStyles.field} ${field.wide ? reviewStyles.fieldWide : ""} ${!field.value.trim() ? reviewStyles.fieldInvalid : ""}`} key={field.label}><label htmlFor={`letter-field-${index}`}>{field.label}</label><input id={`letter-field-${index}`} value={field.value} onChange={(event) => { setConfirmed(false); setFields((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item)); }} /></div>)}</div>{missingFields.length > 0 && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>확인하지 못한 정보가 있습니다</strong><span>{missingFields.map((field) => field.label).join(", ")} 값을 원문에서 확인해 입력해주세요.</span></div></div>}<div className={reviewStyles.checkRow}><label><input type="checkbox" checked={confirmed} disabled={missingFields.length > 0} onChange={(event) => setConfirmed(event.target.checked)} /><span>계약서 원문과 비교해 위 정보를 확인했습니다.</span></label></div><div className={reviewStyles.actions}><button className={reviewStyles.primaryButton} type="button" disabled={!confirmed || missingFields.length > 0} onClick={() => setStage("request")}>요청 입력으로</button></div></section>
-          </div>
-        </>
-      )}
+      {stage === "verify" && <VerifySnapshotDemo modeOverride="contract" onBack={() => setStage("upload")} onComplete={() => setStage("request")} submitLabel="요청 입력으로" />}
 
       {stage === "request" && (
         <div className={styles.split}>
@@ -167,7 +160,7 @@ export default function CertifiedLetterPage() {
             </details>
           </section>
           <section className={styles.preflight}><h2>발송 전에 확인하세요</h2>{["수신인과 발신인의 이름·주소가 정확한지", "계약 종료일·보증금·반환 기한이 실제 사실과 같은지", "계약서·입금내역·대화 기록을 별도로 보관했는지", "우체국 발송본과 배달증명 등 발송 기록을 보관할지"].map((item) => <p key={item}><Check size={16} />{item}</p>)}</section>
-          <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => window.print()}><Download size={16} />인쇄·PDF 저장</button><button className={styles.primaryButton} type="button" onClick={() => { setLoaded(false); setConfirmed(false); setStage("upload"); }}>새 내용증명 작성</button></div>
+          <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => window.print()}><Download size={16} />인쇄·PDF 저장</button><button className={styles.primaryButton} type="button" onClick={() => { clearDocumentPreviews(); setLoaded(false); setStage("upload"); }}>새 내용증명 작성</button></div>
           {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
         </>
       )}

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ReviewStepper } from "@/components/review-stepper";
-import { VerifyDemo } from "./verify-demo";
+import { VerifySnapshotDemo } from "./verify-snapshot-demo";
 import styles from "../contract-review.module.css";
 
 export default function VerifyPage() {
@@ -12,7 +12,7 @@ export default function VerifyPage() {
       </div>
       <ReviewStepper current={2} />
       <Suspense fallback={<div className={styles.panel}>확인 화면을 준비하고 있습니다.</div>}>
-        <VerifyDemo />
+        <VerifySnapshotDemo />
       </Suspense>
     </main>
   );

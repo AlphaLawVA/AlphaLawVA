@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2, FileText, Upload } from "lucide-react";
 import { UploadGuide } from "@/components/upload-guide";
 import type { DocumentMode } from "@/lib/demo-types";
 import { validateDemoFile } from "@/lib/demo-validation";
+import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
 import styles from "./contract-review.module.css";
 
 const modeOptions: Array<{ mode: DocumentMode; title: string; description: string }> = [
@@ -32,6 +33,7 @@ export function UploadDemo() {
     setLoaded(false);
     setSelectedFiles([]);
     setFileError("");
+    clearDocumentPreviews();
   }
 
   function selectFiles(fileList: FileList | null) {
@@ -54,10 +56,18 @@ export function UploadDemo() {
 
     setFileError("");
     setSelectedFiles(nextFiles.map((file) => file.name));
+    clearDocumentPreviews();
+    if (mode === "both") {
+      setDocumentPreview("contract", nextFiles[0]);
+      setDocumentPreview("registry", nextFiles[1]);
+    } else {
+      setDocumentPreview(mode, nextFiles[0]);
+    }
     setLoaded(true);
   }
 
   function loadSamples() {
+    clearDocumentPreviews();
     setSelectedFiles(files);
     setFileError("");
     setLoaded(true);
