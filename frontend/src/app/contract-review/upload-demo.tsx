@@ -39,31 +39,37 @@ export function UploadDemo() {
   function selectFiles(fileList: FileList | null) {
     const nextFiles = Array.from(fileList ?? []);
     const validationError = nextFiles.map(validateDemoFile).find(Boolean);
-    const requiredCount = mode === "both" ? 2 : 1;
 
     if (validationError) {
       setFileError(validationError);
-      setSelectedFiles([]);
-      setLoaded(false);
       return;
     }
-    if (nextFiles.length < requiredCount) {
-      setFileError(mode === "both" ? "계약서와 등기사항증명서를 각각 한 개씩 선택해주세요." : "검토할 문서 한 개를 선택해주세요.");
-      setSelectedFiles(nextFiles.map((file) => file.name));
-      setLoaded(false);
+    if (nextFiles.length === 0) return;
+
+    if (mode !== "both") {
+      const selectedFile = nextFiles[0];
+      clearDocumentPreviews();
+      setDocumentPreview(mode, selectedFile);
+      setSelectedFiles([selectedFile.name]);
+      setFileError("");
+      setLoaded(true);
       return;
     }
 
-    setFileError("");
-    setSelectedFiles(nextFiles.map((file) => file.name));
-    clearDocumentPreviews();
-    if (mode === "both") {
-      setDocumentPreview("contract", nextFiles[0]);
-      setDocumentPreview("registry", nextFiles[1]);
-    } else {
-      setDocumentPreview(mode, nextFiles[0]);
+    const remainingCount = 2 - selectedFiles.length;
+    if (nextFiles.length > remainingCount) {
+      setFileError("계약서와 등기사항증명서는 각각 한 개씩만 선택할 수 있습니다. 문서 종류를 바꾸려면 다시 선택해주세요.");
+      return;
     }
-    setLoaded(true);
+
+    const documentKinds: Array<"contract" | "registry"> = ["contract", "registry"];
+    const nextSelectedFiles = [...selectedFiles, ...nextFiles.map((file) => file.name)];
+    nextFiles.forEach((file, index) => {
+      setDocumentPreview(documentKinds[selectedFiles.length + index], file);
+    });
+    setSelectedFiles(nextSelectedFiles);
+    setFileError("");
+    setLoaded(nextSelectedFiles.length === 2);
   }
 
   function loadSamples() {
@@ -98,8 +104,17 @@ export function UploadDemo() {
             <p>PDF, JPG, PNG · 문서별 최대 20MB</p>
             <label className={styles.sampleButton}>
               <Upload size={17} aria-hidden="true" />
-              내 파일 선택
-              <input className={styles.fileInput} type="file" multiple={mode === "both"} accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => selectFiles(event.target.files)} />
+              {mode === "both" && selectedFiles.length === 1 ? "등본 파일 추가" : "내 파일 선택"}
+              <input
+                className={styles.fileInput}
+                type="file"
+                multiple={mode === "both"}
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(event) => {
+                  selectFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
             </label>
             <button className={styles.sampleTextButton} type="button" onClick={loadSamples}><FileText size={16} aria-hidden="true" />샘플 문서 사용</button>
           </div>

@@ -28,7 +28,7 @@ function buildClause(request: string, index: number): GeneratedClause {
       clause: "임대인은 임차인이 반려동물 1마리를 사육하는 데 동의한다. 임차인은 사육으로 인해 통상적인 사용 범위를 넘는 시설 훼손이 발생한 경우 그 부분을 원상회복한다.",
       reason: "반려동물 사육 가능 여부와 실제 훼손이 발생했을 때의 책임 범위를 계약 전에 명확히 하기 위한 문구입니다.",
       strategy: "동물의 종류와 수, 공용공간 이용 수칙, 입주 당시 마감재 상태를 함께 기록해 두는 방안을 협의하세요.",
-      statutes: [restorationLaw, lessorMaintenanceLaw],
+      statutes: [restorationLaw],
       precedents: [restorationCase],
     };
   }
@@ -39,7 +39,7 @@ function buildClause(request: string, index: number): GeneratedClause {
       clause: "임차인은 생활에 필요한 범위에서 벽면을 타공할 수 있다. 퇴거 시 통상적인 보수가 가능한 타공은 임대인과 보수 방법을 협의하고, 타일·대리석 등 복구가 어려운 마감재는 사전 동의를 받는다.",
       reason: "벽면 타공을 전부 금지하거나 작은 흔적까지 일률적으로 복구하도록 요구하는 분쟁을 줄이기 위한 문구입니다.",
       strategy: "허용 위치와 개수, 제외할 벽면을 사진에 표시하고 퇴거 시 보수 방법을 구체적으로 정하세요.",
-      statutes: [restorationLaw, lessorMaintenanceLaw],
+      statutes: [restorationLaw],
       precedents: [restorationCase],
     };
   }
@@ -50,8 +50,19 @@ function buildClause(request: string, index: number): GeneratedClause {
       clause: "임차인은 실내 흡연 여부와 그 범위를 임대인과 합의하고, 흡연으로 인해 통상적인 사용 범위를 넘는 벽지 변색이나 냄새 제거 비용이 발생한 경우 실제 손상 부분의 복구 방법을 협의한다.",
       reason: "흡연 허용 여부와 냄새·변색에 대한 복구 범위를 미리 정해 퇴거 시 책임 다툼을 줄이기 위한 문구입니다.",
       strategy: "실내 전체 또는 지정 공간 중 어디까지 허용할지, 입주 전 상태를 어떤 방식으로 기록할지 함께 정하세요.",
-      statutes: [restorationLaw, lessorMaintenanceLaw],
+      statutes: [restorationLaw],
       precedents: [restorationCase],
+    };
+  }
+
+  if (/보일러|수도|누수|수리|고장/.test(normalized)) {
+    return {
+      title: "시설 유지·수리",
+      clause: "보일러, 수도, 배관 등 목적물의 기본 시설에 고장이 발생한 경우 임대인은 임차인의 고의 또는 과실로 발생한 고장을 제외하고 지체 없이 수리한다. 임차인은 고장 사실을 확인한 즉시 임대인에게 알린다.",
+      reason: "주거에 필요한 기본 시설의 수리 책임과 임차인의 통지 의무를 미리 나누어, 고장 발생 시 책임 주체를 둘러싼 다툼을 줄이기 위한 문구입니다.",
+      strategy: "수리 요청 방법과 긴급 수리가 필요한 경우의 연락 수단, 임차인 과실 판단 기준을 함께 정하세요.",
+      statutes: [lessorMaintenanceLaw],
+      precedents: [],
     };
   }
 

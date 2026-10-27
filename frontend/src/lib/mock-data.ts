@@ -7,12 +7,28 @@ import type {
 } from "./demo-types";
 import precedentSearchFullTexts from "./precedent-search-full-texts.json";
 
-export const leaseSuccessionLaw = {
+export const tenantOpposabilityLaw = {
   law: "주택임대차보호법",
-  article: "제3조 제4항",
-  excerpt: "임차주택의 양수인은 임대인의 지위를 승계한 것으로 봅니다.",
-  explanation: "계약 중 소유자가 바뀌는 경우 임대인의 지위와 보증금 반환 책임이 누구에게 이어지는지 판단할 때 확인하는 조문입니다.",
+  article: "제3조 제1항",
+  excerpt: "임차인이 주택의 인도와 주민등록을 마친 때에는 그 다음 날부터 제삼자에 대하여 효력이 생깁니다.",
+  explanation: "잔금 지급 직후 새 근저당권 등 권리변동이 생길 수 있는 상황에서, 임차인의 대항요건과 그 효력이 생기는 시점을 함께 확인하기 위한 근거입니다.",
   url: "https://www.law.go.kr/법령/주택임대차보호법/제3조",
+};
+
+export const tenantPriorityLaw = {
+  law: "주택임대차보호법",
+  article: "제3조의2 제2항",
+  excerpt: "대항요건과 확정일자를 갖춘 임차인은 후순위권리자나 그 밖의 채권자보다 우선하여 보증금을 변제받을 권리가 있습니다.",
+  explanation: "등기부의 권리부담과 임차인의 보증금 회수 순위를 함께 살펴볼 때 참고하는 근거입니다. 실제 우선순위는 계약일, 전입·점유, 확정일자와 등기 순서를 모두 확인해야 합니다.",
+  url: "https://www.law.go.kr/법령/주택임대차보호법/제3조의2",
+};
+
+export const leaseDepositReturnLaw = {
+  law: "주택임대차보호법",
+  article: "제4조 제2항",
+  excerpt: "임대차기간이 끝난 경우에도 임차인이 보증금을 반환받을 때까지는 임대차관계가 존속되는 것으로 봅니다.",
+  explanation: "신규 임차인 입주 여부와 별개로 계약 종료 뒤 보증금 반환 시점이 불명확한 조항을 검토할 때 참고하는 근거입니다.",
+  url: "https://www.law.go.kr/법령/주택임대차보호법/제4조",
 };
 
 export const restorationLaw = {
@@ -202,7 +218,7 @@ export const clauseReviews: ClauseReview[] = [
     reason: "잔금 지급 다음 날까지 권리변동을 제한하는 시점이 명시되어 있고, 임차인의 대항력 취득 시점 전후의 공백을 줄이는 방향으로 작성되어 있습니다.",
     revision: "현재 문구에서 별도로 수정할 부분을 찾지 못했습니다.",
     negotiation: "잔금 지급 직전에 최신 등기사항증명서를 다시 발급해 비교하고, 위반 시 계약 해제와 지급금 반환 방법도 함께 정할 수 있습니다.",
-    statutes: [leaseSuccessionLaw],
+    statutes: [tenantOpposabilityLaw, tenantPriorityLaw],
     precedents: [],
   },
   {
@@ -213,7 +229,7 @@ export const clauseReviews: ClauseReview[] = [
     reason: "보증 가입에 필요한 임대인의 협조 의무가 문장으로 명확하게 적혀 있습니다.",
     revision: "현재 문구에서 별도로 수정할 부분을 찾지 못했습니다.",
     negotiation: "보증기관의 심사 기한을 고려해 서류 제공 기한과 가입이 거절될 때의 처리 방법을 함께 협의하세요.",
-    statutes: [leaseSuccessionLaw],
+    statutes: [],
     precedents: [],
   },
   {
@@ -237,7 +253,7 @@ export const clauseReviews: ClauseReview[] = [
     reason: "보증금 반환을 신규 임차인의 입주와 연결하면 계약 종료 뒤에도 반환 시기가 불확실해질 수 있습니다.",
     revision: "임대인은 임대차 종료와 목적물 인도가 완료되는 즉시 임차인에게 보증금을 반환한다.",
     negotiation: "신규 임차인 모집 여부와 관계없이 반환일을 계약 종료일과 연결해 명확히 정하고, 지급 계좌도 확인하세요.",
-    statutes: [leaseSuccessionLaw],
+    statutes: [leaseDepositReturnLaw],
     precedents: [],
   },
 ];

@@ -570,6 +570,25 @@
   accent-color: var(--navy);
 }
 
+.confirmAllButton {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 22px;
+  border: 1px solid var(--navy);
+  border-radius: 6px;
+  color: var(--navy);
+  background: white;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.confirmAllButton:disabled {
+  border-color: var(--line);
+  color: var(--text-subtle);
+  background: var(--surface-muted);
+  cursor: not-allowed;
+}
+
 .previewHeading {
   margin-bottom: 14px;
   display: flex;

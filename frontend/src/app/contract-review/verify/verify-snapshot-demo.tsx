@@ -91,6 +91,23 @@ export function VerifySnapshotDemo({ initialContractSnapshot, modeOverride, onBa
     setCurrentConfirmed(false);
   }
 
+  function confirmAllFields() {
+    const confirm = (field: SnapshotField) => ({
+      ...field,
+      status: field.value.trim() ? "user-confirmed" as const : "confirmed-empty" as const,
+    });
+    if (tab === "contract") {
+      setContractSnapshot((current) => ({ ...current, fields: current.fields.map(confirm) }));
+    } else {
+      setRegistrySnapshot((current) => ({ ...current, fields: current.fields.map(confirm) }));
+      setConfirmedRightIds((current) => Array.from(new Set([
+        ...current,
+        ...registrySnapshot.rights.filter((right) => right.status !== "cancelled").map((right) => right.id),
+      ])));
+    }
+    setCurrentConfirmed(false);
+  }
+
   function selectSource(label: string) {
     const matched = fields.find((field) => field.source.label === label);
     if (matched) setActiveAnchor(matched.id);
@@ -131,6 +148,7 @@ export function VerifySnapshotDemo({ initialContractSnapshot, modeOverride, onBa
           <details className={styles.automaticDisclosure} open={showAutomatic} onToggle={(event) => setShowAutomatic(event.currentTarget.open)}><summary><ChevronDown size={17} />자동 인식된 보조 정보 {automaticFields.length}건</summary><p>형식 검증을 통과한 일반 필드입니다. 필요할 때만 펼쳐 원문과 비교하세요.</p>{Object.entries(groupedAutomaticFields).map(([group, groupFields]) => <section className={styles.snapshotGroup} key={group}><h3>{group}</h3><div className={styles.snapshotFieldList}>{groupFields.map((field) => <SnapshotFieldRow active={activeAnchor === field.id} field={field} key={field.id} onConfirm={confirmField} onFocus={setActiveAnchor} onUpdate={updateField} />)}</div></section>)}</details>
         </div>
         {!documentReady && <div className={styles.validationBanner} role="alert"><AlertCircle size={19} /><div><strong>아직 확인할 항목이 있습니다</strong><span>{pendingFields.length + pendingRights.length}건을 원문과 대조해 확인 또는 수정한 뒤 제출할 수 있습니다.</span></div></div>}
+        <button className={styles.confirmAllButton} disabled={documentReady} type="button" onClick={confirmAllFields}>원문과 일치함 전체 확인</button>
         <div className={styles.checkRow}><label><input type="checkbox" checked={currentConfirmed} disabled={!documentReady} onChange={(event) => setCurrentConfirmed(event.target.checked)} /><span>{tab === "contract" ? "개별 확인을 마쳤으며, 이 계약서 정보를 검토 입력으로 확정합니다." : "개별 확인을 마쳤으며, 이 등본 정보를 검토 입력으로 확정합니다."}</span></label></div>
         {mode === "both" && !canSubmit && <p className={styles.confirmGuide}>계약서와 등본의 개별 확인 및 최종 확인을 모두 마쳐야 검토 결과를 볼 수 있습니다.</p>}
         <div className={styles.actions}>{onBack ? <button className={styles.secondaryButton} type="button" onClick={onBack}>문서 다시 선택</button> : <Link className={styles.secondaryButton} href="/contract-review">문서 다시 선택</Link>}{mode === "both" && tab === "contract" && !registryConfirmed ? <button className={styles.primaryButton} disabled={!contractReady} type="button" onClick={() => setTab("registry")}>등본 정보 확인</button> : <button className={styles.primaryButton} disabled={!canSubmit} type="button" onClick={completeVerification}>{submitLabel ?? "검토 결과 보기"}</button>}</div>
