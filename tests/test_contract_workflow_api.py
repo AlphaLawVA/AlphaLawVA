@@ -25,6 +25,37 @@ from api.services.confirmed_snapshot_store import (
 )
 from api.services.contract_review_service import ContractReviewService
 from api.services.special_clause_service import SpecialClauseService
+from ml.agent.contract_review_graph import (
+    ContractReviewEvidence,
+    ContractReviewRetrievalQuery,
+)
+
+
+class FakeEvidenceRetriever:
+    def retrieve(
+        self,
+        queries: list[ContractReviewRetrievalQuery],
+    ) -> list[ContractReviewEvidence]:
+        return [
+            ContractReviewEvidence(
+                item_id=queries[0].item_id,
+                source_type="statute",
+                source_id="law:001248:article:0003",
+                title="주택임대차보호법 제3조",
+                text="법령 원문",
+                rank=1,
+                similarity=0.9,
+                metadata={"law_name": "주택임대차보호법"},
+            )
+        ]
+
+
+class FailingEvidenceRetriever:
+    def retrieve(
+        self,
+        _queries: list[ContractReviewRetrievalQuery],
+    ) -> list[ContractReviewEvidence]:
+        raise FileNotFoundError("missing vector database")
 
 
 class ContractWorkflowApiTests(unittest.TestCase):
@@ -106,6 +137,43 @@ class ContractWorkflowApiTests(unittest.TestCase):
         )
         self.assertEqual(response.registry_items[0].status, "pending_evidence")
         self.assertEqual(response.input_summary.contract_snapshot_id, contract.snapshot_id)
+        self.assertIn(
+            "등기사항전부증명서 확인 고지",
+            [item.label for item in response.precheck_items],
+        )
+        self.assertEqual(response.evidence, [])
+
+    def test_contract_review_returns_retrieved_evidence_when_enabled(self):
+        store = ConfirmedSnapshotStore()
+        contract = store.save_contract(self._contract_snapshot())
+        service = ContractReviewService(
+            store,
+            evidence_retriever=FakeEvidenceRetriever(),
+        )
+
+        response = service.review(
+            ContractReviewRequest(contract_snapshot_id=contract.snapshot_id)
+        )
+
+        self.assertEqual(response.evidence_status, "retrieved")
+        self.assertEqual(response.evidence[0].source_type, "statute")
+        self.assertEqual(response.evidence[0].metadata["law_name"], "주택임대차보호법")
+
+    def test_contract_review_keeps_prechecks_when_retrieval_is_unavailable(self):
+        store = ConfirmedSnapshotStore()
+        contract = store.save_contract(self._contract_snapshot())
+        service = ContractReviewService(
+            store,
+            evidence_retriever=FailingEvidenceRetriever(),
+        )
+
+        response = service.review(
+            ContractReviewRequest(contract_snapshot_id=contract.snapshot_id)
+        )
+
+        self.assertEqual(response.evidence_status, "unavailable")
+        self.assertEqual(response.evidence, [])
+        self.assertTrue(response.precheck_items)
 
     def test_contract_review_rejects_legacy_inline_contract(self):
         with self.assertRaises(ValidationError):

@@ -42,6 +42,9 @@ from api.services.precedent_search_sessions import (
     SimilarityExplanationInProgressError,
 )
 from api.services.special_clause_service import SpecialClauseService
+from ml.rag.contract_review_retriever import (
+    create_contract_review_rag_retriever_from_env,
+)
 from api.services.mysql_snapshot_store import create_mysql_snapshot_store_from_env
 
 
@@ -225,7 +228,10 @@ def create_app(
     app.state.contract_review_service = (
         contract_review_service
         if contract_review_service is not None
-        else ContractReviewService(app.state.confirmed_snapshot_store)
+        else ContractReviewService(
+            app.state.confirmed_snapshot_store,
+            evidence_retriever=create_contract_review_rag_retriever_from_env(),
+        )
     )
     app.state.special_clause_service = (
         special_clause_service

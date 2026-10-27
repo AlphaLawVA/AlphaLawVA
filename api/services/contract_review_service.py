@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from api.models.contracts import (
     ContractInputSummary,
+    ContractReviewEvidenceItem,
     ContractReviewItem,
     ContractReviewRequest,
     ContractReviewResponse,
@@ -25,13 +26,22 @@ from api.models.contracts import (
 from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
+from ml.agent.contract_review_graph import ContractReviewGraph
+from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
 
 
 class ContractReviewService:
     """RAG 연결 전 계약서 검토 입력 상태를 구성한다."""
 
-    def __init__(self, snapshot_store: ConfirmedSnapshotRepository) -> None:
+    def __init__(
+        self,
+        snapshot_store: ConfirmedSnapshotRepository,
+        review_graph: ContractReviewGraph | None = None,
+        evidence_retriever: ContractReviewEvidenceRetriever | None = None,
+    ) -> None:
         self._snapshot_store = snapshot_store
+        self._review_graph = review_graph or ContractReviewGraph()
+        self._evidence_retriever = evidence_retriever
 
     def review(self, payload: ContractReviewRequest) -> ContractReviewResponse:
         contract_snapshot = self._snapshot_store.get_contract(
@@ -42,6 +52,36 @@ class ContractReviewService:
             if payload.registry_snapshot_id is not None
             else None
         )
+        evidence_status = EvidenceStatus.PENDING_RETRIEVAL
+        evidence: list[ContractReviewEvidenceItem] = []
+        try:
+            precheck_result = self._review_graph.prepare(
+                contract_snapshot,
+                registry_snapshot,
+                evidence_retriever=self._evidence_retriever,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError):
+            precheck_result = self._review_graph.prepare(
+                contract_snapshot,
+                registry_snapshot,
+            )
+            evidence_status = EvidenceStatus.UNAVAILABLE
+        else:
+            if self._evidence_retriever is not None:
+                evidence_status = EvidenceStatus.RETRIEVED
+                evidence = [
+                    ContractReviewEvidenceItem(
+                        item_id=item.item_id,
+                        source_type=item.source_type,
+                        source_id=item.source_id,
+                        title=item.title,
+                        text=item.text,
+                        rank=item.rank,
+                        similarity=item.similarity,
+                        metadata=item.metadata,
+                    )
+                    for item in precheck_result.evidence
+                ]
         contract_items = self._build_contract_items(contract_snapshot)
         registry_items = self._build_registry_items(registry_snapshot)
         return ContractReviewResponse(
@@ -57,9 +97,13 @@ class ContractReviewService:
             ),
             contract_items=contract_items,
             registry_items=registry_items,
-            evidence_status=EvidenceStatus.PENDING_RETRIEVAL,
+            precheck_items=precheck_result.items,
+            evidence=evidence,
+            evidence_status=evidence_status,
             message=(
-                "확정된 계약 정보의 입력 상태를 확인했습니다. "
+                "확정된 계약 정보의 입력 상태를 확인했습니다."
+                if evidence_status == EvidenceStatus.RETRIEVED
+                else "확정된 계약 정보의 입력 상태를 확인했습니다. "
                 "법령·판례 근거 검토는 아직 연결되지 않았습니다."
             ),
             disclaimer=(

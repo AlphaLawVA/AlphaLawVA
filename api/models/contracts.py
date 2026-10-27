@@ -30,6 +30,8 @@ class ContractApiModel(BaseModel):
 
 class EvidenceStatus(str, Enum):
     PENDING_RETRIEVAL = "pending_retrieval"
+    RETRIEVED = "retrieved"
+    UNAVAILABLE = "unavailable"
 
 
 class ReviewItemStatus(str, Enum):
@@ -59,12 +61,25 @@ class ContractReviewItem(ContractApiModel):
     message: str = Field(min_length=1)
 
 
+class ContractReviewEvidenceItem(ContractApiModel):
+    item_id: str = Field(min_length=1)
+    source_type: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    rank: int = Field(ge=1)
+    similarity: float = Field(ge=-1, le=1)
+    metadata: dict[str, str | int | float | None] = Field(default_factory=dict)
+
+
 class ContractReviewResponse(ContractApiModel):
     review_id: UUID
     status: str = Field(min_length=1)
     input_summary: ContractInputSummary
     contract_items: list[ContractReviewItem]
     registry_items: list[ContractReviewItem]
+    precheck_items: list[ContractReviewItem]
+    evidence: list[ContractReviewEvidenceItem]
     evidence_status: EvidenceStatus
     message: str = Field(min_length=1)
     disclaimer: str = Field(min_length=1)
