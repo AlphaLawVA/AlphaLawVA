@@ -108,7 +108,7 @@ function PrecedentSearchDemo() {
             <h2>내 상황과 유사한 부분</h2>
             {comparison === "idle" && <><p>필요할 때 검색 질문과 판례 근거를 비교해 설명합니다.</p><button className={styles.primaryButton} type="button" onClick={compareCurrent}>내 상황과 비교하기</button></>}
             {comparison === "loading" && <p className={styles.loadingInline}><LoaderCircle className={styles.spinner} size={17} />비교 내용을 만들고 있습니다.</p>}
-            {comparison === "complete" && <p>입력한 상황은 보증금 반환 또는 임대차 관계의 책임 범위를 확인해야 한다는 점에서 이 판례의 참고 부분과 연결해 살펴볼 수 있습니다. 다만 실제 결과는 계약 내용과 사실관계에 따라 달라질 수 있습니다.</p>}
+            {comparison === "complete" && <p>{current.matchedReason}</p>}
             {comparison === "error" && <><p>비교 내용을 만들지 못했습니다.</p><button className={styles.primaryButton} type="button" onClick={compareCurrent}>재시도</button></>}
           </section>
           <PrecedentReference highlight={highlightSimilar} mode="search" onHighlightChange={setHighlightSimilar} precedent={current} />

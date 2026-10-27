@@ -183,7 +183,7 @@ export function PrecedentModal({
               {fullTextSections.map(([key, heading, content]) => (
                 <section key={heading}>
                   <h3>{heading}</h3>
-                  <p><HighlightedFullText content={content} highlight={highlight} ranges={key === "reason" ? precedent.highlightChunks ?? [] : []} /></p>
+                  <p><HighlightedFullText content={content} highlight={highlight} ranges={key === "reason" ? precedent.highlightChunks : undefined} /></p>
                 </section>
               ))}
             </div>
@@ -195,9 +195,10 @@ export function PrecedentModal({
   );
 }
 
-function HighlightedFullText({ content, highlight, ranges }: { content: string; highlight: boolean; ranges: Array<{ startOffset: number; endOffset: number }> }) {
+function HighlightedFullText({ content, highlight, ranges }: { content: string; highlight: boolean; ranges?: Array<{ startOffset: number; endOffset: number }> }) {
   if (!highlight) return content;
-  if (ranges.length === 0) return <span className={styles.textHighlight}>{content}</span>;
+  if (ranges === undefined) return <span className={styles.textHighlight}>{content}</span>;
+  if (ranges.length === 0) return content;
   const parts: Array<{ text: string; highlighted: boolean }> = [];
   let cursor = 0;
   for (const range of [...ranges].sort((a, b) => a.startOffset - b.startOffset)) {
