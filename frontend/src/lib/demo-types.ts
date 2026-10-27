@@ -16,10 +16,12 @@ export type CaseBasis = {
   precedentId: string;
   summary: string;
   easySummary?: string;
+  matchedReason?: string;
   court?: string;
   decisionDate?: string;
   judgmentType?: string;
   evidenceChunks?: Array<{ section: string; content: string }>;
+  highlightChunks?: Array<{ section: string; startOffset: number; endOffset: number }>;
   fullText?: {
     order?: string;
     claim?: string;

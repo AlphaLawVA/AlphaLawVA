@@ -12,6 +12,7 @@ import styles from "../contract-review.module.css";
 type VerifyTab = "contract" | "registry";
 
 type VerifySnapshotDemoProps = {
+  initialContractSnapshot?: ConfirmedContractSnapshot;
   modeOverride?: DocumentMode;
   onBack?: () => void;
   onComplete?: () => void;
@@ -42,12 +43,12 @@ function copyRegistrySnapshot(): ConfirmedRegistrySnapshot {
   return { ...confirmedRegistrySnapshot, fields: confirmedRegistrySnapshot.fields.map((field) => ({ ...field, source: { ...field.source } })), rights: confirmedRegistrySnapshot.rights.map((right) => ({ ...right, source: { ...right.source } })) };
 }
 
-export function VerifySnapshotDemo({ modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
+export function VerifySnapshotDemo({ initialContractSnapshot, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = modeOverride ?? readMode(searchParams.get("documents"));
   const [tab, setTab] = useState<VerifyTab>(mode === "registry" ? "registry" : "contract");
-  const [contractSnapshot, setContractSnapshot] = useState(copyContractSnapshot);
+  const [contractSnapshot, setContractSnapshot] = useState(() => initialContractSnapshot ? { ...initialContractSnapshot, fields: initialContractSnapshot.fields.map((field) => ({ ...field, source: { ...field.source } })) } : copyContractSnapshot());
   const [registrySnapshot, setRegistrySnapshot] = useState(copyRegistrySnapshot);
   const [contractConfirmed, setContractConfirmed] = useState(false);
   const [registryConfirmed, setRegistryConfirmed] = useState(false);

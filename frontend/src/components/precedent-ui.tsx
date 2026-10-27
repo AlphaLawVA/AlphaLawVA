@@ -146,11 +146,11 @@ export function PrecedentModal({
   const highlight = controlledHighlight ?? localHighlight;
   const setHighlight = onHighlightChange ?? setLocalHighlight;
   const fullTextSections = [
-    ["주문", precedent.fullText?.order],
-    ["청구취지", precedent.fullText?.claim],
-    ["원심판결", precedent.fullText?.lowerCourt],
-    ["이유", precedent.fullText?.reason],
-  ].filter((item): item is [string, string] => Boolean(item[1]));
+    ["order", "주문", precedent.fullText?.order],
+    ["claim", "청구취지", precedent.fullText?.claim],
+    ["lowerCourt", "원심판결", precedent.fullText?.lowerCourt],
+    ["reason", "이유", precedent.fullText?.reason],
+  ].filter((item): item is [string, string, string] => Boolean(item[2]));
   const openedFromList = initialView === "fullText";
 
   return (
@@ -180,10 +180,10 @@ export function PrecedentModal({
             </button>
             <p className={styles.dataNotice}>보유 중인 판례 데이터로 제공하는 전문입니다.</p>
             <div className={styles.fullText}>
-              {fullTextSections.map(([heading, content]) => (
+              {fullTextSections.map(([key, heading, content]) => (
                 <section key={heading}>
                   <h3>{heading}</h3>
-                  <p><span className={highlight && heading === "이유" ? styles.textHighlight : undefined}>{content}</span></p>
+                  <p><HighlightedFullText content={content} highlight={highlight} ranges={key === "reason" ? precedent.highlightChunks ?? [] : []} /></p>
                 </section>
               ))}
             </div>
@@ -193,6 +193,22 @@ export function PrecedentModal({
       </section>
     </div>
   );
+}
+
+function HighlightedFullText({ content, highlight, ranges }: { content: string; highlight: boolean; ranges: Array<{ startOffset: number; endOffset: number }> }) {
+  if (!highlight) return content;
+  if (ranges.length === 0) return <span className={styles.textHighlight}>{content}</span>;
+  const parts: Array<{ text: string; highlighted: boolean }> = [];
+  let cursor = 0;
+  for (const range of [...ranges].sort((a, b) => a.startOffset - b.startOffset)) {
+    const start = Math.max(cursor, range.startOffset);
+    const end = Math.max(start, Math.min(content.length, range.endOffset));
+    if (cursor < start) parts.push({ text: content.slice(cursor, start), highlighted: false });
+    if (start < end) parts.push({ text: content.slice(start, end), highlighted: true });
+    cursor = end;
+  }
+  if (cursor < content.length) parts.push({ text: content.slice(cursor), highlighted: false });
+  return <>{parts.map((part, index) => <span className={part.highlighted ? styles.textHighlight : undefined} key={`${index}-${part.text.length}`}>{part.text}</span>)}</>;
 }
 
 function OfficialLink({ precedent }: { precedent: CaseBasis }) {
