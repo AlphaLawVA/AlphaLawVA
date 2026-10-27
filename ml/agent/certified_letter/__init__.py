@@ -7,6 +7,7 @@ from ml.agent.certified_letter.normalizer import normalize_request
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
+    ContractPartyRole,
     NormalizedCertifiedLetterRequest,
     PartyData,
     PaymentData,
@@ -29,6 +30,7 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "CertifiedLetterRequestData",
     "ContractData",
+    "ContractPartyRole",
     "NormalizedCertifiedLetterRequest",
     "PartyData",
     "PaymentData",

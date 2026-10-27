@@ -34,6 +34,7 @@ from ml.agent.certified_letter.normalizer import normalize_request
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
+    ContractPartyRole,
     DraftPartyData,
     LetterDraftData,
     PartyData,
@@ -390,6 +391,7 @@ def _make_summary(
 def _to_internal_request(request: CertifiedLetterDraftRequest) -> CertifiedLetterRequestData:
     contract = request.contract
     return CertifiedLetterRequestData(
+        sender_role=ContractPartyRole(request.sender_role.value),
         purpose=request.purpose,
         facts=request.facts,
         requested_deadline=request.requested_deadline,

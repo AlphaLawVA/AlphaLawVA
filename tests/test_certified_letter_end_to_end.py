@@ -20,6 +20,7 @@ from ml.agent.certified_letter.state import (
 
 def make_payload():
     return {
+        "sender_role": "lessee",
         "purpose": "계약 종료 후 보증금을 반환받고 싶습니다.",
         "facts": "계약이 종료되었지만 보증금 1억원을 아직 반환받지 못했습니다.",
         "contract": {
@@ -92,18 +93,18 @@ class RecordingStructuredModel:
     def invoke(self, prompt):
         payload = json.loads(prompt.user)
         self.payloads.append(payload)
-        contract = payload["contract"]
+        parties = payload["document_parties"]
         return LetterDraftData(
             title="임대차보증금 반환 촉구서",
             sender=DraftPartyData(
-                name=contract["lessee"]["name"],
-                address=contract["lessee"]["address"],
-                detail_address=contract["lessee"]["detail_address"],
+                name=parties["sender"]["name"],
+                address=parties["sender"]["address"],
+                detail_address=parties["sender"]["detail_address"],
             ),
             recipient=DraftPartyData(
-                name=contract["lessor"]["name"],
-                address=contract["lessor"]["address"],
-                detail_address=contract["lessor"]["detail_address"],
+                name=parties["recipient"]["name"],
+                address=parties["recipient"]["address"],
+                detail_address=parties["recipient"]["detail_address"],
             ),
             body=(
                 "「주택임대차보호법」 제4조를 근거로 보증금 "

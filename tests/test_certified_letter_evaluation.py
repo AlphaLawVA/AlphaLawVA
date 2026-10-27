@@ -110,7 +110,8 @@ class CertifiedLetterEvaluationTests(unittest.TestCase):
     def test_versioned_dataset_contains_only_valid_synthetic_cases(self):
         cases = load_cases(DATASET_PATH)
 
-        self.assertEqual(len(cases), 6)
+        self.assertEqual(len(cases), 7)
+        self.assertTrue(any(item.request.sender_role.value == "lessor" for item in cases))
         self.assertTrue(all(item.is_synthetic for item in cases))
         self.assertEqual(len({item.case_id for item in cases}), len(cases))
 

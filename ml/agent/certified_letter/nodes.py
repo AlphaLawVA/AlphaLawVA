@@ -29,6 +29,7 @@ from ml.agent.certified_letter.state import (
     CertifiedLetterScopeDecision,
     CertifiedLetterGraphState,
     WorkflowFailure,
+    recipient_role,
 )
 
 
@@ -153,6 +154,10 @@ class CertifiedLetterNodes:
         context = " ".join(
             (
                 f"{contract_label} 임대차",
+                (
+                    f"발신인 {request.sender_role.value} "
+                    f"수신인 {recipient_role(request.sender_role).value}"
+                ),
                 period_context,
                 payment_context,
                 searchable_text,
@@ -216,17 +221,9 @@ class CertifiedLetterNodes:
 
     def check_evidence(
         self,
-        state: CertifiedLetterGraphState,
+        _state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
-        if state.get("selected_statutes"):
-            return {}
-        return {
-            "outcome": "insufficient_evidence",
-            "message": (
-                "내용증명 본문을 뒷받침할 충분한 법령 근거를 찾지 못했습니다. "
-                "사실관계를 보완한 뒤 다시 시도해 주세요."
-            ),
-        }
+        return {}
 
     def generate_draft(
         self,

@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from threading import RLock
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 from uuid import UUID, uuid4
 
 from api.models.certified_letters import (
@@ -32,6 +32,8 @@ from api.models.certified_letters import (
     CertifiedLetterOutcome,
     CertifiedLetterParty,
     FollowUpAction,
+    PrecedentFullTextSection,
+    PrecedentMatchedChunk,
     SimilarPrecedent,
     StatuteEvidence,
 )
@@ -42,18 +44,31 @@ from api.services.certified_letter_jobs import (
     CertifiedLetterJobStore,
     CertifiedLetterJobTransitionError,
 )
+from api.services.precedent_case_repository import (
+    PrecedentCaseRepository,
+    PrecedentCaseRepositoryError,
+)
 from ml.agent.certified_letter.state import (
     CertifiedLetterGraphState,
     CertifiedLetterRequestData,
+    ContractPartyRole,
     ContractData,
     PartyData,
     PaymentData,
     PeriodData,
     PropertyData,
 )
+from ml.agent.certified_letter.validators import extract_statute_citations
 
 
 logger = logging.getLogger(__name__)
+
+PRECEDENT_FULL_TEXT_FIELDS = (
+    ("order", "주문", "주문"),
+    ("claim", "청구취지", "청구취지"),
+    ("original_judgment", "원심판결", "원심판결"),
+    ("reason", "이유", "이유"),
+)
 
 
 class CertifiedLetterGenerationUnavailableError(Exception):
@@ -79,11 +94,13 @@ class CertifiedLetterService:
         *,
         graph: CertifiedLetterGraphRunner | None = None,
         jobs: CertifiedLetterJobStore | None = None,
+        precedent_repository: PrecedentCaseRepository | None = None,
         clock: Callable[[], datetime] | None = None,
         uuid_factory: Callable[[], UUID] | None = None,
     ) -> None:
         self.graph = graph
         self.jobs = jobs or CertifiedLetterJobStore()
+        self.precedent_repository = precedent_repository
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.uuid_factory = uuid_factory or uuid4
         self._requests: dict[UUID, CertifiedLetterRequestData] = {}
@@ -155,7 +172,14 @@ class CertifiedLetterService:
                 )
                 return state
             outcome = CertifiedLetterOutcome(state["outcome"])
-            result = _to_api_result(state) if outcome is CertifiedLetterOutcome.DRAFT_READY else None
+            result = (
+                _to_api_result(
+                    state,
+                    precedent_repository=self.precedent_repository,
+                )
+                if outcome is CertifiedLetterOutcome.DRAFT_READY
+                else None
+            )
             self.jobs.mark_completed(
                 draft_id,
                 outcome=outcome,
@@ -198,6 +222,7 @@ def _to_internal_request(
 ) -> CertifiedLetterRequestData:
     contract = request.contract
     return CertifiedLetterRequestData(
+        sender_role=ContractPartyRole(request.sender_role.value),
         purpose=request.purpose,
         facts=request.facts,
         requested_deadline=request.requested_deadline,
@@ -231,13 +256,26 @@ def _to_party(value) -> PartyData:
     )
 
 
-def _to_api_result(state: CertifiedLetterGraphState) -> CertifiedLetterDraftResult:
+def _to_api_result(
+    state: CertifiedLetterGraphState,
+    *,
+    precedent_repository: PrecedentCaseRepository | None = None,
+) -> CertifiedLetterDraftResult:
     draft = state["draft"]
     normalized_request = state["normalized_request"]
+    selected_statutes = state.get("selected_statutes", ())
+    cited_statutes = extract_statute_citations(draft.body)
+    no_statute_warning = (
+        "본문에 직접 인용된 관련 법령 없이 작성된 초안입니다. "
+        "발송 전 법적 근거를 별도로 확인해 주세요."
+        if not cited_statutes
+        else ""
+    )
     warnings = _unique_strings(
         (
             *draft.warnings,
             *normalized_request.warnings,
+            no_statute_warning,
             "이 문서는 법률 검토 전 초안입니다.",
         )
     )
@@ -256,23 +294,15 @@ def _to_api_result(state: CertifiedLetterGraphState) -> CertifiedLetterDraftResu
             source_node_id=item.source_node_id,
             source_url=item.source_url,
         )
-        for item in state["selected_statutes"]
+        for item in selected_statutes
+        if (
+            _normalize_law_name(item.law_name),
+            _normalize_article(item.article_label),
+        )
+        in cited_statutes
     ]
     precedents = [
-        SimilarPrecedent(
-            precedent_id=item.precedent_id,
-            case_number=item.case_number,
-            case_name=item.case_name,
-            court_name=item.court_name,
-            decision_date=_parse_date(item.decision_date),
-            summary=item.summary or item.text,
-            matched_reason=item.matched_reason,
-            source_url=item.source_url
-            or (
-                "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq="
-                f"{item.precedent_id}"
-            ),
-        )
+        _to_similar_precedent(item, precedent_repository=precedent_repository)
         for item in state.get("selected_precedents", ())
     ]
     return CertifiedLetterDraftResult(
@@ -299,6 +329,85 @@ def _to_api_result(state: CertifiedLetterGraphState) -> CertifiedLetterDraftResu
         similar_precedents=precedents,
         warnings=warnings,
     )
+
+
+def _to_similar_precedent(
+    item,
+    *,
+    precedent_repository: PrecedentCaseRepository | None,
+) -> SimilarPrecedent:
+    case_data = _load_precedent_presentation(
+        precedent_repository,
+        item.precedent_id,
+    )
+    precedent_summary = _optional_text(case_data.get("생성요약"))
+    easy_summary = _optional_text(case_data.get("쉬운요약"))
+    return SimilarPrecedent(
+        precedent_id=item.precedent_id,
+        case_number=_optional_text(case_data.get("사건번호")) or item.case_number,
+        case_name=_optional_text(case_data.get("사건명")) or item.case_name,
+        court_name=_optional_text(case_data.get("법원명")) or item.court_name,
+        decision_date=(
+            _parse_date(_optional_text(case_data.get("선고일자")))
+            or _parse_date(item.decision_date)
+        ),
+        summary=easy_summary or precedent_summary or item.summary or item.text,
+        precedent_summary=precedent_summary,
+        easy_summary=easy_summary,
+        matched_reason=item.matched_reason,
+        matched_chunks=[
+            PrecedentMatchedChunk(
+                rank=chunk.rank,
+                chunk_id=chunk.chunk_id,
+                section=chunk.section,
+                chunk_type=chunk.chunk_type,
+                section_chunk_index=chunk.section_chunk_index,
+                similarity_score=chunk.similarity,
+                text=chunk.text,
+            )
+            for chunk in item.matched_chunks
+        ],
+        full_text_sections=_full_text_sections(case_data),
+        source_url=item.source_url
+        or (
+            "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq="
+            f"{item.precedent_id}"
+        ),
+    )
+
+
+def _load_precedent_presentation(
+    repository: PrecedentCaseRepository | None,
+    precedent_id: str,
+) -> dict[str, Any]:
+    if repository is None:
+        return {}
+    try:
+        return repository.get(precedent_id)
+    except PrecedentCaseRepositoryError:
+        logger.info(
+            "내용증명 관련 판례 원본을 찾지 못함: precedent_id=%s",
+            precedent_id,
+        )
+        return {}
+
+
+def _full_text_sections(
+    case_data: dict[str, Any],
+) -> list[PrecedentFullTextSection]:
+    sections = []
+    for key, title, source_field in PRECEDENT_FULL_TEXT_FIELDS:
+        content = _optional_text(case_data.get(source_field))
+        if content is not None:
+            sections.append(
+                PrecedentFullTextSection(
+                    position=len(sections) + 1,
+                    key=key,
+                    title=title,
+                    content=content,
+                )
+            )
+    return sections
 
 
 def _to_job_response(job: CertifiedLetterJob) -> CertifiedLetterDraftJobResponse:
@@ -352,6 +461,26 @@ def _parse_date(value: str | None) -> date | None:
 
 def _unique_strings(values) -> list[str]:
     return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+
+def _optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _normalize_law_name(value: str) -> str:
+    return "".join(value.split()).replace("ㆍ", "·")
+
+
+def _normalize_article(value: str) -> str:
+    compact = "".join(value.split())
+    match = re.search(r"제?(\d+)조(?:의(\d+))?", compact)
+    if match is None:
+        return compact
+    article, subarticle = match.groups()
+    return f"제{article}조" + (f"의{subarticle}" if subarticle else "")
 
 
 __all__ = [

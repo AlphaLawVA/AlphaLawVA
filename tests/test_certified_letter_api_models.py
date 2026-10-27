@@ -40,6 +40,7 @@ COMPLETED_AT = datetime(2026, 10, 22, 5, 31, tzinfo=timezone.utc)
 def make_request_data(*, contract_type: str = "jeonse") -> dict:
     monthly_rent = None if contract_type == "jeonse" else 800000
     return {
+        "sender_role": "lessee",
         "purpose": "  계약 종료 후 보증금을 반환받고 싶습니다.  ",
         "facts": (
             "  계약이 종료되었고 임대인에게 보증금 반환을 요청했지만 "
@@ -132,6 +133,7 @@ class CertifiedLetterDraftRequestTests(unittest.TestCase):
             "계약 종료 후 보증금을 반환받고 싶습니다.",
         )
         self.assertEqual(request.contract.payment.deposit, 100_000_000)
+        self.assertEqual(request.sender_role.value, "lessee")
         self.assertIsNone(request.contract.payment.monthly_rent)
         self.assertEqual(request.requested_deadline.isoformat(), "2026-11-15")
 
@@ -141,6 +143,21 @@ class CertifiedLetterDraftRequestTests(unittest.TestCase):
         )
 
         self.assertEqual(request.contract.payment.monthly_rent, 800_000)
+
+    def test_requires_explicit_sender_role(self):
+        payload = make_request_data()
+        payload.pop("sender_role")
+
+        with self.assertRaises(ValidationError):
+            CertifiedLetterDraftRequest.model_validate(payload)
+
+    def test_accepts_lessor_as_sender(self):
+        payload = make_request_data()
+        payload["sender_role"] = "lessor"
+
+        request = CertifiedLetterDraftRequest.model_validate(payload)
+
+        self.assertEqual(request.sender_role.value, "lessor")
 
     def test_rejects_unknown_fields(self):
         payload = make_request_data()

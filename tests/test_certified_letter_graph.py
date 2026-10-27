@@ -9,6 +9,7 @@ from ml.agent.certified_letter.nodes import CertifiedLetterNodeDependencies
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
+    ContractPartyRole,
     DraftPartyData,
     LetterDraftData,
     PartyData,
@@ -33,6 +34,7 @@ def make_request(
     lessor_address: str = "서울특별시 종로구 사직로 1",
 ):
     return CertifiedLetterRequestData(
+        sender_role=ContractPartyRole.LESSEE,
         purpose=purpose,
         facts=facts,
         requested_deadline=None,
@@ -318,7 +320,7 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "draft_ready")
         self.assertEqual(len(statute_search.calls), 1)
 
-    def test_stops_without_generation_when_statute_evidence_is_empty(self):
+    def test_generates_without_citations_when_statute_evidence_is_empty(self):
         dependencies, _statute_search, precedent_search, generator, _validator = (
             make_dependencies(statutes=[])
         )
@@ -326,9 +328,9 @@ class CertifiedLetterGraphTests(unittest.TestCase):
 
         result = graph.invoke({"request": make_request()})
 
-        self.assertEqual(result["outcome"], "insufficient_evidence")
+        self.assertEqual(result["outcome"], "draft_ready")
         self.assertEqual(len(precedent_search.calls), 1)
-        self.assertEqual(generator.generate_calls, [])
+        self.assertEqual(generator.generate_calls[0][1], ())
 
     def test_repairs_once_then_completes(self):
         issue = ValidationIssue(

@@ -9,6 +9,7 @@ from ml.agent.certified_letter.normalizer import normalize_request
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
+    ContractPartyRole,
     DraftPartyData,
     LetterDraftData,
     PartyData,
@@ -23,6 +24,7 @@ from ml.agent.certified_letter.validators import CertifiedLetterDraftValidator
 def make_request(*, requested_deadline=None):
     return normalize_request(
         CertifiedLetterRequestData(
+            sender_role=ContractPartyRole.LESSEE,
             purpose="보증금 반환을 요청합니다.",
             facts="2026-09-30 계약이 종료되었지만 보증금을 받지 못했습니다.",
             requested_deadline=requested_deadline,
@@ -90,6 +92,29 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         self.request = make_request()
         self.statutes = [make_statute()]
 
+    def test_accepts_lessor_sender_when_direction_is_explicit(self):
+        request = replace(self.request, sender_role=ContractPartyRole.LESSOR)
+        draft = replace(
+            make_draft(),
+            sender=DraftPartyData(
+                name="홍길동",
+                address="서울특별시 종로구 사직로 1",
+            ),
+            recipient=DraftPartyData(
+                name="김민지",
+                address="서울특별시 중구 세종대로 1",
+            ),
+        )
+
+        self.assertEqual(self.validator.validate(request, [make_statute()], draft), [])
+
+    def test_allows_no_citation_when_no_statute_was_retrieved(self):
+        draft = replace(make_draft(), body="보증금을 7일 이내 반환해 주시기 바랍니다.")
+
+        codes = issue_codes(self.validator.validate(self.request, [], draft))
+
+        self.assertNotIn("missing_statute_citation", codes)
+
     def test_accepts_grounded_draft(self):
         issues = self.validator.validate(
             self.request,
@@ -99,7 +124,7 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
 
         self.assertEqual(issues, [])
 
-    def test_rejects_unsupported_or_missing_citation(self):
+    def test_rejects_unsupported_citation_but_allows_no_citation(self):
         unsupported = replace(
             make_draft(),
             body=make_draft().body.replace("주택임대차보호법", "민법"),
@@ -113,9 +138,11 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
             "unsupported_statute_citation",
             issue_codes(self.validator.validate(self.request, self.statutes, unsupported)),
         )
-        self.assertIn(
+        self.assertNotIn(
             "missing_statute_citation",
-            issue_codes(self.validator.validate(self.request, self.statutes, missing)),
+            issue_codes(
+                self.validator.validate(self.request, self.statutes, missing)
+            ),
         )
 
     def test_rejects_unverified_paragraph_or_item_citation(self):

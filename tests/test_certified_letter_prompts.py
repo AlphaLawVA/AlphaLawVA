@@ -17,6 +17,7 @@ from ml.agent.certified_letter.prompts import (
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
+    ContractPartyRole,
     DraftPartyData,
     LetterDraftData,
     PartyData,
@@ -31,6 +32,7 @@ from ml.agent.certified_letter.state import (
 def make_request(*, purpose: str = "보증금 반환을 요청합니다."):
     return normalize_request(
         CertifiedLetterRequestData(
+            sender_role=ContractPartyRole.LESSEE,
             purpose=purpose,
             facts="계약이 종료되었지만 보증금을 아직 받지 못했습니다.",
             requested_deadline=None,
@@ -101,7 +103,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_3")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_5")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -110,6 +112,11 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertNotIn("precedent", prompt.user.lower())
         self.assertNotIn("판례", prompt.user)
         self.assertIn("「완전한 법령명」 제N조", prompt.system)
+        self.assertEqual(payload["document_parties"]["sender_role"], "lessee")
+        self.assertEqual(payload["document_parties"]["sender"]["name"], "김민지")
+        self.assertEqual(payload["document_parties"]["recipient"]["name"], "홍길동")
+        self.assertNotIn("lessor", payload["contract_facts"])
+        self.assertNotIn("lessee", payload["contract_facts"])
         self.assertEqual(
             list(inspect.signature(build_generation_prompt).parameters),
             ["request", "statute_evidence"],
@@ -125,6 +132,25 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertNotIn("25년 경력", prompt.system)
         self.assertNotIn("성공률", prompt.system)
         self.assertNotIn("심리적 설득력", prompt.system)
+
+    def test_prompt_requires_fixed_body_sections_without_inventing_fields(self):
+        prompt = build_generation_prompt(make_request(), [make_statute()])
+
+        self.assertIn("1. 당사자 간의 관계 및 계약 내용", prompt.system)
+        self.assertIn("2. 분쟁의 발생 사실", prompt.system)
+        self.assertIn("3. 요구 사항, 법령 근거 및 이행 기한", prompt.system)
+        self.assertIn("4. 협의 제안 및 미이행 시 후속 조치", prompt.system)
+        self.assertIn("계좌번호, 반복 독촉 이력", prompt.system)
+        self.assertIn("문서 제목·발신인·수신인", prompt.system)
+
+    def test_lessor_sender_is_resolved_before_prompt_generation(self):
+        request = replace(make_request(), sender_role=ContractPartyRole.LESSOR)
+
+        payload = json.loads(build_generation_prompt(request, []).user)
+
+        self.assertEqual(payload["document_parties"]["sender_role"], "lessor")
+        self.assertEqual(payload["document_parties"]["sender"]["name"], "홍길동")
+        self.assertEqual(payload["document_parties"]["recipient"]["name"], "김민지")
 
     def test_user_instruction_is_data_not_system_instruction(self):
         request = make_request(

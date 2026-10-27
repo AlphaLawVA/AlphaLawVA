@@ -32,6 +32,11 @@ class ContractType(str, Enum):
     MONTHLY_RENT = "monthly_rent"
 
 
+class CertifiedLetterSenderRole(str, Enum):
+    LESSEE = "lessee"
+    LESSOR = "lessor"
+
+
 class CertifiedLetterJobStatus(str, Enum):
     QUEUED = "queued"
     PROCESSING = "processing"
@@ -100,6 +105,9 @@ class CertifiedLetterContractInput(CertifiedLetterApiModel):
 
 
 class CertifiedLetterDraftRequest(CertifiedLetterApiModel):
+    sender_role: CertifiedLetterSenderRole = Field(
+        description="내용증명을 보내는 계약 당사자 역할",
+    )
     purpose: str = Field(
         min_length=2,
         max_length=200,
@@ -162,6 +170,27 @@ class StatuteEvidence(CertifiedLetterApiModel):
     source_url: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
+class PrecedentMatchedChunk(CertifiedLetterApiModel):
+    """A real vector-search chunk that led to a returned precedent."""
+
+    rank: int = Field(ge=1)
+    chunk_id: str = Field(min_length=1, max_length=500)
+    section: str | None = Field(default=None, min_length=1, max_length=300)
+    chunk_type: str | None = Field(default=None, min_length=1, max_length=100)
+    section_chunk_index: int | None = Field(default=None, ge=0)
+    similarity_score: float
+    text: str = Field(min_length=1, max_length=20_000)
+
+
+class PrecedentFullTextSection(CertifiedLetterApiModel):
+    """A stored section of the precedent's in-product full-text view."""
+
+    position: int = Field(ge=1)
+    key: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=100)
+    content: str = Field(min_length=1, max_length=200_000)
+
+
 class SimilarPrecedent(CertifiedLetterApiModel):
     precedent_id: str = Field(
         min_length=1,
@@ -172,7 +201,11 @@ class SimilarPrecedent(CertifiedLetterApiModel):
     court_name: str | None = Field(default=None, min_length=1, max_length=200)
     decision_date: date | None = None
     summary: str = Field(min_length=1, max_length=4000)
+    precedent_summary: str | None = Field(default=None, min_length=1, max_length=20_000)
+    easy_summary: str | None = Field(default=None, min_length=1, max_length=20_000)
     matched_reason: str | None = Field(default=None, min_length=1, max_length=2000)
+    matched_chunks: list[PrecedentMatchedChunk] = Field(default_factory=list)
+    full_text_sections: list[PrecedentFullTextSection] = Field(default_factory=list)
     source_url: str = Field(min_length=1, max_length=2000)
 
 
@@ -180,7 +213,7 @@ class CertifiedLetterDraftResult(CertifiedLetterApiModel):
     document: CertifiedLetterDocument
     strategy_summary: str = Field(min_length=1, max_length=4000)
     follow_up_actions: list[FollowUpAction]
-    statute_evidence: list[StatuteEvidence] = Field(min_length=1)
+    statute_evidence: list[StatuteEvidence]
     similar_precedents: list[SimilarPrecedent]
     warnings: list[str] = Field(min_length=1)
 

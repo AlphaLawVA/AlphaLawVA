@@ -360,7 +360,7 @@
           <option value="draft_without_precedents">생성 완료 · 관련 판례 0건</option>
           <option value="needs_information">추가 정보 필요</option>
           <option value="out_of_scope">지원 범위 밖</option>
-          <option value="insufficient_evidence">법령 근거 부족 · 현재 API</option>
+          <option value="insufficient_evidence">법령 근거 부족 · 이전 결과 호환</option>
           <option value="failed">생성 실패</option>
           <option value="unavailable">연결·서버 오류</option>
         </select>
@@ -422,8 +422,9 @@
 
         <section class="form-section">
           <h3>보내는 사람과 받는 사람</h3>
-          <p class="section-copy">임차인이 보내는 사람, 임대인이 받는 사람으로 작성됩니다.</p>
+          <p class="section-copy">내용증명을 보내는 계약 당사자를 선택하면 상대방이 받는 사람으로 자동 지정됩니다.</p>
           <div class="grid">
+            <div class="field"><label for="sender-role">보내는 사람</label><select id="sender-role" required><option value="lessee">임차인</option><option value="lessor">임대인</option></select></div>
             <div class="field"><label for="lessee-name">임차인 이름</label><input id="lessee-name" maxlength="100" required value="김민지"></div>
             <div class="field"><label for="lessor-name">임대인 이름</label><input id="lessor-name" maxlength="100" required value="홍길동"></div>
             <div class="field"><label for="lessee-address">임차인 주소</label><input id="lessee-address" maxlength="500" required value="서울특별시 중구 세종대로 1"></div>
@@ -502,7 +503,7 @@
     function payloadFromForm() {
       const contractType = value("contract-type");
       return {
-        purpose: value("purpose"), facts: value("facts"), requested_deadline: optional("deadline"),
+        sender_role: value("sender-role"), purpose: value("purpose"), facts: value("facts"), requested_deadline: optional("deadline"),
         contract: {
           contract_type: contractType,
           property: { address: value("property-address"), detail_address: optional("property-detail"), building_type: optional("building-type") },
@@ -593,19 +594,21 @@
     function openPrecedentFullText(item) {
       if (!item) return;
       detailTitle.textContent = item.case_number || "사건번호 정보 없음";
-      const source = item.full_text || {};
-      const sections = [
-        ["주문", source.order],
-        ["청구취지", source.claim],
-        ["원심판결", source.original_judgment],
-        ["이유", source.reason]
-      ].filter(([, content]) => content);
+      const sections = Array.isArray(item.full_text_sections)
+        ? item.full_text_sections
+        : Object.entries(item.full_text || {})
+          .map(([key, content]) => ({
+            key,
+            title: ({ order: "주문", claim: "청구취지", original_judgment: "원심판결", reason: "이유" })[key],
+            content
+          }))
+          .filter((section) => section.title && section.content);
       detailBody.innerHTML = `
         <div class="detail-heading">
           <div class="precedent-meta">${escapeHtml(item.court_name || "법원 정보 없음")} · ${escapeHtml(formatDate(item.decision_date))} 선고</div>
           <p>보유 중인 판례 데이터로 제공하는 전문입니다.</p>
         </div>
-        ${sections.length ? sections.map(([heading, content]) => `<section class="full-text-section"><h3>${heading}</h3><p>${escapeHtml(content)}</p></section>`).join("") : `<div class="empty-state">저장된 판례 전문 데이터가 없습니다.</div>`}
+        ${sections.length ? sections.map((section) => `<section class="full-text-section"><h3>${escapeHtml(section.title)}</h3><p>${escapeHtml(section.content)}</p></section>`).join("") : `<div class="empty-state">저장된 판례 전문 데이터가 없습니다.</div>`}
         <div class="result-actions">
           <button class="secondary modal-detail-back" type="button">상세보기로 돌아가기</button>
           <a class="primary" href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">국가법령정보센터 원문보기 ↗</a>
@@ -650,7 +653,7 @@
       const next = {
         needs_information: "위 정보를 추가하면 같은 입력 내용으로 다시 생성할 수 있습니다.",
         out_of_scope: "현재는 임대차보증금, 계약 종료·해지, 수선, 월세·관리비 관련 요청을 지원합니다.",
-        insufficient_evidence: "현재 API는 이 경우 초안 생성을 중단합니다. 향후에는 법령 0건을 표시하면서 초안은 제공하는 방향을 적용할 수 있습니다."
+        insufficient_evidence: "이전 버전에서 완료된 작업을 다시 조회할 때 사용하는 호환 화면입니다. 현재 생성은 관련 법령 0건이어도 초안을 제공합니다."
       }[job.outcome];
       resultView.innerHTML = `<div class="outcome-card"><h2>${escapeHtml(labels[job.outcome] || "초안을 만들지 못했습니다")}</h2><p>${escapeHtml(job.message || "입력 내용을 확인한 뒤 다시 시도해 주세요.")}</p>${missing}${next ? `<div class="outcome-next">${escapeHtml(next)}</div>` : ""}</div><div class="result-actions"><button class="secondary restart-button" type="button">입력 내용 수정</button></div>`;
       document.querySelector(".restart-button").addEventListener("click", () => setView("input"));

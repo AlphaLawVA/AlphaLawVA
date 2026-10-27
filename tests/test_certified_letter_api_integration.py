@@ -18,6 +18,7 @@ DRAFT_ID = UUID("12345678-1234-5678-1234-567812345678")
 
 def make_payload(*, purpose="계약 종료 후 보증금을 반환받고 싶습니다."):
     return {
+        "sender_role": "lessee",
         "purpose": purpose,
         "facts": "계약이 종료되었지만 보증금을 아직 반환받지 못했습니다.",
         "contract": {

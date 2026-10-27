@@ -21,6 +21,7 @@ from ml.agent.certified_letter.state import (
     NormalizedCertifiedLetterRequest,
     StatuteEvidenceData,
     ValidationIssue,
+    resolve_document_parties,
 )
 
 
@@ -92,8 +93,7 @@ def _validate_parties(
     request: NormalizedCertifiedLetterRequest,
     draft: LetterDraftData,
 ) -> list[ValidationIssue]:
-    expected_sender = request.contract.lessee
-    expected_recipient = request.contract.lessor
+    expected_sender, expected_recipient = resolve_document_parties(request)
     issues = []
     if (
         draft.sender.name != expected_sender.name
@@ -103,7 +103,7 @@ def _validate_parties(
         issues.append(
             ValidationIssue(
                 code="sender_mismatch",
-                message="발신인 정보가 임차인 송달 정보와 일치하지 않습니다.",
+                message="발신인 정보가 선택된 계약 당사자의 송달 정보와 일치하지 않습니다.",
             )
         )
     if (
@@ -114,7 +114,7 @@ def _validate_parties(
         issues.append(
             ValidationIssue(
                 code="recipient_mismatch",
-                message="수신인 정보가 임대인 송달 정보와 일치하지 않습니다.",
+                message="수신인 정보가 상대 계약 당사자의 송달 정보와 일치하지 않습니다.",
             )
         )
     return issues
@@ -149,19 +149,10 @@ def _validate_citations(
         (_normalize_law_name(item.law_name), _normalize_article(item.article_label))
         for item in statute_evidence
     }
-    citations = {
-        (_normalize_law_name(match.group("law")), _normalize_article(match.group("article")))
-        for match in LAW_CITATION_PATTERN.finditer(body)
-    }
+    citations = extract_statute_citations(body)
     issues = []
     if not citations:
-        issues.append(
-            ValidationIssue(
-                code="missing_statute_citation",
-                message="본문에 검색 근거와 연결되는 법령 인용이 없습니다.",
-            )
-        )
-        return issues
+        return []
     unsupported = citations - allowed
     if unsupported:
         formatted = ", ".join(f"{law} {article}" for law, article in unsupported)
@@ -185,6 +176,18 @@ def _validate_citations(
             )
         )
     return issues
+
+
+def extract_statute_citations(body: str) -> set[tuple[str, str]]:
+    """Return normalized law/article keys explicitly cited in the draft body."""
+
+    return {
+        (
+            _normalize_law_name(match.group("law")),
+            _normalize_article(match.group("article")),
+        )
+        for match in LAW_CITATION_PATTERN.finditer(body)
+    }
 
 
 def _validate_money(

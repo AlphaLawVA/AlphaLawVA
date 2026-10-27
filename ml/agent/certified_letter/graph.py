@@ -1,7 +1,7 @@
 # graph.py
 """
 Description: 검증 가능한 내용증명 생성 LangGraph의 노드와 조건부 경로를 구성한다.
-범위 밖·정보 부족·근거 부족을 조기 종료하고 초안 재작성을 한 번으로 제한한다.
+범위 밖·정보 부족은 조기 종료하고 초안 재작성을 한 번으로 제한한다.
 Author: choeminju
 Date: 2026-10-22
 Before:
@@ -67,11 +67,7 @@ def build_certified_letter_graph(
     builder.add_edge("rerank_statutes", "retrieve_precedents")
     builder.add_edge("retrieve_precedents", "rerank_precedents")
     builder.add_edge("rerank_precedents", "check_evidence")
-    builder.add_conditional_edges(
-        "check_evidence",
-        _route_after_evidence,
-        {"generate": "generate_draft", "finish": "finalize_result"},
-    )
+    builder.add_edge("check_evidence", "generate_draft")
     builder.add_edge("generate_draft", "validate_draft")
     builder.add_conditional_edges(
         "validate_draft",
@@ -102,14 +98,6 @@ def _route_after_required_information(
     state: CertifiedLetterGraphState,
 ) -> Literal["continue", "finish"]:
     return "finish" if state.get("outcome") == "needs_information" else "continue"
-
-
-def _route_after_evidence(
-    state: CertifiedLetterGraphState,
-) -> Literal["generate", "finish"]:
-    if state.get("outcome") == "insufficient_evidence":
-        return "finish"
-    return "generate"
 
 
 def _route_after_validation(

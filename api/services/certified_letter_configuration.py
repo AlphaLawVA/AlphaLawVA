@@ -19,6 +19,7 @@ from threading import RLock
 from typing import Any
 
 from api.services.certified_letter_service import CertifiedLetterService
+from api.services.precedent_case_repository import PrecedentCaseRepository
 from ml.agent.certified_letter.factory import create_certified_letter_workflow
 from ml.agent.certified_letter.gemini import (
     DEFAULT_GEMINI_MODEL,
@@ -170,7 +171,12 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         statute_reranker=statute_reranker,
         precedent_reranker=precedent_reranker,
     )
-    return CertifiedLetterService(graph=graph)
+    return CertifiedLetterService(
+        graph=graph,
+        precedent_repository=PrecedentCaseRepository(
+            cases_dir=local_data_dir / "precedents" / "processed" / "final_cases"
+        ),
+    )
 
 
 def _create_reranker(

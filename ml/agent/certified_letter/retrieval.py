@@ -17,6 +17,7 @@ from typing import Protocol, Sequence
 
 from ml.agent.certified_letter.state import (
     PrecedentEvidenceData,
+    PrecedentMatchedChunkData,
     StatuteEvidenceData,
 )
 from ml.rag.precedent_retriever import (
@@ -98,15 +99,20 @@ class BgeM3PrecedentSearchAdapter:
             rerank_texts = _unique_nonempty_texts(
                 (*evidence.rerank_texts, *existing.rerank_texts)
             )
+            matched_chunks = _unique_matched_chunks(
+                (*evidence.matched_chunks, *existing.matched_chunks)
+            )
             if evidence.similarity > existing.similarity:
                 merged[evidence.precedent_id] = replace(
                     evidence,
                     rerank_texts=rerank_texts,
+                    matched_chunks=matched_chunks,
                 )
             else:
                 merged[evidence.precedent_id] = replace(
                     existing,
                     rerank_texts=rerank_texts,
+                    matched_chunks=matched_chunks,
                 )
         return sorted(merged.values(), key=lambda item: item.similarity, reverse=True)[
             :candidate_limit
@@ -151,6 +157,19 @@ def _to_precedent_evidence(
         source_url=OFFICIAL_PRECEDENT_URL.format(
             precedent_id=result.precedent_id
         ),
+        matched_chunks=tuple(
+            PrecedentMatchedChunkData(
+                rank=chunk.rank,
+                chunk_id=chunk.chunk_id,
+                section=_optional_text(chunk.section),
+                chunk_type=_optional_text(chunk.chunk_type),
+                section_chunk_index=chunk.section_chunk_index,
+                similarity=chunk.similarity,
+                text=chunk.text.strip(),
+            )
+            for chunk in result.matched_chunks
+            if chunk.text.strip()
+        ),
         rerank_texts=_unique_nonempty_texts(
             chunk.text for chunk in result.matched_chunks
         ),
@@ -177,4 +196,17 @@ def _unique_nonempty_texts(values) -> tuple[str, ...]:
         if normalized and normalized not in seen:
             seen.add(normalized)
             result.append(normalized)
+    return tuple(result)
+
+
+def _unique_matched_chunks(
+    values: tuple[PrecedentMatchedChunkData, ...],
+) -> tuple[PrecedentMatchedChunkData, ...]:
+    result = []
+    seen = set()
+    for value in values:
+        identity = (value.chunk_id, value.text)
+        if identity not in seen:
+            seen.add(identity)
+            result.append(value)
     return tuple(result)

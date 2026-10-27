@@ -12,6 +12,7 @@ from ml.agent.certified_letter.normalizer import (
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
+    ContractPartyRole,
     PartyData,
     PaymentData,
     PeriodData,
@@ -21,6 +22,7 @@ from ml.agent.certified_letter.state import (
 
 def make_request(*, requested_deadline: date | None) -> CertifiedLetterRequestData:
     return CertifiedLetterRequestData(
+        sender_role=ContractPartyRole.LESSEE,
         purpose="  보증금   반환을 요청합니다. ",
         facts=" 첫 번째 사실입니다.  \r\n\r\n 두 번째   사실입니다. ",
         requested_deadline=requested_deadline,

@@ -24,9 +24,14 @@ particular court outcome.
 - Similar precedents are retrieved and reranked separately for user reference.
 - Precedent content must not be inserted into the certified-letter body or used
   as a body citation in this version.
-- Every statute citation in the body must map to retrieved statute evidence.
-- Weak, missing, or contradictory evidence produces an explicit outcome instead
-  of an unsupported letter.
+- A draft may omit statute citations when none of the retrieved candidates is
+  directly relevant. Every citation that is included must map to retrieved
+  statute evidence.
+- Missing statute evidence does not prevent a fact-based draft. In that case the
+  body contains no statute citation, `statute_evidence` is empty, and the result
+  carries an explicit review warning.
+- Retrieved statutes are returned to the user only when the final body actually
+  cites them.
 - Retrieval source metadata must be preserved through the workflow.
 
 This separation is enforced by the generator interface, which accepts normalized
@@ -51,6 +56,7 @@ Example request:
 
 ```json
 {
+  "sender_role": "lessee",
   "purpose": "계약 종료 후 보증금을 반환받고 싶습니다.",
   "facts": "계약은 종료되었고 임대인에게 보증금 반환을 요청했지만 아직 받지 못했습니다.",
   "requested_deadline": "2026-11-15",
@@ -87,6 +93,9 @@ Example request:
 
 Rules:
 
+- `sender_role` is required and is either `lessee` or `lessor`. The server
+  deterministically assigns that party as the sender and the other contract
+  party as the recipient before the drafting model is called.
 - `purpose` and `facts` remain separate; the server does not collapse them into
   one opaque query.
 - `contract_type` is `jeonse` or `monthly_rent`.
@@ -131,11 +140,12 @@ Domain outcome values for a completed job:
 - `draft_ready`
 - `needs_information`
 - `out_of_scope`
-- `insufficient_evidence`
+- `insufficient_evidence` (reserved for backward compatibility; missing statute
+  search results alone no longer produce this outcome)
 
 Job status describes execution. Outcome describes the legal-generation result.
-A functioning retriever that finds insufficient evidence is therefore a
-completed job with `insufficient_evidence`, not a system failure.
+`insufficient_evidence` remains readable for previously stored jobs, but the
+current workflow does not use an empty statute search alone to produce it.
 
 Completed draft example:
 
@@ -212,8 +222,8 @@ Early outcomes:
   fixed server-side description of whether `purpose` or `facts` is needed;
 - code checks names and delivery addresses after an `in_scope` decision and
   missing delivery-critical values also end as `needs_information`;
-- a successful search with inadequate statute evidence ends as
-  `insufficient_evidence`;
+- missing statute evidence continues to drafting without a legal citation and
+  adds a deterministic review warning;
 - dependency failures end the job as `failed`.
 
 ## Retrieval and Reranking
@@ -270,12 +280,19 @@ provided. This allows a future same-dataset experiment to install the selected
 statute and precedent cross-encoders without changing graph or API code. An
 uncompared model must not be described as the final choice.
 
-Stage 6 prompt `certified_letter_v0_3` incorporates the useful drafting
+Stage 6 prompt `certified_letter_v0_5` incorporates the useful drafting
 structure from SuperLawVA's legacy `generate_letter` prompt while removing
 fabricated experience, unsupported success-rate claims, guaranteed-effect
 language, ungrounded general-law fallback, and successful fallback letters.
 The detailed comparison is recorded in
 `docs/CERTIFIED_LETTER_PROMPT_CHANGES.md`.
+
+Each returned similar precedent retains the real matched vector-search chunks.
+When its `final_cases` source record is available, the response also contains
+the stored generated summary, easy summary, and in-product full-text sections.
+The UI must render those fields directly rather than relying on demo-only
+properties. A missing source record leaves those optional presentation fields
+empty without turning a successful certified-letter draft into a failed job.
 
 ## Draft Validation
 

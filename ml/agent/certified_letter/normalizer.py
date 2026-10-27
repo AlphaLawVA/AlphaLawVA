@@ -39,6 +39,7 @@ def normalize_request(
 
     if request.requested_deadline is None:
         return NormalizedCertifiedLetterRequest(
+            sender_role=request.sender_role,
             purpose=purpose,
             facts=facts,
             requested_deadline=None,
@@ -49,6 +50,7 @@ def normalize_request(
         )
 
     return NormalizedCertifiedLetterRequest(
+        sender_role=request.sender_role,
         purpose=purpose,
         facts=facts,
         requested_deadline=request.requested_deadline,

@@ -149,6 +149,14 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
                 "다른 질의에서 찾은 적중 청크",
             ),
         )
+        self.assertEqual(
+            [chunk.text for chunk in results[0].matched_chunks],
+            [
+                "첫 번째 적중 청크",
+                "두 번째 적중 청크",
+                "다른 질의에서 찾은 적중 청크",
+            ],
+        )
 
     def test_dense_similarity_reranker_is_stable_baseline(self):
         candidates = [

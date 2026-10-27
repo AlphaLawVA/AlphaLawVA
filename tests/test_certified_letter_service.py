@@ -2,6 +2,7 @@
 """내용증명 작업 접수, 중복 방지, 그래프 실행과 안전한 실패 상태를 검증한다."""
 
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from threading import Event, Thread
 from uuid import UUID
@@ -25,6 +26,7 @@ from ml.agent.certified_letter.state import (
     DraftPartyData,
     LetterDraftData,
     PrecedentEvidenceData,
+    PrecedentMatchedChunkData,
     StatuteEvidenceData,
     WorkflowFailure,
 )
@@ -36,6 +38,7 @@ DRAFT_ID = UUID("12345678-1234-5678-1234-567812345678")
 def make_request(*, purpose="계약 종료 후 보증금을 반환받고 싶습니다."):
     return CertifiedLetterDraftRequest.model_validate(
         {
+            "sender_role": "lessee",
             "purpose": purpose,
             "facts": "계약이 종료되었지만 보증금을 아직 반환받지 못했습니다.",
             "contract": {
@@ -106,6 +109,17 @@ class ReadyGraph:
                     case_number="2006다62492",
                     decision_date="2008. 9. 25.",
                     summary="보증금 반환과 관련된 유사 판례입니다.",
+                    matched_chunks=(
+                        PrecedentMatchedChunkData(
+                            rank=1,
+                            chunk_id="precedent:64441:reason:0001",
+                            section="이유",
+                            chunk_type="이유",
+                            section_chunk_index=0,
+                            similarity=0.88,
+                            text="임대차 종료와 보증금 반환의 동시이행 관계를 판단한 부분입니다.",
+                        ),
+                    ),
                     source_url=(
                         "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq=64441"
                     ),
@@ -149,6 +163,33 @@ class ExplodingGraph:
         raise RuntimeError("provider raw error must not be public")
 
 
+class NoStatuteReadyGraph(ReadyGraph):
+    def invoke(self, input):
+        state = super().invoke(input)
+        state["selected_statutes"] = ()
+        state["draft"] = replace(
+            state["draft"],
+            body=(
+                "이 내용증명을 받은 날부터 7일 이내 보증금 반환을 "
+                "요청합니다."
+            ),
+        )
+        return state
+
+
+class UncitedStatuteReadyGraph(ReadyGraph):
+    def invoke(self, input):
+        state = super().invoke(input)
+        state["draft"] = replace(
+            state["draft"],
+            body=(
+                "이 내용증명을 받은 날부터 7일 이내 보증금 반환을 "
+                "요청합니다."
+            ),
+        )
+        return state
+
+
 class BlockingReadyGraph(ReadyGraph):
     def __init__(self):
         super().__init__()
@@ -161,10 +202,28 @@ class BlockingReadyGraph(ReadyGraph):
         return super().invoke(input)
 
 
+class FixedPrecedentRepository:
+    def get(self, precedent_id):
+        if precedent_id != "64441":
+            raise AssertionError("unexpected precedent id")
+        return {
+            "판례일련번호": "64441",
+            "사건번호": "2008다23858",
+            "사건명": "임대차보증금",
+            "법원명": "대법원",
+            "선고일자": "2008-09-25",
+            "생성요약": "임대차 종료 뒤 보증금 반환과 목적물 인도의 관계를 판단한 판례입니다.",
+            "쉬운요약": "계약이 끝난 뒤 보증금을 돌려받는 문제를 다룬 판례입니다.",
+            "주문": "상고를 기각한다.",
+            "이유": "임대차 종료 후 각 의무의 이행 관계에 관한 판단입니다.",
+        }
+
+
 class CertifiedLetterServiceTests(unittest.TestCase):
     def make_service(self, graph):
         return CertifiedLetterService(
             graph=graph,
+            precedent_repository=FixedPrecedentRepository(),
             clock=AdvancingClock(),
             uuid_factory=lambda: DRAFT_ID,
         )
@@ -185,6 +244,14 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         self.assertEqual(response.result.document.sender.name, "김민지")
         self.assertEqual(response.result.statute_evidence[0].effective_date.isoformat(), "2026-01-01")
         self.assertEqual(response.result.similar_precedents[0].decision_date.isoformat(), "2008-09-25")
+        precedent = response.result.similar_precedents[0]
+        self.assertEqual(precedent.case_number, "2008다23858")
+        self.assertEqual(precedent.easy_summary, "계약이 끝난 뒤 보증금을 돌려받는 문제를 다룬 판례입니다.")
+        self.assertEqual(precedent.matched_chunks[0].section, "이유")
+        self.assertEqual(
+            [section.title for section in precedent.full_text_sections],
+            ["주문", "이유"],
+        )
         self.assertIn("수령 후 7일 이내", " ".join(response.result.warnings))
         self.assertEqual(len(graph.calls), 1)
         self.assertEqual(state["outcome"], "draft_ready")
@@ -198,6 +265,34 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         self.assertTrue(first.is_new)
         self.assertFalse(second.is_new)
         self.assertEqual(first.response.draft_id, second.response.draft_id)
+
+    def test_returns_fact_based_draft_when_no_statute_is_found(self):
+        service = self.make_service(NoStatuteReadyGraph())
+        submission = service.submit(make_request())
+
+        service.process(submission.response.draft_id)
+        response = service.get(submission.response.draft_id)
+
+        self.assertEqual(response.outcome, CertifiedLetterOutcome.DRAFT_READY)
+        self.assertEqual(response.result.statute_evidence, [])
+        self.assertIn(
+            "직접 인용된 관련 법령 없이 작성된 초안",
+            " ".join(response.result.warnings),
+        )
+
+    def test_returns_only_statutes_actually_cited_by_the_draft(self):
+        service = self.make_service(UncitedStatuteReadyGraph())
+        submission = service.submit(make_request())
+
+        service.process(submission.response.draft_id)
+        response = service.get(submission.response.draft_id)
+
+        self.assertEqual(response.outcome, CertifiedLetterOutcome.DRAFT_READY)
+        self.assertEqual(response.result.statute_evidence, [])
+        self.assertIn(
+            "직접 인용된 관련 법령 없이 작성된 초안",
+            " ".join(response.result.warnings),
+        )
 
     def test_rejects_same_idempotency_key_for_different_request(self):
         service = self.make_service(ReadyGraph())

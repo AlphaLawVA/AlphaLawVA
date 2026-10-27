@@ -55,8 +55,14 @@ class ContractData:
     lessee: PartyData
 
 
+class ContractPartyRole(str, Enum):
+    LESSEE = "lessee"
+    LESSOR = "lessor"
+
+
 @dataclass(frozen=True)
 class CertifiedLetterRequestData:
+    sender_role: ContractPartyRole
     purpose: str
     facts: str
     requested_deadline: date | None
@@ -65,6 +71,7 @@ class CertifiedLetterRequestData:
 
 @dataclass(frozen=True)
 class NormalizedCertifiedLetterRequest:
+    sender_role: ContractPartyRole
     purpose: str
     facts: str
     requested_deadline: date | None
@@ -72,6 +79,22 @@ class NormalizedCertifiedLetterRequest:
     is_deadline_suggested: bool
     contract: ContractData
     warnings: tuple[str, ...] = ()
+
+
+def resolve_document_parties(
+    request: CertifiedLetterRequestData | NormalizedCertifiedLetterRequest,
+) -> tuple[PartyData, PartyData]:
+    """Return sender and recipient in the user-confirmed document direction."""
+
+    if request.sender_role is ContractPartyRole.LESSEE:
+        return request.contract.lessee, request.contract.lessor
+    return request.contract.lessor, request.contract.lessee
+
+
+def recipient_role(sender_role: ContractPartyRole) -> ContractPartyRole:
+    if sender_role is ContractPartyRole.LESSEE:
+        return ContractPartyRole.LESSOR
+    return ContractPartyRole.LESSEE
 
 
 class CertifiedLetterScopeDecision(str, Enum):
@@ -102,6 +125,19 @@ class StatuteEvidenceData:
 
 
 @dataclass(frozen=True)
+class PrecedentMatchedChunkData:
+    """A retrieval chunk retained for the precedent detail presentation."""
+
+    rank: int
+    chunk_id: str
+    section: str | None
+    chunk_type: str | None
+    section_chunk_index: int | None
+    similarity: float
+    text: str
+
+
+@dataclass(frozen=True)
 class PrecedentEvidenceData:
     precedent_id: str
     text: str
@@ -113,6 +149,7 @@ class PrecedentEvidenceData:
     summary: str | None = None
     matched_reason: str | None = None
     source_url: str | None = None
+    matched_chunks: tuple[PrecedentMatchedChunkData, ...] = ()
     rerank_texts: tuple[str, ...] = ()
 
 

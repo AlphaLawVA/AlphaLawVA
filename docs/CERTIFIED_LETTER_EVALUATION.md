@@ -12,7 +12,7 @@ it does not call a model, a hosted API, or a vector database.
   `ml/evaluation/certified_letters/datasets/run_metadata_gemini_3_5_flash_lite_v01.json`
 - Generated runs: `local_data/certified_letters/evaluation/runs/` (gitignored)
 
-The repository dataset contains six synthetic lease scenarios. It covers
+The repository dataset contains seven synthetic lease scenarios. It covers
 deposit return with relative and fixed deadlines, a repair request, a tenant's
 non-renewal notice, prompt-injection text embedded in the facts, and an
 out-of-scope request. Do not add real names, addresses, phone numbers, contract
@@ -119,7 +119,7 @@ not be inferred from a passing integration test.
 
 ## Alpha Gates
 
-A run passes only if all six cases pass and all of these counts remain zero:
+A run passes only if all seven cases pass and all of these counts remain zero:
 
 - statute citations not present in the returned statute evidence;
 - contract amounts or dates absent from the request;
