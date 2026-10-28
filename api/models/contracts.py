@@ -34,6 +34,12 @@ class EvidenceStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class AnalysisStatus(str, Enum):
+    PENDING = "pending"
+    ANALYZED = "analyzed"
+    UNAVAILABLE = "unavailable"
+
+
 class ReviewItemStatus(str, Enum):
     PENDING_EVIDENCE = "pending_evidence"
     NEEDS_INPUT = "needs_input"
@@ -72,6 +78,12 @@ class ContractReviewEvidenceItem(ContractApiModel):
     metadata: dict[str, str | int | float | None] = Field(default_factory=dict)
 
 
+class ContractReviewAnalysisItem(ContractApiModel):
+    item_id: str = Field(min_length=1)
+    summary: str = Field(min_length=2, max_length=500)
+    evidence_source_ids: list[str] = Field(min_length=1, max_length=6)
+
+
 class ContractReviewResponse(ContractApiModel):
     review_id: UUID
     status: str = Field(min_length=1)
@@ -81,6 +93,8 @@ class ContractReviewResponse(ContractApiModel):
     precheck_items: list[ContractReviewItem]
     evidence: list[ContractReviewEvidenceItem]
     evidence_status: EvidenceStatus
+    analysis: list[ContractReviewAnalysisItem]
+    analysis_status: AnalysisStatus
     message: str = Field(min_length=1)
     disclaimer: str = Field(min_length=1)
 

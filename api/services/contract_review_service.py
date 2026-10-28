@@ -15,6 +15,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 from api.models.contracts import (
+    AnalysisStatus,
+    ContractReviewAnalysisItem,
     ContractInputSummary,
     ContractReviewEvidenceItem,
     ContractReviewItem,
@@ -27,6 +29,7 @@ from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from ml.agent.contract_review_graph import ContractReviewGraph
+from ml.agent.contract_review_graph import ContractReviewAnalyzer
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
 
 
@@ -38,10 +41,12 @@ class ContractReviewService:
         snapshot_store: ConfirmedSnapshotRepository,
         review_graph: ContractReviewGraph | None = None,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
+        analyzer: ContractReviewAnalyzer | None = None,
     ) -> None:
         self._snapshot_store = snapshot_store
         self._review_graph = review_graph or ContractReviewGraph()
         self._evidence_retriever = evidence_retriever
+        self._analyzer = analyzer
 
     def review(self, payload: ContractReviewRequest) -> ContractReviewResponse:
         contract_snapshot = self._snapshot_store.get_contract(
@@ -54,11 +59,14 @@ class ContractReviewService:
         )
         evidence_status = EvidenceStatus.PENDING_RETRIEVAL
         evidence: list[ContractReviewEvidenceItem] = []
+        analysis_status = AnalysisStatus.PENDING
+        analysis: list[ContractReviewAnalysisItem] = []
         try:
             precheck_result = self._review_graph.prepare(
                 contract_snapshot,
                 registry_snapshot,
                 evidence_retriever=self._evidence_retriever,
+                analyzer=self._analyzer,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
             precheck_result = self._review_graph.prepare(
@@ -66,6 +74,8 @@ class ContractReviewService:
                 registry_snapshot,
             )
             evidence_status = EvidenceStatus.UNAVAILABLE
+            if self._analyzer is not None:
+                analysis_status = AnalysisStatus.UNAVAILABLE
         else:
             if self._evidence_retriever is not None:
                 evidence_status = EvidenceStatus.RETRIEVED
@@ -81,6 +91,20 @@ class ContractReviewService:
                         metadata=item.metadata,
                     )
                     for item in precheck_result.evidence
+                ]
+            if self._analyzer is not None and precheck_result.evidence:
+                analysis_status = (
+                    AnalysisStatus.UNAVAILABLE
+                    if precheck_result.analysis_unavailable
+                    else AnalysisStatus.ANALYZED
+                )
+                analysis = [
+                    ContractReviewAnalysisItem(
+                        item_id=item.item_id,
+                        summary=item.summary,
+                        evidence_source_ids=item.evidence_source_ids,
+                    )
+                    for item in precheck_result.analyses
                 ]
         contract_items = self._build_contract_items(contract_snapshot)
         registry_items = self._build_registry_items(registry_snapshot)
@@ -100,8 +124,12 @@ class ContractReviewService:
             precheck_items=precheck_result.items,
             evidence=evidence,
             evidence_status=evidence_status,
+            analysis=analysis,
+            analysis_status=analysis_status,
             message=(
-                "확정된 계약 정보의 입력 상태를 확인했습니다."
+                "확정된 계약 정보와 검색 근거의 확인 항목을 구성했습니다."
+                if analysis_status == AnalysisStatus.ANALYZED
+                else "검색 근거를 찾았습니다. 근거 기반 확인 요약은 아직 생성되지 않았습니다."
                 if evidence_status == EvidenceStatus.RETRIEVED
                 else "확정된 계약 정보의 입력 상태를 확인했습니다. "
                 "법령·판례 근거 검토는 아직 연결되지 않았습니다."

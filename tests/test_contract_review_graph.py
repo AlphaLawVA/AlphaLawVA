@@ -18,6 +18,7 @@ from uuid import uuid4
 from api.models.contract_snapshots import ConfirmedContractSnapshot
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from ml.agent.contract_review_graph import ContractReviewGraph
+from ml.agent.contract_review_graph import ContractReviewAnalysis
 from ml.rag.contract_review_retriever import (
     ContractReviewRagRetriever,
     create_contract_review_rag_retriever_from_env,
@@ -87,6 +88,17 @@ class FakePrecedentRetriever:
                     )
                 ],
                 metadata={},
+            )
+        ]
+
+
+class FakeAnalyzer:
+    def analyze(self, queries, evidence):
+        return [
+            ContractReviewAnalysis(
+                item_id=queries[0].item_id,
+                summary="확인 필요: 원문 계약서와 검색 근거의 적용 범위를 비교해 주세요.",
+                evidence_source_ids=[evidence[0].source_id],
             )
         ]
 
@@ -211,6 +223,28 @@ class ContractReviewGraphTests(unittest.TestCase):
         self.assertEqual(precedent.metadata["case_no"], "2006다62492")
         self.assertTrue(statute_retriever.queries)
         self.assertTrue(precedent_retriever.queries)
+
+    def test_returns_evidence_bound_analysis_from_analyzer(self):
+        statute_retriever = FakeStatuteRetriever()
+        evidence_retriever = ContractReviewRagRetriever(
+            statute_retriever=statute_retriever,
+            precedent_retriever=None,
+        )
+
+        result = ContractReviewGraph().prepare(
+            self._contract_snapshot(),
+            self._registry_snapshot(),
+            evidence_retriever=evidence_retriever,
+            analyzer=FakeAnalyzer(),
+        )
+
+        self.assertFalse(result.analysis_unavailable)
+        self.assertEqual(len(result.analyses), 1)
+        self.assertEqual(result.analyses[0].item_id, "property_address_match")
+        self.assertEqual(
+            result.analyses[0].evidence_source_ids,
+            ["law:001248:article:0003"],
+        )
 
     def test_requests_registry_when_registry_snapshot_is_missing(self):
         result = ContractReviewGraph().prepare(self._contract_snapshot(), None)

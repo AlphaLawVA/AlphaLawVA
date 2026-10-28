@@ -26,6 +26,7 @@ from api.services.confirmed_snapshot_store import (
 from api.services.contract_review_service import ContractReviewService
 from api.services.special_clause_service import SpecialClauseService
 from ml.agent.contract_review_graph import (
+    ContractReviewAnalysis,
     ContractReviewEvidence,
     ContractReviewRetrievalQuery,
 )
@@ -56,6 +57,17 @@ class FailingEvidenceRetriever:
         _queries: list[ContractReviewRetrievalQuery],
     ) -> list[ContractReviewEvidence]:
         raise FileNotFoundError("missing vector database")
+
+
+class FakeAnalyzer:
+    def analyze(self, queries, evidence):
+        return [
+            ContractReviewAnalysis(
+                item_id=queries[0].item_id,
+                summary="확인 필요: 검색 근거와 원문을 비교해 주세요.",
+                evidence_source_ids=[evidence[0].source_id],
+            )
+        ]
 
 
 class ContractWorkflowApiTests(unittest.TestCase):
@@ -158,6 +170,25 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.evidence_status, "retrieved")
         self.assertEqual(response.evidence[0].source_type, "statute")
         self.assertEqual(response.evidence[0].metadata["law_name"], "주택임대차보호법")
+        self.assertEqual(response.analysis_status, "pending")
+        self.assertIn("검색 근거를 찾았습니다", response.message)
+
+    def test_contract_review_returns_evidence_bound_analysis_when_enabled(self):
+        store = ConfirmedSnapshotStore()
+        contract = store.save_contract(self._contract_snapshot())
+        service = ContractReviewService(
+            store,
+            evidence_retriever=FakeEvidenceRetriever(),
+            analyzer=FakeAnalyzer(),
+        )
+
+        response = service.review(
+            ContractReviewRequest(contract_snapshot_id=contract.snapshot_id)
+        )
+
+        self.assertEqual(response.analysis_status, "analyzed")
+        self.assertEqual(response.analysis[0].item_id, "registry_document")
+        self.assertEqual(response.analysis[0].evidence_source_ids, ["law:001248:article:0003"])
 
     def test_contract_review_keeps_prechecks_when_retrieval_is_unavailable(self):
         store = ConfirmedSnapshotStore()

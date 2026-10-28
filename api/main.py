@@ -25,6 +25,9 @@ from api.services.confirmed_snapshot_store import SnapshotNotFoundError
 from api.services.gemini_similarity_explainer import (
     create_gemini_similarity_explainer_from_env,
 )
+from api.services.gemini_contract_review_analyzer import (
+    create_gemini_contract_review_analyzer_from_env,
+)
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
     PrecedentCaseDataError,
@@ -231,6 +234,7 @@ def create_app(
         else ContractReviewService(
             app.state.confirmed_snapshot_store,
             evidence_retriever=create_contract_review_rag_retriever_from_env(),
+            analyzer=create_gemini_contract_review_analyzer_from_env(),
         )
     )
     app.state.special_clause_service = (

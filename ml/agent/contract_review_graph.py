@@ -56,12 +56,33 @@ class ContractReviewEvidenceRetriever(Protocol):
 
 
 @dataclass(frozen=True)
+class ContractReviewAnalysis:
+    """근거에 연결된 사용자 확인용 검토 요약이다."""
+
+    item_id: str
+    summary: str
+    evidence_source_ids: list[str]
+
+
+class ContractReviewAnalyzer(Protocol):
+    """비식별 질의와 검색 근거로 사용자 확인 요약을 생성하는 경계다."""
+
+    def analyze(
+        self,
+        queries: list[ContractReviewRetrievalQuery],
+        evidence: list[ContractReviewEvidence],
+    ) -> list[ContractReviewAnalysis]: ...
+
+
+@dataclass(frozen=True)
 class ContractReviewPrecheckResult:
     """규칙 기반 검증과 검색 질의 구성 결과다."""
 
     items: list[ContractReviewItem]
     retrieval_queries: list[ContractReviewRetrievalQuery]
     evidence: list[ContractReviewEvidence]
+    analyses: list[ContractReviewAnalysis]
+    analysis_unavailable: bool
 
 
 class ContractReviewGraphState(TypedDict):
@@ -73,6 +94,9 @@ class ContractReviewGraphState(TypedDict):
     retrieval_queries: list[ContractReviewRetrievalQuery]
     evidence_retriever: ContractReviewEvidenceRetriever | None
     evidence: list[ContractReviewEvidence]
+    analyzer: ContractReviewAnalyzer | None
+    analyses: list[ContractReviewAnalysis]
+    analysis_unavailable: bool
 
 
 class ContractReviewGraph:
@@ -83,10 +107,12 @@ class ContractReviewGraph:
         builder.add_node("run_prechecks", self._run_prechecks)
         builder.add_node("build_retrieval_queries", self._build_retrieval_queries)
         builder.add_node("retrieve_evidence", self._retrieve_evidence)
+        builder.add_node("analyze_evidence", self._analyze_evidence)
         builder.set_entry_point("run_prechecks")
         builder.add_edge("run_prechecks", "build_retrieval_queries")
         builder.add_edge("build_retrieval_queries", "retrieve_evidence")
-        builder.add_edge("retrieve_evidence", END)
+        builder.add_edge("retrieve_evidence", "analyze_evidence")
+        builder.add_edge("analyze_evidence", END)
         self._graph = builder.compile()
 
     def prepare(
@@ -95,6 +121,7 @@ class ContractReviewGraph:
         registry_snapshot: ConfirmedRegistrySnapshot | None,
         *,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
+        analyzer: ContractReviewAnalyzer | None = None,
     ) -> ContractReviewPrecheckResult:
         """확정 스냅샷을 사전검증하고 후속 검색 질의를 만든다."""
 
@@ -106,12 +133,17 @@ class ContractReviewGraph:
                 "retrieval_queries": [],
                 "evidence_retriever": evidence_retriever,
                 "evidence": [],
+                "analyzer": analyzer,
+                "analyses": [],
+                "analysis_unavailable": False,
             }
         )
         return ContractReviewPrecheckResult(
             items=result["precheck_items"],
             retrieval_queries=result["retrieval_queries"],
             evidence=result["evidence"],
+            analyses=result["analyses"],
+            analysis_unavailable=result["analysis_unavailable"],
         )
 
     @staticmethod
@@ -202,6 +234,22 @@ class ContractReviewGraph:
         if retriever is None:
             return {"evidence": []}
         return {"evidence": retriever.retrieve(state["retrieval_queries"])}
+
+    @staticmethod
+    def _analyze_evidence(
+        state: ContractReviewGraphState,
+    ) -> dict[str, list[ContractReviewAnalysis] | bool]:
+        analyzer = state["analyzer"]
+        if analyzer is None or not state["evidence"]:
+            return {"analyses": [], "analysis_unavailable": False}
+        try:
+            analyses = analyzer.analyze(
+                state["retrieval_queries"],
+                state["evidence"],
+            )
+        except (RuntimeError, ValueError):
+            return {"analyses": [], "analysis_unavailable": True}
+        return {"analyses": analyses, "analysis_unavailable": False}
 
     @staticmethod
     def _append_address_check(contract, registry, items: list[ContractReviewItem]) -> None:
