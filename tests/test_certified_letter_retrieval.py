@@ -8,16 +8,18 @@ from types import SimpleNamespace
 from ml.agent.certified_letter.retrieval import (
     BgeM3PrecedentSearchAdapter,
     BgeM3StatuteSearchAdapter,
+    HybridBgeM3StatuteSearchAdapter,
 )
 from ml.rag.precedent_retriever import PrecedentChunkMatch, PrecedentSearchResult
 from ml.rag.reranker import CrossEncoderReranker, DenseSimilarityReranker
-from ml.rag.statute_retriever import StatuteSearchResult
+from ml.rag.statute_retriever import StatuteSearchResult, fuse_statute_rankings
 
 
 def make_statute(
     *,
     chunk_id: str,
     similarity: float,
+    law_id: str = "001",
     law_name: str | None = "주택임대차보호법",
     article_label: str | None = "제4조",
 ):
@@ -27,7 +29,7 @@ def make_statute(
         distance=1.0 - similarity,
         similarity=similarity,
         text="임대차 기간과 보증금 반환에 관한 조문",
-        law_id="001",
+        law_id=law_id,
         law_name=law_name,
         article_label=article_label,
         article_title="임대차기간 등",
@@ -87,6 +89,16 @@ class FakeSearchMany:
         return self.results
 
 
+class FakeHybridSearchMany:
+    def __init__(self, results):
+        self.results = results
+        self.calls = []
+
+    def search_many_hybrid(self, queries, *, top_k):
+        self.calls.append((tuple(queries), top_k))
+        return self.results
+
+
 class FakeCrossEncoder:
     def __init__(self, scores):
         self.scores = scores
@@ -116,6 +128,52 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
         self.assertEqual(results[0].statute_id, "001")
         self.assertEqual(results[0].source_node_id, "law:001:article:4")
         self.assertEqual(backend.calls, [(('질의 1', '질의 2'), 20)])
+
+    def test_hybrid_statute_adapter_uses_hybrid_backend_only(self):
+        lexical_only = make_statute(
+            chunk_id="law:002:1:a",
+            similarity=0.02,
+            law_id="002",
+            law_name="민법",
+            article_label="제536조",
+        )
+        backend = FakeHybridSearchMany([[lexical_only]])
+
+        results = HybridBgeM3StatuteSearchAdapter(backend).search(
+            ["보증금 반환"],
+            candidate_limit=20,
+        )
+
+        self.assertEqual(results[0].law_name, "민법")
+        self.assertEqual(backend.calls, [(('보증금 반환',), 20)])
+
+    def test_rank_fusion_promotes_result_found_by_both_methods(self):
+        shared = make_statute(chunk_id="law:001:4:a", similarity=0.9)
+        dense_only = make_statute(
+            chunk_id="law:002:1:a",
+            similarity=0.8,
+            law_id="002",
+            law_name="민법",
+            article_label="제536조",
+        )
+        lexical_only = make_statute(
+            chunk_id="law:003:2:a",
+            similarity=2.0,
+            law_id="003",
+            law_name="주택임대차보호법",
+            article_label="제4조의2",
+        )
+
+        results = fuse_statute_rankings(
+            [dense_only, shared],
+            [lexical_only, shared],
+            top_k=3,
+        )
+
+        self.assertEqual(
+            [item.chunk_id for item in results],
+            ["law:001:4:a", "law:002:1:a", "law:003:2:a"],
+        )
 
     def test_precedent_adapter_merges_same_precedent_and_preserves_source(self):
         low = make_precedent(

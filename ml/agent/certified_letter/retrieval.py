@@ -41,6 +41,15 @@ class StatuteSearchManyBackend(Protocol):
     ) -> list[list[StatuteSearchResult]]: ...
 
 
+class HybridStatuteSearchManyBackend(Protocol):
+    def search_many_hybrid(
+        self,
+        queries: Sequence[str],
+        *,
+        top_k: int,
+    ) -> list[list[StatuteSearchResult]]: ...
+
+
 class PrecedentSearchManyBackend(Protocol):
     def search_many(
         self,
@@ -61,21 +70,45 @@ class BgeM3StatuteSearchAdapter:
         candidate_limit: int,
     ) -> list[StatuteEvidenceData]:
         batches = self.retriever.search_many(queries, top_k=candidate_limit)
-        merged: dict[tuple[str, str], StatuteEvidenceData] = {}
-        for result in _flatten(batches):
-            evidence = _to_statute_evidence(result)
-            if evidence is None:
-                continue
-            identity = (
-                evidence.statute_id or evidence.law_name,
-                evidence.article_label,
-            )
-            existing = merged.get(identity)
-            if existing is None or evidence.similarity > existing.similarity:
-                merged[identity] = evidence
-        return sorted(merged.values(), key=lambda item: item.similarity, reverse=True)[
-            :candidate_limit
-        ]
+        return _merge_statute_batches(batches, candidate_limit=candidate_limit)
+
+
+def _merge_statute_batches(
+    batches: Sequence[Sequence[StatuteSearchResult]],
+    *,
+    candidate_limit: int,
+) -> list[StatuteEvidenceData]:
+    merged: dict[tuple[str, str], StatuteEvidenceData] = {}
+    for result in _flatten(batches):
+        evidence = _to_statute_evidence(result)
+        if evidence is None:
+            continue
+        identity = (
+            evidence.statute_id or evidence.law_name,
+            evidence.article_label,
+        )
+        existing = merged.get(identity)
+        if existing is None or evidence.similarity > existing.similarity:
+            merged[identity] = evidence
+    return sorted(merged.values(), key=lambda item: item.similarity, reverse=True)[
+        :candidate_limit
+    ]
+
+
+class HybridBgeM3StatuteSearchAdapter(BgeM3StatuteSearchAdapter):
+    """내용증명 법령 검색에서만 dense·BM25 하이브리드 후보를 사용한다."""
+
+    def __init__(self, retriever: HybridStatuteSearchManyBackend) -> None:
+        self.retriever = retriever
+
+    def search(
+        self,
+        queries: Sequence[str],
+        *,
+        candidate_limit: int,
+    ) -> list[StatuteEvidenceData]:
+        batches = self.retriever.search_many_hybrid(queries, top_k=candidate_limit)
+        return _merge_statute_batches(batches, candidate_limit=candidate_limit)
 
 
 class BgeM3PrecedentSearchAdapter:
