@@ -1,0 +1,76 @@
+.page {
+  width: min(1080px, calc(100% - 48px));
+  min-height: calc(100vh - 68px);
+  margin: 0 auto;
+  padding: 64px 0 100px;
+}
+
+.eyebrow {
+  margin-bottom: 10px;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.heading h1 {
+  color: var(--navy);
+  font-size: 38px;
+}
+
+.heading p:last-child {
+  margin-top: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.grid {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  min-height: 180px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.card h2 {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.card p {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.status {
+  margin-top: 22px;
+  display: inline-block;
+  color: var(--text-subtle);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .page {
+    width: min(100% - 32px, 1080px);
+    min-height: calc(100vh - 60px);
+    padding: 42px 0 72px;
+  }
+
+  .heading h1 {
+    font-size: 30px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

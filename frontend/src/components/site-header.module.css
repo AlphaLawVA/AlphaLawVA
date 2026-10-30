@@ -26,10 +26,31 @@
 .nav {
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 24px;
   color: var(--text-muted);
   font-size: 16px;
   font-weight: 650;
+}
+
+.navDivider {
+  width: 1px;
+  height: 18px;
+  background: var(--line-strong);
+}
+
+.logoutButton,
+.mobileLogoutButton {
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font-weight: 650;
+}
+
+.logoutButton:hover,
+.logoutButton:focus-visible,
+.mobileLogoutButton:hover,
+.mobileLogoutButton:focus-visible {
+  color: var(--navy);
 }
 
 .nav a:hover,
@@ -87,6 +108,23 @@
 
   .mobileNav a:last-child {
     border-bottom: 0;
+  }
+
+  .mobileNav form {
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+  }
+
+  .mobileLogoutButton {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 4px;
+    border-bottom: 0;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: left;
   }
 }
 

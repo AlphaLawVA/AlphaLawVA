@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { logoutAction } from "@/app/auth/actions";
 import styles from "./site-header.module.css";
 
 const navItems = [
@@ -12,8 +13,12 @@ const navItems = [
   { href: "/certified-letter", label: "내용증명 생성" },
 ];
 
-export function SiteHeader() {
+export function SiteHeader({ authenticated }: { authenticated: boolean }) {
   const [open, setOpen] = useState(false);
+
+  const accountLinks = authenticated
+    ? [{ href: "/mypage", label: "마이페이지" }]
+    : [{ href: "/login", label: "로그인" }];
 
   return (
     <header className={styles.header}>
@@ -27,6 +32,19 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          <span className={styles.navDivider} aria-hidden="true" />
+          {accountLinks.map((item) => (
+            <Link key={item.href} href={item.href}>
+              {item.label}
+            </Link>
+          ))}
+          {authenticated && (
+            <form action={logoutAction}>
+              <button className={styles.logoutButton} type="submit">
+                로그아웃
+              </button>
+            </form>
+          )}
         </nav>
         <button
           className={styles.menuButton}
@@ -47,6 +65,18 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          {accountLinks.map((item) => (
+            <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
+              {item.label}
+            </Link>
+          ))}
+          {authenticated && (
+            <form action={logoutAction}>
+              <button className={styles.mobileLogoutButton} type="submit">
+                로그아웃
+              </button>
+            </form>
+          )}
         </nav>
       )}
     </header>
