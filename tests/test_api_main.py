@@ -115,7 +115,7 @@ class ApiMainTests(unittest.TestCase):
             headers={
                 "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type",
+                "Access-Control-Request-Headers": "content-type,idempotency-key",
             },
         )
 
@@ -123,6 +123,10 @@ class ApiMainTests(unittest.TestCase):
         self.assertEqual(
             response.headers["access-control-allow-origin"],
             "http://localhost:3000",
+        )
+        self.assertIn(
+            "idempotency-key",
+            response.headers["access-control-allow-headers"].lower(),
         )
 
 

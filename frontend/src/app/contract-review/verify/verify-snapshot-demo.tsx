@@ -13,9 +13,10 @@ type VerifyTab = "contract" | "registry";
 
 type VerifySnapshotDemoProps = {
   initialContractSnapshot?: ConfirmedContractSnapshot;
+  allowedContractTypes?: ConfirmedContractSnapshot["contractType"][];
   modeOverride?: DocumentMode;
   onBack?: () => void;
-  onComplete?: () => void;
+  onComplete?: (contractSnapshot: ConfirmedContractSnapshot) => void;
   submitLabel?: string;
 };
 
@@ -43,7 +44,7 @@ function copyRegistrySnapshot(): ConfirmedRegistrySnapshot {
   return { ...confirmedRegistrySnapshot, fields: confirmedRegistrySnapshot.fields.map((field) => ({ ...field, source: { ...field.source } })), rights: confirmedRegistrySnapshot.rights.map((right) => ({ ...right, source: { ...right.source } })) };
 }
 
-export function VerifySnapshotDemo({ initialContractSnapshot, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
+export function VerifySnapshotDemo({ allowedContractTypes, initialContractSnapshot, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = modeOverride ?? readMode(searchParams.get("documents"));
@@ -127,7 +128,7 @@ export function VerifySnapshotDemo({ initialContractSnapshot, modeOverride, onBa
 
   function completeVerification() {
     if (onComplete) {
-      onComplete();
+      onComplete(contractSnapshot);
       return;
     }
     router.push(`/contract-review/result?documents=${mode}`);
@@ -139,7 +140,7 @@ export function VerifySnapshotDemo({ initialContractSnapshot, modeOverride, onBa
     <div className={styles.verifyLayout}>
       <aside className={styles.documentPreview} aria-label="업로드 문서 미리보기"><div className={styles.previewHeading}><FileSearch size={17} /><span>원문 PDF · 1 / 2페이지</span></div><DemoDocument activeAnchor={activeAnchor} kind={tab} onSelectAnchor={selectSource} /></aside>
       <section className={styles.formPanel}>
-        <div className={styles.formHeading}><span>{tab === "contract" ? "ConfirmedContractSnapshot" : "ConfirmedRegistrySnapshot"}</span><h2>확인할 정보부터 원문과 대조하세요</h2><p>{tab === "contract" ? "주소·당사자·금액·날짜·특약은 확인된 값만 계약서 검토에 사용합니다." : "현재 소유자와 유효한 권리부담을 먼저 확인하고, 말소 이력은 보조 정보로 확인합니다."}</p>{tab === "contract" && <div className={styles.contractTypeSwitch} role="group" aria-label="계약 유형"><span>계약 유형</span>{(["전세", "월세", "매매"] as const).map((contractType) => <button className={contractSnapshot.contractType === contractType ? styles.contractTypeActive : ""} key={contractType} type="button" onClick={() => changeContractType(contractType)}>{contractType}</button>)}</div>}</div>
+        <div className={styles.formHeading}><span>{tab === "contract" ? "ConfirmedContractSnapshot" : "ConfirmedRegistrySnapshot"}</span><h2>확인할 정보부터 원문과 대조하세요</h2><p>{tab === "contract" ? "주소·당사자·금액·날짜·특약은 확인된 값만 계약서 검토에 사용합니다." : "현재 소유자와 유효한 권리부담을 먼저 확인하고, 말소 이력은 보조 정보로 확인합니다."}</p>{tab === "contract" && <div className={styles.contractTypeSwitch} role="group" aria-label="계약 유형"><span>계약 유형</span>{(allowedContractTypes ?? ["전세", "월세", "매매"]).map((contractType) => <button className={contractSnapshot.contractType === contractType ? styles.contractTypeActive : ""} key={contractType} type="button" onClick={() => changeContractType(contractType)}>{contractType}</button>)}</div>}</div>
         <div className={styles.confirmationSummary}><div><strong>확인 필요 {pendingFields.length + pendingRights.length}건</strong><span>원문과 비교한 뒤 개별 항목을 확인 처리해주세요.</span></div><MapPin size={20} aria-hidden="true" /></div>
         {mode === "both" && <ComparisonSummary />}
         <div className={styles.snapshotGroups}>

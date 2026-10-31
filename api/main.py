@@ -252,7 +252,7 @@ def create_app(
         allow_origins=_cors_origins(),
         allow_credentials=False,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
     )
     app.state.certified_letter_service = (
         certified_letter_service
