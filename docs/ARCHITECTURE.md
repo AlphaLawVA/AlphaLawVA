@@ -48,6 +48,10 @@ Supported legal areas:
 
 3. Certified letter generation
    - Generate draft certified letters or legal notice text for deposit return, contract termination, and jeonse fraud response.
+   - Keep statute evidence used for drafting separate from similar precedents
+     returned for reference.
+   - Follow the provisional workflow and API contract in
+     `docs/CERTIFIED_LETTER_DESIGN.md`.
 
 4. Precedent-based dispute search
    - Search similar precedents.

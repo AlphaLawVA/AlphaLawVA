@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AlphaLawVA 내용증명 생성</title>
+  <style>
+    :root {
+      --navy: #11196f;
+      --navy-dark: #0c124f;
+      --ink: #252525;
+      --muted: #707070;
+      --line: #dedede;
+      --soft: #f7f7f5;
+      --blue-soft: #f3f4ff;
+      --success: #276a4c;
+      --warning: #805500;
+      --danger: #a62b2b;
+      --white: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--white);
+      font: 16px/1.65 Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    .site-header { min-height: 76px; border-bottom: 1px solid var(--line); }
+    .header-inner {
+      width: min(1160px, calc(100% - 48px));
+      min-height: 76px;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand { color: var(--navy); font-size: 24px; font-weight: 800; text-decoration: none; }
+    .nav { display: flex; gap: 27px; color: #555; font-size: 14px; font-weight: 600; }
+    .nav a { text-decoration: none; white-space: nowrap; }
+    .nav a[aria-current="page"] { color: var(--navy); }
+    .page { width: min(1060px, calc(100% - 48px)); margin: auto; padding: 42px 0 72px; }
+    h1 { margin: 0; color: var(--navy); font-size: 32px; line-height: 1.25; }
+    h2 { margin: 0; font-size: 25px; line-height: 1.4; }
+    h3 { margin: 0 0 12px; font-size: 19px; }
+    .steps {
+      min-height: 48px;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      color: #858585;
+      font-size: 14px;
+    }
+    .step.active { color: var(--navy); font-weight: 800; }
+    .view { padding-top: 28px; }
+    .view[hidden], [hidden] { display: none !important; }
+    .lead { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+    .prototype-toolbar {
+      margin-top: 20px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      border: 1px dashed #b9bddf;
+      background: #fafaff;
+    }
+    .prototype-toolbar strong { display: block; color: var(--navy); }
+    .prototype-toolbar p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    .prototype-control { min-width: 260px; }
+    .prototype-control label { margin: 0 0 5px; }
+    .state-guide {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      background: var(--white);
+    }
+    .state-guide > summary {
+      padding: 13px 16px;
+      color: var(--navy);
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .state-guide-grid {
+      padding: 0 16px 16px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .state-guide-item { padding: 13px 14px; background: var(--soft); font-size: 13px; }
+    .state-guide-item strong { display: block; color: var(--navy); font-size: 14px; }
+    .state-guide-item p { margin: 3px 0 0; color: #555; }
+    .notice, .error, .outcome-card {
+      margin-top: 22px;
+      padding: 16px 18px;
+      border: 1px solid #d9dbef;
+      background: var(--blue-soft);
+    }
+    .error { border-color: #efd0d0; color: var(--danger); background: #fff7f7; }
+    .form-section { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
+    .form-section:first-of-type { margin-top: 38px; border-top: 0; padding-top: 0; }
+    .section-copy { margin: -6px 0 18px; color: var(--muted); font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .field.full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 750; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 2px;
+      padding: 11px 12px;
+      color: var(--ink);
+      background: var(--white);
+    }
+    textarea { min-height: 116px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--navy); outline: 2px solid #dfe2ff; }
+    input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); background: #fffafa; }
+    .help { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .field-error { margin: 6px 0 0; color: var(--danger); font-size: 13px; font-weight: 700; }
+    .actions { margin-top: 30px; display: flex; align-items: center; gap: 14px; }
+    .primary, .secondary, .copy-button {
+      min-height: 44px;
+      padding: 10px 20px;
+      border-radius: 2px;
+      font-weight: 750;
+    }
+    .primary { border: 1px solid var(--navy); color: var(--white); background: var(--navy); }
+    .primary:hover, .primary:focus-visible { background: var(--navy-dark); }
+    .primary:disabled { cursor: wait; opacity: .6; }
+    .secondary, .copy-button { border: 1px solid var(--line); color: var(--navy); background: var(--white); }
+    .privacy { color: var(--muted); font-size: 13px; }
+    .progress { min-height: 330px; display: grid; place-items: center; text-align: center; }
+    .spinner {
+      width: 38px;
+      height: 38px;
+      margin: 0 auto 18px;
+      border: 4px solid #d9dbef;
+      border-top-color: var(--navy);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status-copy { color: var(--muted); }
+    .result-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .draft-badge { color: var(--warning); font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .document {
+      margin-top: 24px;
+      padding: 34px;
+      border: 1px solid var(--line);
+      background: #fdfdfc;
+    }
+    .document-title { text-align: center; font-size: 24px; }
+    .party-table { margin: 28px 0; display: grid; gap: 10px; }
+    .party-row { display: grid; grid-template-columns: 86px 1fr; gap: 12px; }
+    .party-label { color: var(--navy); font-weight: 800; }
+    .letter-body { margin: 28px 0 0; white-space: pre-wrap; line-height: 1.9; }
+    .result-grid { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .panel { padding: 22px; border: 1px solid var(--line); background: var(--white); }
+    .panel.full { grid-column: 1 / -1; }
+    .panel p { margin: 0; white-space: pre-wrap; }
+    .clean-list { margin: 0; padding-left: 20px; }
+    .clean-list li + li { margin-top: 8px; }
+    .evidence-accordion {
+      grid-column: 1 / -1;
+      border: 1px solid var(--line);
+      background: var(--white);
+    }
+    .evidence-accordion > summary {
+      min-height: 62px;
+      padding: 17px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--navy);
+      font-weight: 850;
+      cursor: pointer;
+      list-style: none;
+    }
+    .evidence-accordion > summary::-webkit-details-marker { display: none; }
+    .evidence-accordion > summary::after { content: "＋"; font-size: 22px; font-weight: 400; }
+    .evidence-accordion[open] > summary { border-bottom: 1px solid var(--line); }
+    .evidence-accordion[open] > summary::after { content: "−"; }
+    .evidence-count {
+      margin-left: auto;
+      padding: 2px 9px;
+      border-radius: 999px;
+      color: #555;
+      background: var(--soft);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .accordion-body { padding: 18px 20px 20px; }
+    .evidence-list { display: grid; gap: 12px; }
+    .evidence {
+      padding: 16px 18px;
+      border-left: 3px solid var(--navy);
+      background: var(--soft);
+    }
+    .evidence-title { margin: 0 0 5px; color: var(--navy); font-weight: 800; }
+    .evidence p { margin: 0; }
+    .evidence a { color: var(--navy); font-size: 13px; font-weight: 700; }
+    .evidence .card-actions { margin-top: 12px; justify-content: flex-start; }
+    .statute-meta { margin: 7px 0 0 !important; color: var(--muted); font-size: 12px; }
+    .precedent-list { border-top: 1px solid var(--line); }
+    .precedent-card {
+      padding: 24px 4px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+    .precedent-meta { color: var(--navy); font-size: 13px; font-weight: 800; }
+    .precedent-title { margin: 5px 0 9px; font-size: 22px; line-height: 1.35; }
+    .summary-preview {
+      margin: 0;
+      color: #555;
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .text-button {
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 0;
+      color: var(--navy);
+      background: transparent;
+      font-weight: 750;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .text-button:hover, .text-button:focus-visible { background: var(--blue-soft); outline: none; }
+    .empty-state { padding: 26px 18px; color: var(--muted); background: var(--soft); text-align: center; }
+    .separation-note { margin: 8px 0 16px; color: var(--muted); font-size: 13px; }
+    .warnings { color: var(--warning); }
+    .result-actions { margin-top: 26px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .outcome-card h2 { color: var(--navy); }
+    .outcome-card p { margin: 8px 0 0; }
+    .outcome-next { margin-top: 16px; padding-top: 14px; border-top: 1px solid #d9dbef; font-size: 14px; }
+    .detail-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(17, 17, 23, .42);
+    }
+    .detail-backdrop[hidden] { display: none; }
+    .detail-modal {
+      width: min(900px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      background: var(--white);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+    }
+    .detail-modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 17px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+    }
+    .detail-modal-header h2 { font-size: 20px; }
+    .close-button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--line);
+      color: var(--navy);
+      background: var(--white);
+      font-size: 24px;
+    }
+    .detail-modal-body { padding: 25px 26px 30px; }
+    .detail-heading { padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+    .detail-heading p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    .detail-section { margin-top: 24px; }
+    .detail-section h3 { color: var(--navy); }
+    .detail-section p { margin: 0; white-space: pre-wrap; }
+    .chunk-details { margin-top: 28px; border: 1px solid var(--line); }
+    .chunk-details > summary {
+      padding: 15px 18px;
+      color: var(--navy);
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .chunk-list { padding: 0 18px 18px; display: grid; gap: 10px; }
+    .chunk-item { padding: 15px 16px; border-left: 3px solid #d8daf0; background: var(--soft); }
+    .chunk-label { margin: 0 0 5px !important; color: var(--navy); font-size: 12px; font-weight: 800; }
+    .full-text-section { padding: 22px 0; border-bottom: 1px solid var(--line); }
+    .full-text-section:last-of-type { border-bottom: 0; }
+    .full-text-section h3 { color: var(--navy); }
+    .full-text-section p { margin: 0; white-space: pre-wrap; line-height: 1.85; }
+    @media (max-width: 1000px) {
+      .header-inner { width: min(100% - 32px, 1160px); padding: 14px 0; flex-wrap: wrap; }
+      .nav { order: 3; width: 100%; gap: 18px; overflow-x: auto; }
+    }
+    @media (max-width: 720px) {
+      .page { width: min(100% - 32px, 1060px); padding-top: 30px; }
+      h1 { font-size: 28px; }
+      .steps { gap: 8px; font-size: 12px; }
+      .grid, .result-grid { grid-template-columns: 1fr; }
+      .field.full, .panel.full, .evidence-accordion { grid-column: auto; }
+      .document { padding: 24px 18px; }
+      .result-header, .actions, .prototype-toolbar { align-items: stretch; flex-direction: column; }
+      .prototype-control { min-width: 0; }
+      .state-guide-grid { grid-template-columns: 1fr; }
+      .precedent-card { grid-template-columns: 1fr; gap: 12px; }
+      .card-actions { justify-content: flex-start; }
+      .detail-backdrop { padding: 0; }
+      .detail-modal { width: 100%; height: 100vh; max-height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/demo/certified-letter">AlphaLawVA</a>
+      <nav class="nav" aria-label="주요 메뉴">
+        <a href="#">계약서 검토</a>
+        <a href="#">특약 생성</a>
+        <a href="/demo/precedent-search">판례 검색</a>
+        <a href="/demo/certified-letter" aria-current="page">내용증명 생성</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <h1>내용증명 생성</h1>
+    <div class="steps" aria-label="내용증명 생성 단계">
+      <span id="step-input" class="step active">01 정보 입력</span><span>→</span>
+      <span id="step-progress" class="step">02 초안 생성</span><span>→</span>
+      <span id="step-result" class="step">03 결과 확인</span>
+    </div>
+    <section class="prototype-toolbar" aria-label="프론트 상태 미리보기">
+      <div>
+        <strong>프론트 상태 미리보기 · 데모 전용</strong>
+        <p>API를 호출하지 않고 각 화면 상태와 빈 결과를 확인할 수 있습니다.</p>
+      </div>
+      <div class="prototype-control">
+        <label for="preview-scenario">확인할 화면</label>
+        <select id="preview-scenario">
+          <option value="live">실제 입력 화면</option>
+          <option value="validation_error">입력값 확인 필요</option>
+          <option value="queued">생성 대기</option>
+          <option value="processing">생성 중</option>
+          <option value="draft_ready">생성 완료</option>
+          <option value="draft_without_statutes">생성 완료 · 관련 법령 0건</option>
+          <option value="draft_without_precedents">생성 완료 · 관련 판례 0건</option>
+          <option value="needs_information">추가 정보 필요</option>
+          <option value="out_of_scope">지원 범위 밖</option>
+          <option value="insufficient_evidence">법령 근거 부족 · 이전 결과 호환</option>
+          <option value="failed">생성 실패</option>
+          <option value="unavailable">연결·서버 오류</option>
+        </select>
+      </div>
+    </section>
+    <details class="state-guide">
+      <summary>프론트 구현용 전체 상태와 화면 구성 보기</summary>
+      <div class="state-guide-grid">
+        <div class="state-guide-item"><strong>입력 / 유효성 오류</strong><p>목적·사실·계약·당사자 정보, 필드별 오류, 생성 버튼, 개인정보 안내.</p></div>
+        <div class="state-guide-item"><strong>대기 / 생성 중</strong><p>스피너, 현재 단계 문구. 중복 제출을 막고 입력 화면은 유지합니다.</p></div>
+        <div class="state-guide-item"><strong>생성 완료</strong><p>내용증명 본문, 작성 전략, 다음 단계, 관련 법령·판례 토글, 판례 요약·검색 청크·전문 팝업, 확인 사항.</p></div>
+        <div class="state-guide-item"><strong>검색 결과 0건</strong><p>초안은 유지하고 해당 토글 안에 빈 상태를 표시합니다. 관련 판례는 본문 근거가 아님을 안내합니다.</p></div>
+        <div class="state-guide-item"><strong>추가 정보 / 범위 밖</strong><p>이유, 빠진 정보 목록 또는 지원 범위, 입력 수정 버튼을 보여줍니다.</p></div>
+        <div class="state-guide-item"><strong>작업 / 연결 오류</strong><p>사용자용 메시지, 재시도·입력 수정 버튼. 404·409·422·503·네트워크·시간 초과는 같은 오류 틀을 씁니다.</p></div>
+      </div>
+    </details>
+    <div id="global-error" class="error" role="alert" hidden></div>
+
+    <section id="input-view" class="view">
+      <h2>어떤 내용을 상대방에게 공식적으로 전달하고 싶나요?</h2>
+      <p class="lead">확인된 사실과 계약 정보를 입력하면 관련 법령을 바탕으로 검토 전 초안을 만듭니다.</p>
+      <div class="notice"><strong>현재 알파 범위</strong><br>임대차보증금, 계약 종료·해지, 수선, 월세·관리비 관련 내용증명을 지원합니다.</div>
+
+      <form id="letter-form">
+        <section class="form-section">
+          <h3>요청과 사실관계</h3>
+          <div class="grid">
+            <div class="field full">
+              <label for="purpose">내용증명으로 달성하려는 목적</label>
+              <input id="purpose" maxlength="200" required value="계약 종료 후 보증금을 반환받고 싶습니다.">
+            </div>
+            <div class="field full">
+              <label for="facts">확인된 구체적인 사실</label>
+              <textarea id="facts" minlength="10" maxlength="3000" required>임대차계약이 종료되었지만 임대인이 보증금을 아직 반환하지 않았습니다.</textarea>
+              <p class="help">추측이나 평가보다 날짜, 금액, 상대방의 행동처럼 직접 확인한 내용을 적어주세요.</p>
+              <p id="facts-error" class="field-error" hidden>사실관계를 10자 이상 구체적으로 입력해 주세요.</p>
+            </div>
+            <div class="field">
+              <label for="deadline">희망 이행 기한 (선택)</label>
+              <input id="deadline" type="date">
+              <p class="help">비워두면 수령 후 7일 이내를 전략적 제안으로 표시합니다.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3>계약 정보</h3>
+          <div class="grid">
+            <div class="field"><label for="contract-type">계약 유형</label><select id="contract-type"><option value="jeonse">전세</option><option value="monthly_rent">월세</option></select></div>
+            <div class="field"><label for="property-address">임대 부동산 주소</label><input id="property-address" maxlength="500" required value="서울특별시 중구 세종대로 1"></div>
+            <div class="field"><label for="property-detail">상세 주소 (선택)</label><input id="property-detail" maxlength="200" value="101동 101호"></div>
+            <div class="field"><label for="building-type">건물 유형 (선택)</label><input id="building-type" maxlength="100" value="아파트"></div>
+            <div class="field"><label for="start-date">계약 시작일</label><input id="start-date" type="date" required value="2024-10-01"></div>
+            <div class="field"><label for="end-date">계약 종료일</label><input id="end-date" type="date" required value="2026-09-30"></div>
+            <div class="field"><label for="deposit">보증금 (원)</label><input id="deposit" type="number" min="0" step="1" required value="100000000"></div>
+            <div id="rent-field" class="field" hidden><label for="monthly-rent">월세 (원)</label><input id="monthly-rent" type="number" min="1" step="1"></div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3>보내는 사람과 받는 사람</h3>
+          <p class="section-copy">내용증명을 보내는 계약 당사자를 선택하면 상대방이 받는 사람으로 자동 지정됩니다.</p>
+          <div class="grid">
+            <div class="field"><label for="sender-role">보내는 사람</label><select id="sender-role" required><option value="lessee">임차인</option><option value="lessor">임대인</option></select></div>
+            <div class="field"><label for="lessee-name">임차인 이름</label><input id="lessee-name" maxlength="100" required value="김민지"></div>
+            <div class="field"><label for="lessor-name">임대인 이름</label><input id="lessor-name" maxlength="100" required value="홍길동"></div>
+            <div class="field"><label for="lessee-address">임차인 주소</label><input id="lessee-address" maxlength="500" required value="서울특별시 중구 세종대로 1"></div>
+            <div class="field"><label for="lessor-address">임대인 송달 주소</label><input id="lessor-address" maxlength="500" required value="서울특별시 종로구 사직로 1"></div>
+            <div class="field"><label for="lessee-detail">임차인 상세 주소 (선택)</label><input id="lessee-detail" maxlength="200" value="101동 101호"></div>
+            <div class="field"><label for="lessor-detail">임대인 상세 주소 (선택)</label><input id="lessor-detail" maxlength="200"></div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button id="submit-button" class="primary" type="submit">내용증명 초안 생성 →</button>
+          <span class="privacy">입력한 이름과 주소는 검색 질의에 포함되지 않습니다.</span>
+        </div>
+      </form>
+    </section>
+
+    <section id="progress-view" class="view" hidden>
+      <div class="progress" role="status" aria-live="polite">
+        <div><div class="spinner" aria-hidden="true"></div><h2>내용증명 초안을 만들고 있습니다</h2><p id="progress-message" class="status-copy">요청을 안전하게 접수하는 중입니다.</p></div>
+      </div>
+    </section>
+    <section id="result-view" class="view" hidden aria-live="polite"></section>
+  </main>
+
+  <div id="precedent-detail" class="detail-backdrop" role="dialog" aria-modal="true" aria-labelledby="precedent-detail-title" hidden>
+    <article class="detail-modal">
+      <header class="detail-modal-header">
+        <h2 id="precedent-detail-title">판례 상세</h2>
+        <button id="precedent-detail-close" class="close-button" type="button" aria-label="판례 상세 닫기">×</button>
+      </header>
+      <div id="precedent-detail-body" class="detail-modal-body"></div>
+    </article>
+  </div>
+
+  <script>
+    const views = { input: document.querySelector("#input-view"), progress: document.querySelector("#progress-view"), result: document.querySelector("#result-view") };
+    const steps = { input: document.querySelector("#step-input"), progress: document.querySelector("#step-progress"), result: document.querySelector("#step-result") };
+    const form = document.querySelector("#letter-form");
+    const errorBanner = document.querySelector("#global-error");
+    const submitButton = document.querySelector("#submit-button");
+    const resultView = views.result;
+    const previewScenario = document.querySelector("#preview-scenario");
+    const factsInput = document.querySelector("#facts");
+    const factsError = document.querySelector("#facts-error");
+    const detailBackdrop = document.querySelector("#precedent-detail");
+    const detailBody = document.querySelector("#precedent-detail-body");
+    const detailTitle = document.querySelector("#precedent-detail-title");
+    let activeDraftId = null;
+    let activePrecedents = [];
+
+    function value(id) { return document.querySelector(`#${id}`).value.trim(); }
+    function optional(id) { return value(id) || null; }
+    function escapeHtml(raw) { return String(raw ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
+    function setView(name) {
+      Object.entries(views).forEach(([key, element]) => { element.hidden = key !== name; });
+      Object.entries(steps).forEach(([key, element]) => element.classList.toggle("active", key === name));
+      errorBanner.hidden = true;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function showError(message) { errorBanner.textContent = message; errorBanner.hidden = false; errorBanner.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    async function api(path, options = {}) {
+      let response;
+      try {
+        response = await fetch(path, options);
+      } catch (_error) {
+        throw new Error("API 서버에 연결할 수 없습니다. 이 화면을 API 서버의 /demo/certified-letter 주소로 열었는지 확인해 주세요.");
+      }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error = new Error(payload?.error?.message || `요청을 처리하지 못했습니다. (${response.status})`);
+        error.payload = payload;
+        throw error;
+      }
+      return payload;
+    }
+    function payloadFromForm() {
+      const contractType = value("contract-type");
+      return {
+        sender_role: value("sender-role"), purpose: value("purpose"), facts: value("facts"), requested_deadline: optional("deadline"),
+        contract: {
+          contract_type: contractType,
+          property: { address: value("property-address"), detail_address: optional("property-detail"), building_type: optional("building-type") },
+          period: { start_date: value("start-date"), end_date: value("end-date") },
+          payment: { deposit: Number(value("deposit")), monthly_rent: contractType === "monthly_rent" ? Number(value("monthly-rent")) : null },
+          lessor: { name: value("lessor-name"), address: value("lessor-address"), detail_address: optional("lessor-detail"), phone_number: null },
+          lessee: { name: value("lessee-name"), address: value("lessee-address"), detail_address: optional("lessee-detail"), phone_number: null }
+        }
+      };
+    }
+    function formatParty(party) { return [party.address, party.detail_address].filter(Boolean).map(escapeHtml).join(" "); }
+    function formatDate(raw) {
+      if (!raw) return "선고일 정보 없음";
+      const [year, month, day] = String(raw).split("-");
+      return `${year}. ${Number(month)}. ${Number(day)}.`;
+    }
+    function statuteCard(item) {
+      const title = [item.law_name, item.article_label, item.article_title].filter(Boolean).join(" · ");
+      return `<article class="evidence">
+        <p class="evidence-title">${escapeHtml(title)}</p>
+        <p>${escapeHtml(item.explanation)}</p>
+        ${item.content ? `<p class="statute-meta">조문 · ${escapeHtml(item.content)}</p>` : ""}
+        ${item.effective_date ? `<p class="statute-meta">시행일 ${escapeHtml(item.effective_date)}</p>` : ""}
+        ${item.source_url ? `<div class="card-actions"><a class="text-button" href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">법령 원문보기 ↗</a></div>` : ""}
+      </article>`;
+    }
+    function precedentCard(item, index) {
+      const meta = [item.court_name || "법원 정보 없음", formatDate(item.decision_date), "선고"].join(" · ");
+      return `<article class="precedent-card">
+        <div>
+          <div class="precedent-meta">${escapeHtml(meta)}</div>
+          <h4 class="precedent-title">${escapeHtml(item.case_number || "사건번호 정보 없음")}</h4>
+          <p class="summary-preview">${escapeHtml(item.summary)}</p>
+        </div>
+        <div class="card-actions">
+          <button class="text-button precedent-full-text-open" type="button" data-precedent-index="${index}">판례 전문 ↗</button>
+          <button class="text-button precedent-detail-open" type="button" data-precedent-index="${index}">상세보기 →</button>
+        </div>
+      </article>`;
+    }
+    function bindResultActions(documentData) {
+      document.querySelector("#copy-button")?.addEventListener("click", async (event) => {
+        await navigator.clipboard.writeText(documentData.body);
+        event.currentTarget.textContent = "복사 완료";
+      });
+      document.querySelector(".restart-button")?.addEventListener("click", () => setView("input"));
+      document.querySelectorAll(".precedent-detail-open").forEach((button) => button.addEventListener("click", () => {
+        openPrecedentDetail(activePrecedents[Number(button.dataset.precedentIndex)]);
+      }));
+      document.querySelectorAll(".precedent-full-text-open").forEach((button) => button.addEventListener("click", () => {
+        openPrecedentFullText(activePrecedents[Number(button.dataset.precedentIndex)]);
+      }));
+    }
+    function chunkMarkup(chunks) {
+      if (!chunks?.length) return `<div class="empty-state">검색에 적중한 청크 데이터가 없습니다.</div>`;
+      return chunks.map((chunk, index) => `<article class="chunk-item">
+        <p class="chunk-label">${escapeHtml(chunk.section || `검색 근거 ${index + 1}`)}</p>
+        <p>${escapeHtml(chunk.text)}</p>
+      </article>`).join("");
+    }
+    function bindModalActions(item) {
+      detailBody.querySelector(".modal-full-text-open")?.addEventListener("click", () => openPrecedentFullText(item));
+      detailBody.querySelector(".modal-detail-back")?.addEventListener("click", () => openPrecedentDetail(item));
+    }
+    function openPrecedentDetail(item) {
+      if (!item) return;
+      const chunks = item.matched_chunks || [];
+      detailTitle.textContent = item.case_number || "사건번호 정보 없음";
+      detailBody.innerHTML = `
+        <div class="detail-heading">
+          <div class="precedent-meta">${escapeHtml(item.court_name || "법원 정보 없음")} · ${escapeHtml(formatDate(item.decision_date))} 선고</div>
+          <p>국가법령정보센터 판례일련번호 ${escapeHtml(item.precedent_id)}</p>
+        </div>
+        <section class="detail-section"><h3>판례요약</h3><p>${escapeHtml(item.precedent_summary || "판례요약 데이터가 제공되지 않았습니다.")}</p></section>
+        <section class="detail-section"><h3>쉬운요약</h3><p>${escapeHtml(item.summary)}</p></section>
+        <details class="chunk-details">
+          <summary>내 상황과 비슷한 부분 보기</summary>
+          <div class="chunk-list">${chunkMarkup(chunks)}</div>
+        </details>
+        <div class="result-actions">
+          <button class="secondary modal-full-text-open" type="button">판례 전문 보기</button>
+          <a class="primary" href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">국가법령정보센터 원문보기 ↗</a>
+        </div>`;
+      detailBackdrop.hidden = false;
+      document.body.style.overflow = "hidden";
+      bindModalActions(item);
+    }
+    function openPrecedentFullText(item) {
+      if (!item) return;
+      detailTitle.textContent = item.case_number || "사건번호 정보 없음";
+      const sections = Array.isArray(item.full_text_sections)
+        ? item.full_text_sections
+        : Object.entries(item.full_text || {})
+          .map(([key, content]) => ({
+            key,
+            title: ({ order: "주문", claim: "청구취지", original_judgment: "원심판결", reason: "이유" })[key],
+            content
+          }))
+          .filter((section) => section.title && section.content);
+      detailBody.innerHTML = `
+        <div class="detail-heading">
+          <div class="precedent-meta">${escapeHtml(item.court_name || "법원 정보 없음")} · ${escapeHtml(formatDate(item.decision_date))} 선고</div>
+          <p>보유 중인 판례 데이터로 제공하는 전문입니다.</p>
+        </div>
+        ${sections.length ? sections.map((section) => `<section class="full-text-section"><h3>${escapeHtml(section.title)}</h3><p>${escapeHtml(section.content)}</p></section>`).join("") : `<div class="empty-state">저장된 판례 전문 데이터가 없습니다.</div>`}
+        <div class="result-actions">
+          <button class="secondary modal-detail-back" type="button">상세보기로 돌아가기</button>
+          <a class="primary" href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">국가법령정보센터 원문보기 ↗</a>
+        </div>`;
+      detailBackdrop.hidden = false;
+      document.body.style.overflow = "hidden";
+      bindModalActions(item);
+    }
+    function renderDraft(job) {
+      const result = job.result, documentData = result.document;
+      activePrecedents = result.similar_precedents || [];
+      const statutes = result.statute_evidence || [];
+      const precedents = result.similar_precedents || [];
+      resultView.innerHTML = `
+        <div class="result-header"><div><h2>내용증명 초안이 준비되었습니다</h2><p class="lead">발송 전에 계약 정보, 주소, 금액과 기한을 반드시 다시 확인하세요.</p></div><span class="draft-badge">검토 전 초안</span></div>
+        <article class="document"><h3 class="document-title">${escapeHtml(documentData.title)}</h3><div class="party-table"><div class="party-row"><span class="party-label">받는 사람</span><span>${escapeHtml(documentData.recipient.name)} · ${formatParty(documentData.recipient)}</span></div><div class="party-row"><span class="party-label">보내는 사람</span><span>${escapeHtml(documentData.sender.name)} · ${formatParty(documentData.sender)}</span></div></div><p id="letter-body" class="letter-body">${escapeHtml(documentData.body)}</p></article>
+        <div class="result-grid">
+          <section class="panel"><h3>작성 전략</h3><p>${escapeHtml(result.strategy_summary)}</p></section>
+          <section class="panel"><h3>다음 단계</h3><ol class="clean-list">${result.follow_up_actions.map(item => `<li>${escapeHtml(item.action)}</li>`).join("")}</ol></section>
+          <details class="evidence-accordion">
+            <summary><span>관련 법령</span><span class="evidence-count">${statutes.length}건</span></summary>
+            <div class="accordion-body">
+              <p class="separation-note">초안 본문을 작성할 때 근거로 사용한 법령입니다.</p>
+              <div class="evidence-list">${statutes.length ? statutes.map(statuteCard).join("") : `<div class="empty-state"><strong>관련 법령을 찾지 못했습니다.</strong><br>초안의 사실관계와 요구 내용은 확인할 수 있지만 법령 근거는 별도로 검토해 주세요.</div>`}</div>
+            </div>
+          </details>
+          <details class="evidence-accordion">
+            <summary><span>관련 판례</span><span class="evidence-count">${precedents.length}건</span></summary>
+            <div class="accordion-body">
+              <p class="separation-note">아래 판례는 참고용 유사 사례이며 내용증명 본문의 법적 근거로 사용되지 않았습니다.</p>
+              <div class="precedent-list">${precedents.length ? precedents.map(precedentCard).join("") : `<div class="empty-state"><strong>유사 판례를 찾지 못했습니다.</strong><br>판례가 없어도 생성된 초안은 확인할 수 있습니다.</div>`}</div>
+            </div>
+          </details>
+          <section class="panel full warnings"><h3>확인 사항</h3><ul class="clean-list">${result.warnings.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></section>
+        </div>
+        <div class="result-actions"><button id="copy-button" class="copy-button" type="button">본문 복사</button><button class="secondary restart-button" type="button">정보 수정 후 다시 생성</button></div>`;
+      bindResultActions(documentData);
+    }
+    function renderNonDraft(job) {
+      const labels = { needs_information: "추가 정보가 필요합니다", out_of_scope: "현재 지원 범위를 벗어난 요청입니다", insufficient_evidence: "충분한 법령 근거를 찾지 못했습니다" };
+      const missing = job.missing_information?.length ? `<ul class="clean-list">${job.missing_information.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
+      const next = {
+        needs_information: "위 정보를 추가하면 같은 입력 내용으로 다시 생성할 수 있습니다.",
+        out_of_scope: "현재는 임대차보증금, 계약 종료·해지, 수선, 월세·관리비 관련 요청을 지원합니다.",
+        insufficient_evidence: "이전 버전에서 완료된 작업을 다시 조회할 때 사용하는 호환 화면입니다. 현재 생성은 관련 법령 0건이어도 초안을 제공합니다."
+      }[job.outcome];
+      resultView.innerHTML = `<div class="outcome-card"><h2>${escapeHtml(labels[job.outcome] || "초안을 만들지 못했습니다")}</h2><p>${escapeHtml(job.message || "입력 내용을 확인한 뒤 다시 시도해 주세요.")}</p>${missing}${next ? `<div class="outcome-next">${escapeHtml(next)}</div>` : ""}</div><div class="result-actions"><button class="secondary restart-button" type="button">입력 내용 수정</button></div>`;
+      document.querySelector(".restart-button").addEventListener("click", () => setView("input"));
+    }
+    function renderSystemError(kind) {
+      const isUnavailable = kind === "unavailable";
+      resultView.innerHTML = `
+        <div class="outcome-card error">
+          <h2>${isUnavailable ? "서비스에 연결할 수 없습니다" : "초안을 생성하지 못했습니다"}</h2>
+          <p>${isUnavailable ? "네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요. 입력한 내용은 이 화면에 유지됩니다." : "생성 중 문제가 발생했습니다. 잠시 후 다시 시도하거나 입력 내용을 수정해 주세요."}</p>
+          <div class="outcome-next">동일한 화면 틀로 작업 만료(404), 중복 요청 충돌(409), 입력 검증(422), 생성 서비스 오류(503), 네트워크 오류와 시간 초과를 안내합니다.</div>
+        </div>
+        <div class="result-actions"><button class="primary preview-retry" type="button">다시 시도</button><button class="secondary restart-button" type="button">입력 내용 수정</button></div>`;
+      document.querySelector(".preview-retry").addEventListener("click", () => previewScenario.value = "processing");
+      document.querySelector(".preview-retry").addEventListener("click", () => previewScenario.dispatchEvent(new Event("change")));
+      document.querySelector(".restart-button").addEventListener("click", () => setView("input"));
+    }
+    async function poll(draftId) {
+      const startedAt = Date.now();
+      while (activeDraftId === draftId && Date.now() - startedAt < 300000) {
+        const job = await api(`/api/v1/certified-letter-drafts/${draftId}`);
+        if (job.status === "completed") { job.outcome === "draft_ready" ? renderDraft(job) : renderNonDraft(job); setView("result"); return; }
+        if (job.status === "failed") { throw new Error(job.error?.message || "초안을 생성하지 못했습니다."); }
+        document.querySelector("#progress-message").textContent = job.status === "processing" ? "관련 법령과 유사 판례를 찾고 초안을 검증하고 있습니다." : "생성 순서를 기다리고 있습니다.";
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+      throw new Error("생성 시간이 길어지고 있습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    const mockDraftJob = {
+      status: "completed",
+      outcome: "draft_ready",
+      result: {
+        document: {
+          title: "임대차보증금 반환 요청의 건",
+          recipient: { name: "홍길동", address: "서울특별시 종로구 사직로 1", detail_address: null },
+          sender: { name: "김민지", address: "서울특별시 중구 세종대로 1", detail_address: "101동 101호" },
+          body: `1. 귀하와 발신인은 2024년 10월 1일 서울특별시 중구 세종대로 1 소재 주택에 관하여 임대차계약을 체결하였고, 보증금 100,000,000원을 지급하였습니다.\n\n2. 위 임대차계약은 2026년 9월 30일 종료되었으나, 현재까지 보증금이 반환되지 않았습니다.\n\n3. 이에 본 내용증명을 받은 날로부터 7일 이내에 보증금 100,000,000원을 반환하여 주시기 바랍니다.\n\n4. 위 기한까지 반환이 이루어지지 않을 경우 보증금 반환 청구 등 필요한 법적 절차를 검토할 예정임을 알려드립니다.`
+        },
+        strategy_summary: "확인된 계약 종료일과 미반환 보증금만 기재하고, 단정적이거나 위협적인 표현 없이 반환 기한과 후속 조치 가능성을 명확히 전달했습니다.",
+        follow_up_actions: [
+          { order: 1, action: "계약서의 보증금·종료일과 상대방 주소를 다시 확인합니다." },
+          { order: 2, action: "우체국 내용증명과 배달증명으로 발송하고 사본을 보관합니다." },
+          { order: 3, action: "기한 내 반환이 없으면 임차권등기명령 또는 보증금 반환 청구를 검토합니다." }
+        ],
+        statute_evidence: [
+          {
+            statute_id: "법률-민법-제618조", law_name: "민법", article_label: "제618조", article_title: "임대차의 의의",
+            content: "임대인은 목적물을 사용·수익하게 하고 임차인은 이에 대하여 차임을 지급할 것을 약정함으로써 효력이 생긴다.",
+            explanation: "당사자 사이의 임대차계약 관계와 보증금 반환 요청의 기초가 되는 조문입니다.", effective_date: "2025-01-31",
+            source_url: "https://www.law.go.kr/법령/민법"
+          },
+          {
+            statute_id: "법률-주택임대차보호법-제3조의2", law_name: "주택임대차보호법", article_label: "제3조의2", article_title: "보증금의 회수",
+            content: "임차인은 임차주택에 대하여 보증금의 우선변제를 받을 권리가 있다.",
+            explanation: "주택 임차인의 보증금 회수와 관련된 보호 규정을 확인하기 위해 사용했습니다.", effective_date: "2025-06-04",
+            source_url: "https://www.law.go.kr/법령/주택임대차보호법"
+          }
+        ],
+        similar_precedents: [
+          {
+            precedent_id: "64441", case_number: "2008다23858", case_name: "임대차보증금", court_name: "대법원", decision_date: "2008-09-25",
+            summary: "임대차가 끝난 뒤 임차인이 목적물을 돌려주고 임대인이 보증금을 반환해야 하는 관계를 다룬 판례입니다. 서로의 의무가 어떤 순서와 관계에서 이행되는지가 핵심입니다.",
+            precedent_summary: "임대차 종료 후 목적물 반환 의무와 보증금 반환 의무의 동시이행 관계 및 구체적인 이행 제공 여부를 판단한 사례입니다.",
+            matched_reason: "계약이 종료됐는데도 보증금을 돌려받지 못했다는 점에서 현재 상황과 유사합니다.",
+            matched_chunks: [
+              { section: "판결 이유 · 적중 청크 1", text: "실제 연결 시 이 판례를 검색 결과로 찾게 한 판례 원문 청크가 표시됩니다. 목록 화면에는 노출하지 않고 상세보기에서만 확인합니다." },
+              { section: "판결 이유 · 적중 청크 2", text: "검색에 적중한 청크가 여러 개인 경우 검색 순서대로 이 영역에 나열됩니다." }
+            ],
+            full_text: {
+              order: "실제 연결 시 판례 데이터베이스에 저장된 주문 전문이 표시됩니다.",
+              claim: "실제 연결 시 판례 데이터베이스에 저장된 청구취지 전문이 표시됩니다.",
+              original_judgment: "실제 연결 시 원심판결 정보가 표시됩니다.",
+              reason: "실제 연결 시 판례 데이터베이스에 저장된 판결 이유 전문이 줄바꿈을 유지한 상태로 표시됩니다. 내용이 길면 팝업 안에서 스크롤하여 확인합니다."
+            },
+            source_url: "https://www.law.go.kr/판례/(2008다23858)"
+          },
+          {
+            precedent_id: "228321", case_number: "2020다202371", case_name: "보증금반환", court_name: "대법원", decision_date: "2021-05-27",
+            summary: "임대차 종료와 보증금 반환을 둘러싼 당사자의 권리·의무를 판단한 사례입니다. 실제 결론은 계약 내용과 주택 인도 여부에 따라 달라질 수 있습니다.",
+            precedent_summary: "임대차 종료 뒤 보증금 반환 범위와 당사자의 이행 관계를 판단한 사례입니다.",
+            matched_reason: "임대차 종료 후 보증금 반환을 요구하는 쟁점이 같습니다.",
+            matched_chunks: [
+              { section: "판결 요지 · 적중 청크 1", text: "사용자의 상황과 검색 질의에 적중한 두 번째 판례의 청크가 이 위치에 표시됩니다." }
+            ],
+            full_text: {
+              order: "실제 판례의 주문 데이터가 표시됩니다.",
+              reason: "실제 판례의 판결 이유 데이터가 표시됩니다."
+            },
+            source_url: "https://www.law.go.kr/판례/(2020다202371)"
+          }
+        ],
+        warnings: [
+          "이 문서는 법률 전문가의 검토를 거치지 않은 초안입니다.",
+          "실제 발송 전 계약서, 입금 내역, 주소와 기한을 원자료와 대조해 주세요.",
+          "유사 판례는 참고용이며 내용증명 본문의 법적 근거로 사용되지 않았습니다."
+        ]
+      }
+    };
+    function mockJobWith(overrides) {
+      return { ...mockDraftJob, result: { ...mockDraftJob.result, ...overrides } };
+    }
+    function showProgressPreview(status) {
+      document.querySelector("#progress-message").textContent = status === "processing"
+        ? "관련 법령과 유사 판례를 찾고 초안을 검증하고 있습니다."
+        : "요청이 접수되었습니다. 생성 순서를 기다리고 있습니다.";
+      setView("progress");
+    }
+    function clearValidationPreview() {
+      factsInput.removeAttribute("aria-invalid");
+      factsError.hidden = true;
+    }
+    function showPreviewScenario(name) {
+      clearValidationPreview();
+      if (name === "live") { setView("input"); return; }
+      if (name === "validation_error") {
+        setView("input");
+        factsInput.setAttribute("aria-invalid", "true");
+        factsError.hidden = false;
+        showError("입력 내용을 확인해 주세요. 표시된 필수 항목을 모두 입력해야 합니다.");
+        factsInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (name === "queued" || name === "processing") { showProgressPreview(name); return; }
+      if (name === "draft_ready") renderDraft(mockDraftJob);
+      if (name === "draft_without_statutes") renderDraft(mockJobWith({ statute_evidence: [] }));
+      if (name === "draft_without_precedents") renderDraft(mockJobWith({ similar_precedents: [] }));
+      if (name === "needs_information") renderNonDraft({ outcome: "needs_information", message: "내용증명을 정확히 작성하려면 아래 정보가 더 필요합니다.", missing_information: ["임대인의 송달 주소", "확정된 계약 종료일"] });
+      if (name === "out_of_scope") renderNonDraft({ outcome: "out_of_scope", message: "입력한 요청은 현재 지원하는 주택 임대차 내용증명 범위에 해당하지 않습니다.", missing_information: [] });
+      if (name === "insufficient_evidence") renderNonDraft({ outcome: "insufficient_evidence", message: "입력한 사실과 직접 관련된 법령 근거를 충분히 확인하지 못했습니다.", missing_information: [] });
+      if (name === "failed" || name === "unavailable") renderSystemError(name);
+      setView("result");
+    }
+    function closePrecedentDetail() {
+      detailBackdrop.hidden = true;
+      document.body.style.overflow = "";
+    }
+    previewScenario.addEventListener("change", event => showPreviewScenario(event.target.value));
+    document.querySelector("#precedent-detail-close").addEventListener("click", closePrecedentDetail);
+    detailBackdrop.addEventListener("click", event => { if (event.target === detailBackdrop) closePrecedentDetail(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && !detailBackdrop.hidden) closePrecedentDetail(); });
+    document.querySelector("#contract-type").addEventListener("change", event => { const isMonthly = event.target.value === "monthly_rent"; document.querySelector("#rent-field").hidden = !isMonthly; document.querySelector("#monthly-rent").required = isMonthly; });
+    if (window.location.protocol === "file:") {
+      submitButton.disabled = true;
+      showError("이 파일은 화면 미리보기이므로 API를 호출할 수 없습니다. 백엔드 서버를 실행한 뒤 http://127.0.0.1:8000/demo/certified-letter 로 접속해 주세요.");
+    }
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      submitButton.disabled = true;
+      setView("progress");
+      try {
+        const key = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+        const accepted = await api("/api/v1/certified-letter-drafts", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify(payloadFromForm()) });
+        activeDraftId = accepted.draft_id;
+        await poll(activeDraftId);
+      } catch (error) { activeDraftId = null; setView("input"); showError(error.message); }
+      finally { submitButton.disabled = false; }
+    });
+  </script>
+</body>
+</html>

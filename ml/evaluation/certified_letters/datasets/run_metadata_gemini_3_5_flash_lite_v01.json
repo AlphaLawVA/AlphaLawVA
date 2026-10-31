@@ -1,0 +1,12 @@
+{
+  "provider": "google",
+  "model": "gemini-3.5-flash-lite",
+  "prompt_version": "certified_letter_v0_2",
+  "statute_embedding": "BAAI/bge-m3",
+  "statute_chunking": "article_with_overflow_split_v01",
+  "statute_retrieval": "dense_candidate20_then_top5",
+  "precedent_embedding": "BAAI/bge-m3",
+  "precedent_chunking": "A_reason_summary_v1",
+  "precedent_retrieval": "dense_candidate20_then_rerank_top5",
+  "precedent_reranker": "BAAI/bge-reranker-v2-m3"
+}
