@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AlphaLawVA 판례 검색</title>
+  <style>
+    :root {
+      --navy: #11196f;
+      --navy-dark: #0c124f;
+      --ink: #252525;
+      --muted: #707070;
+      --line: #dedede;
+      --soft: #f7f7f5;
+      --success: #276a4c;
+      --danger: #a62b2b;
+      --white: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--white);
+      font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      letter-spacing: 0;
+    }
+
+    button, textarea { font: inherit; letter-spacing: 0; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+
+    .site-header {
+      height: 76px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+    }
+
+    .header-inner {
+      width: min(1160px, calc(100% - 48px));
+      height: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      border: 0;
+      padding: 0;
+      color: var(--navy);
+      background: transparent;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 27px;
+      color: #555;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .nav a { text-decoration: none; }
+    .nav a[aria-current="page"] { color: var(--navy); }
+
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 40px;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      color: var(--navy);
+      background: var(--white);
+      font-size: 23px;
+      line-height: 1;
+    }
+
+    .icon-button:hover, .icon-button:focus-visible,
+    .secondary-button:hover, .secondary-button:focus-visible {
+      border-color: var(--navy);
+      outline: none;
+    }
+
+    .page {
+      width: min(1160px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 42px 0 72px;
+    }
+
+    .page-heading {
+      margin: 0;
+      color: var(--navy);
+      font-size: 32px;
+      line-height: 1.25;
+    }
+
+    .steps {
+      min-height: 48px;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      color: #858585;
+      font-size: 14px;
+    }
+
+    .step.active { color: var(--navy); font-weight: 700; }
+    .step-arrow { color: #999; }
+
+    .view { padding-top: 28px; }
+    .view[hidden] { display: none; }
+
+    .view-title {
+      margin: 0;
+      font-size: 25px;
+      line-height: 1.35;
+    }
+
+    .view-copy {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .search-form { margin-top: 46px; }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 142px;
+      resize: vertical;
+      padding: 16px;
+      border: 1px solid #d2d2d2;
+      border-radius: 0;
+      color: var(--ink);
+      background: var(--white);
+      line-height: 1.7;
+    }
+
+    textarea:focus { border-color: var(--navy); outline: 2px solid #dfe2ff; }
+
+    .field-help {
+      min-height: 25px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .primary-button, .secondary-button, .text-button {
+      min-height: 44px;
+      border-radius: 2px;
+      font-weight: 700;
+    }
+
+    .primary-button {
+      min-width: 176px;
+      margin-top: 26px;
+      padding: 10px 20px;
+      border: 1px solid var(--navy);
+      color: var(--white);
+      background: var(--navy);
+    }
+
+    .primary-button:hover, .primary-button:focus-visible {
+      background: var(--navy-dark);
+      outline: none;
+    }
+
+    .primary-button:disabled { cursor: wait; opacity: .62; }
+
+    .secondary-button {
+      min-width: 126px;
+      padding: 9px 16px;
+      border: 1px solid var(--line);
+      color: var(--navy);
+      background: var(--white);
+    }
+
+    .text-button {
+      border: 0;
+      padding: 7px 4px;
+      color: var(--navy);
+      background: transparent;
+    }
+
+    .examples { margin-top: 44px; }
+    .examples h3 { margin: 0 0 16px; font-size: 18px; }
+
+    .example-list {
+      display: grid;
+      justify-items: start;
+      gap: 13px;
+    }
+
+    .example-button {
+      border: 0;
+      padding: 3px 0;
+      color: var(--navy);
+      background: transparent;
+      text-align: left;
+      font-weight: 700;
+    }
+
+    .disclaimer {
+      margin: 42px 0 0;
+      color: #777;
+      font-size: 13px;
+    }
+
+    .notice, .error-banner {
+      margin-top: 28px;
+      padding: 14px 18px;
+      border: 1px solid transparent;
+      background: var(--soft);
+      font-size: 14px;
+    }
+
+    .notice strong { display: block; margin-bottom: 2px; }
+    .error-banner { border-color: #efd0d0; color: var(--danger); background: #fff7f7; }
+
+    .query-bar {
+      margin-top: 22px;
+      padding: 13px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .query-text { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+
+    .result-list { border-bottom: 1px solid var(--line); }
+
+    .result-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      padding: 27px 8px;
+      border-top: 1px solid var(--line);
+    }
+
+    .result-row:first-child { border-top: 0; }
+    .eyebrow { color: var(--navy); font-size: 14px; font-weight: 800; }
+
+    .result-title {
+      margin: 4px 0 5px;
+      font-size: 20px;
+      line-height: 1.45;
+    }
+
+    .summary-preview {
+      margin: 0;
+      color: #555;
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .match-preview {
+      margin-top: 14px;
+      padding-left: 12px;
+      border-left: 3px solid #d8daf0;
+      color: #666;
+      font-size: 14px;
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .match-preview strong { color: #444; }
+
+    .result-actions {
+      min-width: 206px;
+      display: grid;
+      grid-template-columns: auto auto 40px;
+      align-items: center;
+      justify-content: end;
+      gap: 17px;
+    }
+
+    .result-actions .icon-button { border-color: transparent; }
+    .result-actions .text-button { white-space: nowrap; }
+
+    .detail-header {
+      margin-top: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .detail-topline {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .detail-title { margin: 7px 0 0; font-size: 26px; line-height: 1.4; }
+    .detail-meta { margin: 20px 0 0; color: var(--muted); font-size: 14px; }
+
+    .detail-actions { display: flex; align-items: center; gap: 9px; }
+
+    .section-heading {
+      margin: 30px 0 12px;
+      font-size: 20px;
+      line-height: 1.4;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 28px;
+    }
+
+    .summary-panel, .content-panel {
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      padding: 22px;
+      background: #fdfdfc;
+    }
+
+    .summary-panel h3, .content-panel h3 { margin: 0 0 12px; font-size: 19px; }
+    .summary-panel p, .content-panel p { margin: 0; white-space: pre-wrap; }
+    .content-stack { display: grid; gap: 12px; }
+
+    .fact-row {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: 16px;
+      padding: 13px 0;
+      border-top: 1px solid #ececec;
+    }
+
+    .fact-row:first-child { border-top: 0; }
+    .fact-row dt { color: var(--navy); font-weight: 800; }
+    .fact-row dd { margin: 0; white-space: pre-wrap; }
+
+    .chunk-list { display: grid; gap: 12px; }
+
+    .evidence-details {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+    }
+
+    .evidence-details summary {
+      padding: 15px 18px;
+      color: var(--navy);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .evidence-details .chunk-list { padding: 0 18px 18px; }
+
+    .chunk {
+      padding: 16px 18px;
+      border-left: 3px solid var(--navy);
+      background: var(--soft);
+    }
+
+    .chunk-meta { margin: 0 0 5px; color: var(--navy); font-size: 13px; font-weight: 800; }
+    .chunk-text { margin: 0; white-space: pre-wrap; }
+
+    .comparison {
+      margin-top: 14px;
+      padding: 22px;
+      border: 1px solid #cfd2ea;
+      border-radius: 2px;
+    }
+
+    .comparison p { margin: 0; }
+    .comparison .primary-button { margin-top: 18px; }
+    .comparison-status { color: var(--muted); font-size: 14px; }
+    .generated-reason { font-size: 17px; line-height: 1.75; }
+
+    .detail-footer {
+      margin-top: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .source-link { color: var(--navy); font-size: 14px; font-weight: 700; }
+
+    .favorite-empty {
+      margin-top: 32px;
+      padding: 48px 20px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .favorite-query { margin: 8px 0 0; color: #666; font-size: 14px; }
+    .status-label { color: var(--success); font-size: 13px; font-weight: 800; }
+
+    .loading-screen {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      color: var(--navy);
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 30px;
+      height: 30px;
+      margin: 0 auto 14px;
+      border: 3px solid #d9dbef;
+      border-top-color: var(--navy);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(17, 17, 23, .42);
+    }
+
+    .modal-backdrop[hidden] { display: none; }
+
+    .modal {
+      width: min(880px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      border-radius: 3px;
+      background: var(--white);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+    }
+
+    .modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+    }
+
+    .modal-header h2 { margin: 0; font-size: 20px; }
+    .modal-body { padding: 6px 24px 30px; }
+    .full-text-section { padding: 22px 0; border-bottom: 1px solid var(--line); }
+    .full-text-section h3 { margin: 0 0 10px; color: var(--navy); font-size: 18px; }
+    .full-text-section p { margin: 0; white-space: pre-wrap; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 760px) {
+      .site-header { height: auto; }
+      .header-inner {
+        width: min(100% - 32px, 1160px);
+        min-height: 68px;
+        flex-wrap: wrap;
+        padding: 14px 0;
+      }
+      .nav { order: 3; width: 100%; gap: 18px; overflow-x: auto; padding-bottom: 3px; }
+      .page { width: min(100% - 32px, 1160px); padding-top: 30px; }
+      .page-heading { font-size: 28px; }
+      .steps { gap: 8px; font-size: 12px; }
+      .view-title { font-size: 22px; }
+      .search-form { margin-top: 34px; }
+      .query-bar, .detail-topline, .detail-footer { align-items: flex-start; flex-direction: column; }
+      .result-row { grid-template-columns: 1fr; gap: 14px; padding-inline: 0; }
+      .result-actions { width: 100%; min-width: 0; justify-content: start; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .detail-title { font-size: 23px; }
+      .detail-actions { width: 100%; justify-content: flex-end; }
+      .fact-row { grid-template-columns: 1fr; gap: 4px; }
+      .modal-backdrop { padding: 0; }
+      .modal { max-height: 100vh; height: 100vh; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <button class="brand" type="button" data-route="search">AlphaLawVA</button>
+      <nav class="nav" aria-label="주요 메뉴">
+        <a href="#">계약서 검토</a>
+        <a href="#">특약 생성</a>
+        <a href="#search" data-route="search" aria-current="page">판례 검색</a>
+        <a href="#">내용증명 생성</a>
+      </nav>
+      <button id="favorites-nav" class="icon-button" type="button" title="즐겨찾기 목록" aria-label="즐겨찾기 목록" data-route="favorites">☆</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <h1 class="page-heading">판례 검색</h1>
+    <div class="steps" aria-label="판례 검색 단계">
+      <span id="step-search" class="step active">01 상황 입력</span>
+      <span class="step-arrow" aria-hidden="true">→</span>
+      <span id="step-results" class="step">02 검색 결과</span>
+      <span class="step-arrow" aria-hidden="true">→</span>
+      <span id="step-detail" class="step">03 판례 상세</span>
+    </div>
+
+    <div id="global-error" class="error-banner" role="alert" hidden></div>
+
+    <section id="search-view" class="view">
+      <h2 class="view-title">어떤 상황과 비슷한 판례를 찾고 계세요?</h2>
+      <p class="view-copy">겪은 상황을 문장으로 입력하거나 아래 예시를 선택해 검색하세요.</p>
+
+      <form id="search-form" class="search-form">
+        <label class="field-label" for="query">겪고 있는 상황</label>
+        <textarea id="query" name="query" maxlength="2000" placeholder="무슨 일이 있었고, 무엇이 궁금한지 적어주세요.">개인회생 면책 후에도 임대인에게 보증금을 돌려받지 못했습니다.</textarea>
+        <p id="query-help" class="field-help">구체적인 계약 관계와 현재 상황을 함께 적으면 더 가까운 판례를 찾는 데 도움이 됩니다.</p>
+        <button id="search-submit" class="primary-button" type="submit">판례 검색 →</button>
+      </form>
+
+      <div class="examples">
+        <h3>이런 질문으로 검색해 보세요</h3>
+        <div class="example-list">
+          <button class="example-button" type="button" data-example="집주인이 파산한 뒤에도 전세보증금을 청구할 수 있나요?">집주인이 파산한 뒤에도 보증금을 청구할 수 있나요? ↗</button>
+          <button class="example-button" type="button" data-example="집주인이 개인회생을 마쳤는데 전세보증금을 돌려받지 못했어요.">집주인이 개인회생을 마쳤는데 보증금을 못 받았어요. ↗</button>
+          <button class="example-button" type="button" data-example="임대인이 바뀌어도 보증금 우선변제권을 주장할 수 있나요?">보증금 우선변제권은 임대인이 바뀌어도 남아 있나요? ↗</button>
+        </div>
+      </div>
+      <p class="disclaimer">검색 결과는 유사한 법률 자료 탐색을 돕는 정보이며 사건의 결론을 예측하지 않습니다.</p>
+    </section>
+
+    <section id="results-view" class="view" hidden></section>
+    <section id="detail-view" class="view" hidden></section>
+    <section id="favorites-view" class="view" hidden></section>
+  </main>
+
+  <div id="full-text-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="full-text-title" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="full-text-title">판례 원문</h2>
+        <button id="modal-close" class="icon-button" type="button" title="원문 닫기" aria-label="원문 닫기">×</button>
+      </div>
+      <div id="full-text-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      searchResponse: null,
+      detail: null,
+      detailOrigin: null,
+      favorites: [],
+      favoriteByResult: new Map(),
+      busy: false,
+    };
+
+    const views = {
+      search: document.querySelector("#search-view"),
+      results: document.querySelector("#results-view"),
+      detail: document.querySelector("#detail-view"),
+      favorites: document.querySelector("#favorites-view"),
+    };
+
+    const stepElements = {
+      search: document.querySelector("#step-search"),
+      results: document.querySelector("#step-results"),
+      detail: document.querySelector("#step-detail"),
+    };
+
+    const errorBanner = document.querySelector("#global-error");
+    const queryInput = document.querySelector("#query");
+    const searchButton = document.querySelector("#search-submit");
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(value) {
+      if (!value) return "선고일 미상";
+      const matched = String(value).match(/^(\d{4})[-.]?(\d{2})[-.]?(\d{2})/);
+      if (!matched) return value;
+      return `${matched[1]}. ${Number(matched[2])}. ${Number(matched[3])}.`;
+    }
+
+    function resultKey(searchId, precedentId) {
+      return `${searchId}:${precedentId}`;
+    }
+
+    function showError(error) {
+      const message = error?.payload?.error?.message || error?.message || "요청을 처리하지 못했습니다.";
+      errorBanner.textContent = message;
+      errorBanner.hidden = false;
+      errorBanner.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    function clearError() {
+      errorBanner.hidden = true;
+      errorBanner.textContent = "";
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: options.body ? { "Content-Type": "application/json", ...(options.headers || {}) } : options.headers,
+      });
+      if (response.status === 204) return null;
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error = new Error(payload?.error?.message || `요청에 실패했습니다. (${response.status})`);
+        error.payload = payload;
+        error.status = response.status;
+        throw error;
+      }
+      return payload;
+    }
+
+    function setView(name, { push = true } = {}) {
+      Object.entries(views).forEach(([key, element]) => { element.hidden = key !== name; });
+      Object.values(stepElements).forEach((element) => element.classList.remove("active"));
+      stepElements[name === "favorites" ? "search" : name]?.classList.add("active");
+      clearError();
+      if (push) history.pushState({ view: name }, "", `#${name}`);
+      window.scrollTo({ top: 0 });
+    }
+
+    function renderLoading(target, message) {
+      target.innerHTML = `<div class="loading-screen"><div><div class="spinner"></div>${escapeHtml(message)}</div></div>`;
+    }
+
+    function metadataLine(precedent) {
+      return [precedent.court_name, precedent.case_number, formatDate(precedent.decision_date)]
+        .filter(Boolean)
+        .map(escapeHtml)
+        .join(" · ");
+    }
+
+    function favoriteButton(searchId, precedentId, isFavorited, favoriteId = "") {
+      const label = isFavorited ? "즐겨찾기 해제" : "즐겨찾기 추가";
+      return `<button class="icon-button favorite-toggle" type="button" title="${label}" aria-label="${label}" data-search-id="${escapeHtml(searchId)}" data-precedent-id="${escapeHtml(precedentId)}" data-favorite-id="${escapeHtml(favoriteId)}">${isFavorited ? "★" : "☆"}</button>`;
+    }
+
+    function renderResults() {
+      const data = state.searchResponse;
+      if (!data) return;
+      const rows = data.results.map((item) => {
+        const precedent = item.precedent;
+        const key = resultKey(data.search_id, precedent.precedent_id);
+        const favoriteId = state.favoriteByResult.get(key) || "";
+        const firstChunk = item.matched_chunks?.[0];
+        return `
+          <article class="result-row">
+            <div>
+              <div class="eyebrow">${metadataLine(precedent)}</div>
+              <h3 class="result-title">${escapeHtml(precedent.case_name || "사건명 없음")}</h3>
+              <p class="summary-preview">${escapeHtml(item.preview?.summary || "등록된 요약이 없습니다.")}</p>
+              ${firstChunk ? `<p class="match-preview"><strong>검색 근거</strong> · ${escapeHtml(firstChunk.text)}</p>` : ""}
+            </div>
+            <div class="result-actions">
+              <button class="text-button full-text-open" type="button" data-path="${escapeHtml(item.links.full_text)}">판례 전문 ↗</button>
+              <button class="text-button detail-open" type="button" data-search-id="${escapeHtml(data.search_id)}" data-precedent-id="${escapeHtml(precedent.precedent_id)}">상세보기 →</button>
+              ${favoriteButton(data.search_id, precedent.precedent_id, Boolean(favoriteId), favoriteId)}
+            </div>
+          </article>`;
+      }).join("");
+
+      views.results.innerHTML = `
+        <h2 class="view-title">비슷한 쟁점의 판례를 살펴보세요</h2>
+        <p class="view-copy">검색 결과마다 입력한 상황과 실제로 가까웠던 판례 부분을 함께 확인할 수 있습니다.</p>
+        <div class="notice"><strong>판례 검색 결과 · ${data.result_count}건</strong>사건번호와 출처를 확인한 뒤 각 판례의 내용을 살펴보세요.</div>
+        <div class="query-bar">
+          <p class="query-text">내가 입력한 내용 · ${escapeHtml(data.query.text)}</p>
+          <button class="secondary-button" type="button" data-route="search">검색 내용 수정</button>
+        </div>
+        <div class="result-list">${rows || `<div class="favorite-empty">${escapeHtml(data.message || "검색 결과가 없습니다.")}</div>`}</div>
+        <p class="disclaimer">관련 판례라도 절차와 사실관계가 다를 수 있습니다. 원문을 확인하고 내 사건의 결론으로 단정하지 마세요.</p>`;
+      bindDynamicActions(views.results);
+    }
+
+    function officialRows(fields) {
+      const candidates = [
+        ["판시사항", fields.issue],
+        ["판결요지", fields.holding],
+        ["참조조문", fields.referenced_statutes],
+        ["참조판례", fields.referenced_precedents],
+      ].filter(([, value]) => value);
+      if (!candidates.length) return "";
+      return `
+        <h3 class="section-heading">판결 핵심</h3>
+        <div class="content-panel"><dl>${candidates.map(([label, value]) => `
+          <div class="fact-row"><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></div>`;
+    }
+
+    function chunksMarkup(chunks) {
+      return (chunks || []).map((chunk) => `
+        <div class="chunk">
+          <p class="chunk-meta">${escapeHtml(chunk.section || chunk.chunk_type || "판례 본문")} · 검색 순위 ${escapeHtml(chunk.rank)} · 유사도 ${Number(chunk.similarity_score).toFixed(3)}</p>
+          <p class="chunk-text">${escapeHtml(chunk.text)}</p>
+        </div>`).join("");
+    }
+
+    function comparisonMarkup(explanation) {
+      if (explanation.status === "generated") {
+        return `<div class="comparison"><p class="status-label">내 상황과 비교 완료 · ${escapeHtml(explanation.model || "AI")}</p><p class="generated-reason">${escapeHtml(explanation.matched_reason)}</p></div>`;
+      }
+      if (explanation.status === "generating") {
+        return `<div class="comparison"><div class="spinner"></div><p class="comparison-status">내 상황과 판례를 비교하고 있습니다. 잠시만 기다려 주세요.</p></div>`;
+      }
+      const failed = explanation.status === "failed";
+      return `
+        <div class="comparison">
+          <p class="comparison-status">${failed ? "이전 설명 생성이 완료되지 않았습니다. 다시 시도할 수 있습니다." : "필요할 때만 AI가 검색 질문과 판례 근거를 비교해 설명합니다. 생성된 설명은 즐겨찾기에서도 그대로 재사용됩니다."}</p>
+          <button id="generate-comparison" class="primary-button" type="button">내 상황과 비교하기</button>
+        </div>`;
+    }
+
+    function renderDetail() {
+      const data = state.detail;
+      if (!data) return;
+      const precedent = data.precedent;
+      const favoriteId = data.favorite_id || state.favoriteByResult.get(resultKey(data.search_id, precedent.precedent_id)) || "";
+      const isFavorited = Boolean(favoriteId || data.is_favorited);
+      const backLabel = state.detailOrigin === "favorite" ? "즐겨찾기 목록으로 ←" : "검색 결과로 ←";
+      const backRoute = state.detailOrigin === "favorite" ? "favorites" : "results";
+
+      views.detail.innerHTML = `
+        <h2 class="view-title">판례 상세</h2>
+        <p class="view-copy">판례 요약과 검색 근거를 나란히 읽고, 필요하면 내 상황과 직접 비교해 보세요.</p>
+        <div class="detail-header">
+          <div class="detail-topline">
+            <div>
+              <div class="eyebrow">${escapeHtml(precedent.court_name || "법원 미상")} ${formatDate(precedent.decision_date)} 선고 · ${escapeHtml(precedent.judgment_type || "판결")}</div>
+              <h3 class="detail-title">${escapeHtml(precedent.case_name || "사건명 없음")}</h3>
+            </div>
+            <div class="detail-actions">
+              <button class="secondary-button full-text-open" type="button" data-path="${escapeHtml(data.links.full_text)}">판례 전문 보기 ↗</button>
+              ${favoriteButton(data.search_id, precedent.precedent_id, isFavorited, favoriteId)}
+            </div>
+          </div>
+          <p class="detail-meta">사건번호 ${escapeHtml(precedent.case_number || "정보 없음")} · 국가법령정보센터 판례일련번호 ${escapeHtml(precedent.precedent_id)}</p>
+        </div>
+
+        <div class="summary-grid">
+          <section class="summary-panel"><h3>판례요약</h3><p>${escapeHtml(data.summaries.precedent_summary || "등록된 판례요약이 없습니다.")}</p></section>
+          <section class="summary-panel"><h3>쉬운요약</h3><p>${escapeHtml(data.summaries.easy_summary || "등록된 쉬운요약이 없습니다.")}</p></section>
+        </div>
+
+        ${officialRows(data.official_fields)}
+
+        <h3 class="section-heading">내 상황과 유사한 부분</h3>
+        ${comparisonMarkup(data.similarity_explanation)}
+
+        <h3 class="section-heading">검색 근거</h3>
+        <details class="evidence-details">
+          <summary>실제로 적중한 판례 부분 ${data.similarity_explanation.matched_chunks.length}개 보기</summary>
+          <div class="chunk-list">${chunksMarkup(data.similarity_explanation.matched_chunks)}</div>
+        </details>
+
+        <div class="detail-footer">
+          <button class="secondary-button" type="button" data-route="${backRoute}">${backLabel}</button>
+          <a class="source-link" href="${escapeHtml(data.links.official_source)}" target="_blank" rel="noopener noreferrer">국가법령정보센터 공식 원문 보기 ↗</a>
+        </div>`;
+      bindDynamicActions(views.detail);
+      document.querySelector("#generate-comparison")?.addEventListener("click", generateComparison);
+    }
+
+    function renderFavorites() {
+      const rows = state.favorites.map((favorite) => `
+        <article class="result-row">
+          <div>
+            <div class="eyebrow">${metadataLine(favorite.precedent)}</div>
+            <h3 class="result-title">${escapeHtml(favorite.precedent.case_name || "사건명 없음")}</h3>
+            <p class="summary-preview">${escapeHtml(favorite.summaries.easy_summary || favorite.summaries.precedent_summary || "등록된 요약이 없습니다.")}</p>
+            <p class="favorite-query"><strong>저장한 검색</strong> · ${escapeHtml(favorite.query.text)}</p>
+            <p class="status-label">${favorite.similarity_explanation.status === "generated" ? "내 상황과 비교 완료" : "내 상황과 비교 전"}</p>
+          </div>
+          <div class="result-actions">
+            <button class="text-button full-text-open" type="button" data-path="${escapeHtml(favorite.links.full_text)}">판례 전문 ↗</button>
+            <button class="text-button favorite-detail-open" type="button" data-favorite-id="${escapeHtml(favorite.favorite_id)}">상세보기 →</button>
+            ${favoriteButton(favorite.search_id, favorite.precedent.precedent_id, true, favorite.favorite_id)}
+          </div>
+        </article>`).join("");
+
+      views.favorites.innerHTML = `
+        <h2 class="view-title">즐겨찾기한 판례</h2>
+        <p class="view-copy">검색 당시 질문과 판례, 이미 만든 비교 설명을 함께 보관합니다.</p>
+        <div class="notice"><strong>저장한 판례 · ${state.favorites.length}건</strong>비교 설명을 아직 만들지 않은 판례도 상세 화면에서 생성할 수 있습니다.</div>
+        <div class="result-list">${rows || `<div class="favorite-empty">아직 즐겨찾기한 판례가 없습니다.</div>`}</div>`;
+      bindDynamicActions(views.favorites);
+    }
+
+    async function submitSearch(event) {
+      event.preventDefault();
+      const query = queryInput.value.trim();
+      if (query.length < 2) {
+        showError(new Error("검색할 상황을 두 글자 이상 입력해 주세요."));
+        return;
+      }
+      clearError();
+      searchButton.disabled = true;
+      searchButton.textContent = "판례를 찾는 중...";
+      try {
+        const data = await api("/api/v1/precedent-searches", {
+          method: "POST",
+          body: JSON.stringify({ query, limit: 5 }),
+        });
+        state.searchResponse = data;
+        await refreshFavorites(false);
+        renderResults();
+        setView("results");
+      } catch (error) {
+        showError(error);
+      } finally {
+        searchButton.disabled = false;
+        searchButton.textContent = "판례 검색 →";
+      }
+    }
+
+    async function openSearchDetail(searchId, precedentId) {
+      setView("detail");
+      renderLoading(views.detail, "판례 상세를 불러오고 있습니다.");
+      try {
+        state.detail = await api(`/api/v1/precedent-searches/${encodeURIComponent(searchId)}/results/${encodeURIComponent(precedentId)}`);
+        state.detailOrigin = "search";
+        renderDetail();
+      } catch (error) {
+        showError(error);
+        history.back();
+      }
+    }
+
+    async function openFavoriteDetail(favoriteId) {
+      setView("detail");
+      renderLoading(views.detail, "저장한 판례를 불러오고 있습니다.");
+      try {
+        state.detail = await api(`/api/v1/precedent-favorites/${encodeURIComponent(favoriteId)}`);
+        state.detailOrigin = "favorite";
+        renderDetail();
+      } catch (error) {
+        showError(error);
+        history.back();
+      }
+    }
+
+    async function refreshFavorites(render = true) {
+      try {
+        const data = await api("/api/v1/precedent-favorites");
+        state.favorites = data.favorites;
+        state.favoriteByResult.clear();
+        data.favorites.forEach((favorite) => {
+          state.favoriteByResult.set(resultKey(favorite.search_id, favorite.precedent.precedent_id), favorite.favorite_id);
+        });
+        document.querySelector("#favorites-nav").textContent = data.favorite_count ? "★" : "☆";
+        if (render) renderFavorites();
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    async function openFavorites(push = true) {
+      setView("favorites", { push });
+      renderLoading(views.favorites, "즐겨찾기를 불러오고 있습니다.");
+      await refreshFavorites(true);
+    }
+
+    async function toggleFavorite(button) {
+      if (state.busy) return;
+      state.busy = true;
+      button.disabled = true;
+      try {
+        const favoriteId = button.dataset.favoriteId;
+        if (favoriteId) {
+          await api(`/api/v1/precedent-favorites/${encodeURIComponent(favoriteId)}`, { method: "DELETE" });
+        } else {
+          await api("/api/v1/precedent-favorites", {
+            method: "POST",
+            body: JSON.stringify({
+              search_id: button.dataset.searchId,
+              precedent_id: button.dataset.precedentId,
+            }),
+          });
+        }
+        await refreshFavorites(false);
+        if (state.detail) {
+          state.detail.is_favorited = state.favoriteByResult.has(
+            resultKey(state.detail.search_id, state.detail.precedent.precedent_id),
+          );
+        }
+        if (!views.results.hidden) renderResults();
+        if (!views.detail.hidden) {
+          if (state.detailOrigin === "favorite" && favoriteId) {
+            await openFavorites();
+          } else {
+            renderDetail();
+          }
+        }
+        if (!views.favorites.hidden) renderFavorites();
+      } catch (error) {
+        showError(error);
+      } finally {
+        state.busy = false;
+        button.disabled = false;
+      }
+    }
+
+    async function generateComparison() {
+      if (!state.detail || state.busy) return;
+      state.busy = true;
+      const previous = state.detail.similarity_explanation;
+      state.detail.similarity_explanation = {
+        ...previous,
+        status: "generating",
+        method: "gemini",
+        model: previous.model || "gemini-3.5-flash-lite",
+        matched_reason: null,
+      };
+      renderDetail();
+      try {
+        const favoriteId = state.detail.favorite_id || state.favoriteByResult.get(resultKey(state.detail.search_id, state.detail.precedent.precedent_id));
+        const path = state.detailOrigin === "favorite" && favoriteId
+          ? `/api/v1/precedent-favorites/${encodeURIComponent(favoriteId)}/similarity-explanation`
+          : `/api/v1/precedent-searches/${encodeURIComponent(state.detail.search_id)}/results/${encodeURIComponent(state.detail.precedent.precedent_id)}/similarity-explanation`;
+        state.detail.similarity_explanation = await api(path, { method: "POST" });
+        await refreshFavorites(false);
+        renderDetail();
+      } catch (error) {
+        state.detail.similarity_explanation = previous;
+        renderDetail();
+        showError(error);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    async function openFullText(path) {
+      const modal = document.querySelector("#full-text-modal");
+      const body = document.querySelector("#full-text-body");
+      modal.hidden = false;
+      document.body.style.overflow = "hidden";
+      renderLoading(body, "판례 원문을 불러오고 있습니다.");
+      try {
+        const data = await api(path);
+        document.querySelector("#full-text-title").textContent = data.precedent.case_name || "판례 원문";
+        body.innerHTML = data.sections.length
+          ? data.sections.map((section) => `<section class="full-text-section"><h3>${escapeHtml(section.title)}</h3><p>${escapeHtml(section.content)}</p></section>`).join("")
+          : `<div class="favorite-empty">표시할 원문 내용이 없습니다.</div>`;
+      } catch (error) {
+        body.innerHTML = `<div class="error-banner">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function closeFullText() {
+      document.querySelector("#full-text-modal").hidden = true;
+      document.body.style.overflow = "";
+    }
+
+    function bindDynamicActions(root) {
+      root.querySelectorAll("[data-route]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.route)));
+      root.querySelectorAll(".detail-open").forEach((button) => button.addEventListener("click", () => openSearchDetail(button.dataset.searchId, button.dataset.precedentId)));
+      root.querySelectorAll(".favorite-detail-open").forEach((button) => button.addEventListener("click", () => openFavoriteDetail(button.dataset.favoriteId)));
+      root.querySelectorAll(".favorite-toggle").forEach((button) => button.addEventListener("click", () => toggleFavorite(button)));
+      root.querySelectorAll(".full-text-open").forEach((button) => button.addEventListener("click", () => openFullText(button.dataset.path)));
+    }
+
+    function navigate(route, push = true) {
+      if (route === "favorites") {
+        openFavorites(push);
+        return;
+      }
+      if (route === "results" && state.searchResponse) renderResults();
+      setView(route === "results" && !state.searchResponse ? "search" : route, { push });
+    }
+
+    document.querySelector("#search-form").addEventListener("submit", submitSearch);
+    document.querySelectorAll("[data-route]").forEach((button) => button.addEventListener("click", (event) => {
+      event.preventDefault();
+      navigate(button.dataset.route);
+    }));
+    document.querySelectorAll("[data-example]").forEach((button) => button.addEventListener("click", () => {
+      queryInput.value = button.dataset.example;
+      queryInput.focus();
+      window.scrollTo({ top: 160, behavior: "smooth" });
+    }));
+    document.querySelector("#modal-close").addEventListener("click", closeFullText);
+    document.querySelector("#full-text-modal").addEventListener("click", (event) => {
+      if (event.target.id === "full-text-modal") closeFullText();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeFullText();
+    });
+    window.addEventListener("popstate", (event) => navigate(event.state?.view || location.hash.slice(1) || "search", false));
+
+    history.replaceState({ view: "search" }, "", "#search");
+    refreshFavorites(false);
+  </script>
+</body>
+</html>

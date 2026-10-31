@@ -1,6 +1,8 @@
 -r requirements-document-processing.txt
 -r requirements-document-ai.txt
+-r requirements-preprocessing.txt
+-r requirements-api.txt
 
 ruff==0.16.4
 jsonschema==4.26.0
-pydantic==2.13.5
+httpx2==2.13.1
