@@ -13,13 +13,19 @@ After:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_DATA_ROOT = Path(
+    os.environ.get("ALPHALAWVA_LOCAL_DATA_DIR", PROJECT_ROOT / "local_data")
+).expanduser()
+if not LOCAL_DATA_ROOT.is_absolute():
+    LOCAL_DATA_ROOT = PROJECT_ROOT / LOCAL_DATA_ROOT
 DEFAULT_FINAL_CASES_DIR = (
-    PROJECT_ROOT / "local_data" / "precedents" / "processed" / "final_cases"
+    LOCAL_DATA_ROOT / "precedents" / "processed" / "final_cases"
 )
 
 

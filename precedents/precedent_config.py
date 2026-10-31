@@ -78,6 +78,12 @@ GEMINI_GENERATE_URL_TEMPLATE = (
 
 def load_env_file(path: Path = ENV_FILE) -> None:
     """간단한 .env 파일을 읽어서 현재 프로세스 환경변수에 넣는다."""
+    if path == ENV_FILE:
+        configured_path = os.environ.get("ALPHALAWVA_ENV_FILE", "").strip()
+        if configured_path:
+            path = Path(configured_path).expanduser()
+            if not path.is_absolute():
+                path = PROJECT_ROOT / path
     if not path.exists():
         return
 

@@ -10,10 +10,12 @@ After:
     - api.main:app으로 서버를 실행하고 판례 API와 상태를 확인할 수 있음.
 """
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
@@ -42,6 +44,12 @@ from api.services.precedent_search_sessions import (
 PRECEDENT_DEMO_PATH = (
     Path(__file__).resolve().parent / "static" / "precedent_search_demo.html"
 )
+DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+
+
+def _cors_origins() -> list[str]:
+    configured = os.environ.get("ALPHALAWVA_CORS_ORIGINS", DEFAULT_CORS_ORIGINS)
+    return [origin.strip() for origin in configured.split(",") if origin.strip()]
 
 
 def _error_response(
@@ -190,6 +198,13 @@ def create_app(
         title="AlphaLawVA API",
         description="AlphaLawVA backend API",
         version="0.1.0",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
     app.state.precedent_search_service = (
         precedent_search_service

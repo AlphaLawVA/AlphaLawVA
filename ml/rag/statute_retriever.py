@@ -14,6 +14,7 @@ After:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from threading import RLock
@@ -23,8 +24,22 @@ from ml.data_collection.statutes.law_api_common import PROJECT_ROOT
 from ml.embedding.build_bge_m3_statute_chroma import MODEL_SPEC
 
 
-DEFAULT_MODEL_CACHE = PROJECT_ROOT / "data/statutes/models"
-DEFAULT_DB_DIR = MODEL_SPEC.default_db_dir
+
+
+def _resolve_path_from_env(name: str, default: Path) -> Path:
+    configured = os.environ.get(name, "").strip()
+    path = Path(configured).expanduser() if configured else default
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+DEFAULT_MODEL_CACHE = _resolve_path_from_env(
+    "ALPHALAWVA_MODEL_CACHE_DIR",
+    PROJECT_ROOT / "data/statutes/models",
+)
+DEFAULT_DB_DIR = _resolve_path_from_env(
+    "ALPHALAWVA_STATUTE_DB_DIR",
+    MODEL_SPEC.default_db_dir,
+)
 DEFAULT_MANIFEST = DEFAULT_DB_DIR / "build_manifest.json"
 DEFAULT_TOP_K = 10
 

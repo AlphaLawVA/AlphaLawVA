@@ -97,6 +97,22 @@ class ApiMainTests(unittest.TestCase):
         self.assertIn("AlphaLawVA 판례 검색", response.text)
         self.assertIn("/api/v1/precedent-searches", response.text)
 
+    def test_allows_local_frontend_cors_preflight(self):
+        response = TestClient(create_app(object())).options(
+            "/api/v1/precedent-searches",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "http://localhost:3000",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
