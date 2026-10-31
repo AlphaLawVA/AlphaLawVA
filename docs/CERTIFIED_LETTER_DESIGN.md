@@ -340,6 +340,37 @@ $env:ALPHALAWVA_ENV_FILE = "C:\\absolute\\path\\to\\AlphaLawVA\\.env"
 python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
+### Current Next.js integration status
+
+The Next.js certified-letter flow is connected to the live FastAPI draft API.
+It passes the user-confirmed contract snapshot, collects only the sender role,
+purpose, confirmed facts, and optional deadline, then polls the in-memory job
+until completion. The result screen renders the generated document, strategy,
+follow-up actions, warnings, cited statute evidence, and similar precedents.
+
+The following parts remain demo or alpha-only behavior:
+
+- contract upload, OCR progress, and extracted contract values use the frontend
+  sample snapshot until the separate OCR branch is integrated;
+- draft jobs are stored in process memory and are lost when the API restarts;
+- generated results are not yet saved to the user's MySQL result storage; and
+- legal output remains a review-required draft rather than a send-ready legal
+  conclusion.
+
+Statute runtime data is local-only and excluded from Git. Keep the matching
+data set in these standard locations:
+
+- source article chunks: `data/statutes/chunks/`;
+- BGE-M3 ChromaDB: `data/statutes/vectorstores/bge_m3/`; and
+- embedding model cache: `data/statutes/models/`.
+
+`data/statutes/chunks/` is the validated source corpus used to build the
+ChromaDB; the API performs retrieval from the vector store. Configure
+`CERTIFIED_LETTER_STATUTE_DB_DIR` when the vector store is outside the runtime
+project root. The public response includes only selected statute evidence that
+the final draft actually cites, so a successful fact-based draft may still
+return an empty `statute_evidence` list.
+
 ## Privacy and Logging
 
 Certified-letter requests contain names, addresses, phone numbers, contract

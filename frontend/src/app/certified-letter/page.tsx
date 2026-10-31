@@ -246,8 +246,20 @@ export default function CertifiedLetterPage() {
           <section className={styles.panel} style={{ marginTop: 18 }}>
             <h2>관련 근거</h2>
             <details className={styles.detailDisclosure}>
-              <summary>관련 법령 0건</summary>
-              <p>법령 원문·가공 데이터가 준비되면 검색된 법령 근거를 이곳에 표시합니다.</p>
+              <summary>관련 법령 {draftResult.statute_evidence.length}건</summary>
+              {draftResult.statute_evidence.length > 0 ? (
+                <div className={styles.basisGrid}>
+                  {draftResult.statute_evidence.map((statute) => (
+                    <article className={styles.basisCard} key={`${statute.statute_id ?? statute.law_name}-${statute.article_label}`}>
+                      <strong>{statute.law_name} {statute.article_label}</strong>
+                      {statute.article_title && <p>{statute.article_title}</p>}
+                      <span>{statute.explanation}</span>
+                      <p style={{ whiteSpace: "pre-wrap" }}>{statute.content}</p>
+                      {statute.source_url && <a href={statute.source_url} target="_blank" rel="noreferrer">원문 보기</a>}
+                    </article>
+                  ))}
+                </div>
+              ) : <p>최종 내용증명 본문에 직접 인용된 관련 법령이 없습니다.</p>}
             </details>
             <details className={styles.detailDisclosure}>
               <summary>관련 판례 {relatedPrecedents.length}건</summary>
