@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
+import { createSpecialClauseDraft, type SpecialClauseDraftResult } from "@/lib/contract-api";
+import { LiveClauseResult } from "./live-clause-result";
 import styles from "../feature-demo.module.css";
 
 type Stage = "input" | "review" | "generating" | "result";
@@ -86,22 +88,11 @@ export default function ClauseGeneratorPage() {
   const [progress, setProgress] = useState(12);
   const [error, setError] = useState("");
   const [focusedRequestId, setFocusedRequestId] = useState<number | null>(null);
+  const [draftResult, setDraftResult] = useState<SpecialClauseDraftResult | null>(null);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const validRequests = useMemo(() => requests.map((item) => item.value.trim()).filter(Boolean), [requests]);
   const generated = useMemo(() => validRequests.map(buildClause), [validRequests]);
   const current = generated[selected] ?? generated[0];
-
-  useEffect(() => {
-    if (stage !== "generating") return;
-    const timer = window.setInterval(() => setProgress((value) => Math.min(100, value + 4)), 110);
-    return () => window.clearInterval(timer);
-  }, [stage]);
-
-  useEffect(() => {
-    if (stage !== "generating" || progress < 100) return;
-    const timer = window.setTimeout(() => setStage("result"), 400);
-    return () => window.clearTimeout(timer);
-  }, [progress, stage]);
 
   function updateRequest(id: number, value: string) {
     setRequests((items) => items.map((item) => item.id === id ? { ...item, value } : item));
@@ -116,10 +107,24 @@ export default function ClauseGeneratorPage() {
     setRequests((items) => items.filter((item) => item.id !== id));
   }
 
-  function generateClauses() {
+  async function generateClauses() {
     setSelected(0);
-    setProgress(12);
+    setProgress(35);
+    setDraftResult(null);
     setStage("generating");
+    try {
+      const result = await createSpecialClauseDraft(validRequests);
+      setDraftResult(result);
+      setProgress(100);
+      setStage("result");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "특약 생성 요청을 처리하지 못했습니다.",
+      );
+      setStage("review");
+    }
   }
 
   function reviewRequests() {
@@ -140,6 +145,7 @@ export default function ClauseGeneratorPage() {
     setRequests([{ id: nextId, value: "" }]);
     setNextId((value) => value + 1);
     setSelected(0);
+    setDraftResult(null);
     setStage("input");
   }
 
@@ -207,7 +213,8 @@ export default function ClauseGeneratorPage() {
         </section>
       )}
 
-      {stage === "result" && current && (
+      {stage === "result" && (
+        draftResult ? <LiveClauseResult result={draftResult} /> : current && (
         <>
           <div className={styles.notice}><AlertCircle size={18} aria-hidden="true" /><span>생성된 문구는 협의를 위한 AI 초안입니다. 실제 계약에 반영하기 전에 상대방과 합의하고 필요한 경우 전문가에게 확인하세요.</span></div>
           <div className={styles.resultSplit}>
@@ -232,6 +239,7 @@ export default function ClauseGeneratorPage() {
             </article>
           </div>
         </>
+        )
       )}
 
       <div className={styles.actions}>
