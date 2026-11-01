@@ -15,9 +15,12 @@ data/statutes/evaluation/runs/
 data/statutes/evaluation/reviews/
 .tmp/
 outputs/
+/output/
+/tmp/
 __pycache__/
 *.py[cod]
 .matplotlib_cache/
+.local-tools/
 
 # Local collection outputs and other large/generated data.
 local_data/

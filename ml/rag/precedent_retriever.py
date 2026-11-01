@@ -13,6 +13,7 @@ After:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from threading import RLock
@@ -25,13 +26,25 @@ BGE_M3_MODEL_NAME = "BAAI/bge-m3"
 BGE_M3_DIMENSION = 1024
 DEFAULT_COLLECTION_NAME = "precedents_a_bge_m3"
 DEFAULT_CHUNKING_STRATEGY = "A_reason_summary_v1"
-DEFAULT_MODEL_CACHE = PROJECT_ROOT / "data" / "statutes" / "models"
-DEFAULT_DB_DIR = (
-    PROJECT_ROOT
-    / "local_data"
-    / "precedents"
-    / "vector_dbs"
-    / "precedents_bge-m3_v1"
+
+
+def _resolve_path_from_env(name: str, default: Path) -> Path:
+    configured = os.environ.get(name, "").strip()
+    path = Path(configured).expanduser() if configured else default
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+LOCAL_DATA_ROOT = _resolve_path_from_env(
+    "ALPHALAWVA_LOCAL_DATA_DIR",
+    PROJECT_ROOT / "local_data",
+)
+DEFAULT_MODEL_CACHE = _resolve_path_from_env(
+    "ALPHALAWVA_MODEL_CACHE_DIR",
+    PROJECT_ROOT / "data" / "statutes" / "models",
+)
+DEFAULT_DB_DIR = _resolve_path_from_env(
+    "ALPHALAWVA_PRECEDENT_DB_DIR",
+    LOCAL_DATA_ROOT / "precedents" / "vector_dbs" / "precedents_bge-m3_v1",
 )
 DEFAULT_TOP_K = 10
 DEFAULT_CANDIDATE_MULTIPLIER = 5

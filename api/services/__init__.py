@@ -18,6 +18,9 @@ from api.services.precedent_case_repository import (
     PrecedentCaseRepository,
     PrecedentCaseRepositoryError,
 )
+from api.services.certified_letter_configuration import (
+    create_certified_letter_service_from_env,
+)
 from api.services.gemini_similarity_explainer import (
     GeminiSimilarityExplainer,
     create_gemini_similarity_explainer_from_env,
@@ -72,4 +75,5 @@ __all__ = [
     "SimilarityExplanationSnapshot",
     "SimilarityExplanationUnavailableError",
     "create_gemini_similarity_explainer_from_env",
+    "create_certified_letter_service_from_env",
 ]

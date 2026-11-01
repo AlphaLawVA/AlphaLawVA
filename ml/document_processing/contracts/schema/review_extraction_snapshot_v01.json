@@ -1,0 +1,1626 @@
+{
+  "$defs": {
+    "BrokerExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "office_name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "office_registration_number": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "broker_in_charge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "signature_present": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_bool_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "BrokerExtraction",
+      "type": "object"
+    },
+    "ContractClauseExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "item_order": {
+          "minimum": 1,
+          "title": "Item Order",
+          "type": "integer"
+        },
+        "original_text": {
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "clause_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause Number"
+        },
+        "clause_title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause Title"
+        }
+      },
+      "required": [
+        "item_order",
+        "original_text",
+        "source"
+      ],
+      "title": "ContractClauseExtraction",
+      "type": "object"
+    },
+    "ContractDisclosures": {
+      "additionalProperties": false,
+      "properties": {
+        "tax_arrears": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "senior_deposit_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "registry_checked": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_bool_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "existing_encumbrances": {
+          "items": {
+            "$ref": "#/$defs/TextBlockExtraction"
+          },
+          "title": "Existing Encumbrances",
+          "type": "array"
+        },
+        "rights_change_restriction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "guarantee_insurance_term": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ContractDisclosures",
+      "type": "object"
+    },
+    "ContractExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "contract_extraction.v0.1",
+          "default": "contract_extraction.v0.1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "document_type": {
+          "const": "contract",
+          "default": "contract",
+          "title": "Document Type",
+          "type": "string"
+        },
+        "contract_type": {
+          "$ref": "#/$defs/ExtractedField_ContractType_"
+        },
+        "contract_date": {
+          "$ref": "#/$defs/ExtractedField_date_"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "delivery_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ownership_transfer_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "property": {
+          "$ref": "#/$defs/PropertyExtraction"
+        },
+        "parties": {
+          "items": {
+            "$ref": "#/$defs/ContractPartyExtraction"
+          },
+          "title": "Parties",
+          "type": "array"
+        },
+        "payment": {
+          "$ref": "#/$defs/ContractPaymentExtraction"
+        },
+        "articles": {
+          "items": {
+            "$ref": "#/$defs/ContractClauseExtraction"
+          },
+          "title": "Articles",
+          "type": "array"
+        },
+        "special_terms": {
+          "items": {
+            "$ref": "#/$defs/TextBlockExtraction"
+          },
+          "title": "Special Terms",
+          "type": "array"
+        },
+        "disclosures": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContractDisclosures"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "brokers": {
+          "items": {
+            "$ref": "#/$defs/BrokerExtraction"
+          },
+          "title": "Brokers",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_type",
+        "contract_date",
+        "property",
+        "parties",
+        "payment"
+      ],
+      "title": "ContractExtraction",
+      "type": "object"
+    },
+    "ContractPartyExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/PartyRole"
+        },
+        "name": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "ownership_share": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "agent_present": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_bool_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "agent_name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "signature_present": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_bool_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "ContractPartyExtraction",
+      "type": "object"
+    },
+    "ContractPaymentExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "sale_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "deposit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "monthly_rent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maintenance_fee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "down_payment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "intermediate_payments": {
+          "items": {
+            "$ref": "#/$defs/PaymentInstallmentExtraction"
+          },
+          "title": "Intermediate Payments",
+          "type": "array"
+        },
+        "remaining_balance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "remaining_balance_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "monthly_rent_payment_day": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "payment_timing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_PaymentTiming_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ContractPaymentExtraction",
+      "type": "object"
+    },
+    "ContractType": {
+      "enum": [
+        "jeonse",
+        "monthly_rent",
+        "sale"
+      ],
+      "title": "ContractType",
+      "type": "string"
+    },
+    "ExplanationSheetExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "explanation_sheet_extraction.v0.1",
+          "default": "explanation_sheet_extraction.v0.1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "document_type": {
+          "const": "explanation_sheet",
+          "default": "explanation_sheet",
+          "title": "Document Type",
+          "type": "string"
+        },
+        "contract_type": {
+          "$ref": "#/$defs/ExtractedField_ContractType_"
+        },
+        "property": {
+          "$ref": "#/$defs/PropertyExtraction"
+        },
+        "evidence_documents": {
+          "items": {
+            "$ref": "#/$defs/TextBlockExtraction"
+          },
+          "title": "Evidence Documents",
+          "type": "array"
+        },
+        "rights_and_relationships": {
+          "items": {
+            "$ref": "#/$defs/TextBlockExtraction"
+          },
+          "title": "Rights And Relationships",
+          "type": "array"
+        },
+        "property_condition_notes": {
+          "items": {
+            "$ref": "#/$defs/TextBlockExtraction"
+          },
+          "title": "Property Condition Notes",
+          "type": "array"
+        },
+        "management_fee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "brokerage_fee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "brokers": {
+          "items": {
+            "$ref": "#/$defs/BrokerExtraction"
+          },
+          "title": "Brokers",
+          "type": "array"
+        },
+        "signatures_present": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_bool_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_type",
+        "property"
+      ],
+      "title": "ExplanationSheetExtraction",
+      "type": "object"
+    },
+    "ExtractedField_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[Annotated[float, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0)])]]",
+      "type": "object"
+    },
+    "ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0)])]]",
+      "type": "object"
+    },
+    "ExtractedField_ContractType_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContractType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[ContractType]",
+      "type": "object"
+    },
+    "ExtractedField_PaymentTiming_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentTiming"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[PaymentTiming]",
+      "type": "object"
+    },
+    "ExtractedField_bool_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[bool]",
+      "type": "object"
+    },
+    "ExtractedField_date_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[date]",
+      "type": "object"
+    },
+    "ExtractedField_datetime_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[datetime]",
+      "type": "object"
+    },
+    "ExtractedField_str_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "status": {
+          "$ref": "#/$defs/ExtractionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ExtractedField[str]",
+      "type": "object"
+    },
+    "ExtractionStatus": {
+      "enum": [
+        "extracted",
+        "missing",
+        "ambiguous",
+        "low_confidence",
+        "user_confirmed",
+        "user_corrected",
+        "not_applicable"
+      ],
+      "title": "ExtractionStatus",
+      "type": "string"
+    },
+    "NormalizedBoundingBox": {
+      "additionalProperties": false,
+      "properties": {
+        "x_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X Min",
+          "type": "number"
+        },
+        "y_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y Min",
+          "type": "number"
+        },
+        "x_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X Max",
+          "type": "number"
+        },
+        "y_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_min",
+        "y_min",
+        "x_max",
+        "y_max"
+      ],
+      "title": "NormalizedBoundingBox",
+      "type": "object"
+    },
+    "PartyRole": {
+      "enum": [
+        "lessor",
+        "lessee",
+        "seller",
+        "buyer"
+      ],
+      "title": "PartyRole",
+      "type": "string"
+    },
+    "PaymentInstallmentExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+        },
+        "due_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "label",
+        "amount"
+      ],
+      "title": "PaymentInstallmentExtraction",
+      "type": "object"
+    },
+    "PaymentTiming": {
+      "enum": [
+        "prepaid",
+        "postpaid",
+        "unspecified"
+      ],
+      "title": "PaymentTiming",
+      "type": "string"
+    },
+    "PropertyExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "detail_address": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "leased_part_description": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "leased_area_m2": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "land_category": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "land_area_m2": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "land_right_ratio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "building_structure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "building_use": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "building_area_m2": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "address",
+        "detail_address"
+      ],
+      "title": "PropertyExtraction",
+      "type": "object"
+    },
+    "RegistryEncumbranceExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "section": {
+          "$ref": "#/$defs/RegistrySection"
+        },
+        "rank_number": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "registration_purpose": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "registration_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "holder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "debtor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maximum_claim_amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0_____"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "raw_text": {
+          "minLength": 1,
+          "title": "Raw Text",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "status": {
+          "$ref": "#/$defs/RegistryEntryStatus"
+        }
+      },
+      "required": [
+        "section",
+        "rank_number",
+        "registration_purpose",
+        "raw_text",
+        "source",
+        "status"
+      ],
+      "title": "RegistryEncumbranceExtraction",
+      "type": "object"
+    },
+    "RegistryEntryStatus": {
+      "enum": [
+        "active",
+        "cancelled",
+        "unknown"
+      ],
+      "title": "RegistryEntryStatus",
+      "type": "string"
+    },
+    "RegistryExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "registry_extraction.v0.1",
+          "default": "registry_extraction.v0.1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "document_type": {
+          "const": "registry",
+          "default": "registry",
+          "title": "Document Type",
+          "type": "string"
+        },
+        "issued_at": {
+          "$ref": "#/$defs/ExtractedField_datetime_"
+        },
+        "unique_property_number": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "address": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "detail_address": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "property_description": {
+          "items": {
+            "$ref": "#/$defs/TextBlockExtraction"
+          },
+          "title": "Property Description",
+          "type": "array"
+        },
+        "owners": {
+          "items": {
+            "$ref": "#/$defs/RegistryOwnerExtraction"
+          },
+          "title": "Owners",
+          "type": "array"
+        },
+        "encumbrances": {
+          "items": {
+            "$ref": "#/$defs/RegistryEncumbranceExtraction"
+          },
+          "title": "Encumbrances",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "issued_at",
+        "address",
+        "detail_address"
+      ],
+      "title": "RegistryExtraction",
+      "type": "object"
+    },
+    "RegistryOwnerExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/ExtractedField_str_"
+        },
+        "ownership_share": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "registration_date": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_date_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "registration_cause": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractedField_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "$ref": "#/$defs/RegistryEntryStatus"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "title": "RegistryOwnerExtraction",
+      "type": "object"
+    },
+    "RegistrySection": {
+      "enum": [
+        "title",
+        "gapgu",
+        "eulgu"
+      ],
+      "title": "RegistrySection",
+      "type": "string"
+    },
+    "SourceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "bounding_box": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NormalizedBoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "page_number"
+      ],
+      "title": "SourceLocation",
+      "type": "object"
+    },
+    "TextBlockExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "item_order": {
+          "minimum": 1,
+          "title": "Item Order",
+          "type": "integer"
+        },
+        "original_text": {
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "item_order",
+        "original_text",
+        "source"
+      ],
+      "title": "TextBlockExtraction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "review_extraction_snapshot.v0.1",
+      "default": "review_extraction_snapshot.v0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "contract": {
+      "$ref": "#/$defs/ContractExtraction"
+    },
+    "registry": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RegistryExtraction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "explanation_sheet": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExplanationSheetExtraction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract"
+  ],
+  "title": "ReviewExtractionSnapshot",
+  "type": "object"
+}

@@ -1,0 +1,152 @@
+.page {
+  min-height: calc(100vh - 68px);
+  padding: 72px 24px 96px;
+  display: grid;
+  place-items: start center;
+}
+
+.card {
+  width: min(100%, 460px);
+  padding: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  margin-bottom: 10px;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.card h1 {
+  color: var(--navy);
+  font-size: 32px;
+  line-height: 1.25;
+}
+
+.description {
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.form {
+  margin-top: 30px;
+  display: grid;
+  gap: 20px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field label {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.field input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: white;
+  outline: none;
+}
+
+.field input:focus-visible {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px var(--navy-soft);
+}
+
+.hint {
+  color: var(--text-subtle);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.fieldError,
+.formError,
+.success {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.fieldError,
+.formError {
+  color: var(--danger);
+}
+
+.formError,
+.success {
+  padding: 12px 14px;
+  border-radius: 6px;
+}
+
+.formError {
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: #fff4f2;
+}
+
+.success {
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--line));
+  background: var(--success-bg);
+}
+
+.submit {
+  height: 50px;
+  border: 1px solid var(--navy);
+  border-radius: 6px;
+  color: white;
+  background: var(--navy);
+  font-weight: 800;
+}
+
+.submit:hover:not(:disabled) {
+  background: #111973;
+}
+
+.submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.switch {
+  margin-top: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.switch a {
+  margin-left: 6px;
+  color: var(--navy);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .page {
+    min-height: calc(100vh - 60px);
+    padding: 40px 16px 72px;
+  }
+
+  .card {
+    padding: 28px 22px;
+  }
+
+  .card h1 {
+    font-size: 28px;
+  }
+}

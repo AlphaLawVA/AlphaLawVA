@@ -96,6 +96,38 @@ class ApiMainTests(unittest.TestCase):
         self.assertTrue(response.headers["content-type"].startswith("text/html"))
         self.assertIn("AlphaLawVA 판례 검색", response.text)
         self.assertIn("/api/v1/precedent-searches", response.text)
+        self.assertIn('/demo/certified-letter', response.text)
+
+    def test_serves_certified_letter_demo(self):
+        response = TestClient(create_app(object())).get("/demo/certified-letter")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("text/html"))
+        self.assertIn("AlphaLawVA 내용증명 생성", response.text)
+        self.assertIn("/api/v1/certified-letter-drafts", response.text)
+        self.assertIn('/demo/precedent-search', response.text)
+        self.assertIn('window.location.protocol === "file:"', response.text)
+        self.assertIn("API 서버에 연결할 수 없습니다", response.text)
+
+    def test_allows_local_frontend_cors_preflight(self):
+        response = TestClient(create_app(object())).options(
+            "/api/v1/precedent-searches",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,idempotency-key",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "http://localhost:3000",
+        )
+        self.assertIn(
+            "idempotency-key",
+            response.headers["access-control-allow-headers"].lower(),
+        )
 
 
 if __name__ == "__main__":

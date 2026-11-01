@@ -1,0 +1,41 @@
+.meta { margin: 0; color: var(--text-muted); font-size: 0.82rem; font-weight: 700; }
+.listItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 30px; align-items: center; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); padding: 26px; }
+.listMain h3 { margin: 7px 0 8px; color: var(--ink); font-size: 1.2rem; }
+.preview { display: -webkit-box; overflow: hidden; margin: 0; color: var(--text-muted); line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.listActions { display: flex; align-items: center; gap: 8px; }
+.listActions button, .modalActions a, .returnButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 0 12px; font: inherit; font-size: 0.88rem; font-weight: 800; cursor: pointer; text-decoration: none; }
+.listActions button:hover, .modalActions a:hover, .returnButton:hover { border-color: var(--primary); color: var(--primary); }
+.bookmarkButton { width: 40px; padding: 0 !important; }
+.overlay { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 22px; background: rgb(21 20 19 / 52%); }
+.modal { display: flex; max-height: min(780px, calc(100vh - 44px)); width: min(860px, 100%); flex-direction: column; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 24px 70px rgb(0 0 0 / 22%); }
+.modalHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding: 24px 26px; }
+.modalHeader h2 { margin: 7px 0 0; font-size: 1.45rem; }
+.closeButton { display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--ink); cursor: pointer; }
+.closeButton:hover { background: var(--surface-subtle); }
+.modalContent { overflow-y: auto; padding: 24px 26px 28px; }
+.summaryColumns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.summaryColumns section { border: 1px solid var(--line); border-radius: 6px; padding: 21px; }
+.summaryColumns h3, .fullText h3 { margin: 0 0 9px; color: var(--ink); font-size: 1rem; }
+.summaryColumns p, .chunk p, .fullText p { margin: 0; line-height: 1.7; }
+.easySummary { background: var(--surface-subtle); }
+.textHighlight { box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.08em; background: linear-gradient(transparent 38%, #fffbe8 38%, #fffbe8 95%, transparent 95%); }
+.referenceDisclosure { margin-top: 24px; border: 1px solid var(--line); border-radius: 6px; padding: 0 18px; }
+.referenceDetails summary { padding: 16px 0; color: var(--ink); font-size: 0.94rem; font-weight: 800; cursor: pointer; }
+.switchRow { display: flex; align-items: center; justify-content: flex-end; gap: 10px; border-bottom: 1px solid var(--line); padding: 12px 0; color: var(--text-muted); font-size: 0.9rem; }
+.switchRow > span { margin-right: auto; }
+.highlightSwitch { width: 48px; height: 28px; border: 1px solid var(--line-strong); border-radius: 999px; background: #cbc7be; padding: 3px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 6%); cursor: pointer; }
+.highlightSwitch span { display: block; width: 20px; height: 20px; border: 1px solid rgb(0 0 0 / 12%); border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 18%); transition: transform 150ms ease; }
+.highlightSwitchOn { border-color: var(--primary); background: var(--primary); box-shadow: none; }
+.highlightSwitchOn span { transform: translateX(18px); }
+.switchValue { min-width: 26px; color: var(--ink); font-size: 0.75rem; }
+.chunkList { display: grid; gap: 10px; padding: 3px 0 16px; }
+.chunk { border: 1px solid var(--line); border-radius: 5px; padding: 13px; }
+.chunk strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 0.85rem; }
+.modalActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.modalActions .primaryAction { min-height: 40px; border: 1px solid var(--primary); border-radius: 5px; background: var(--primary); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
+.returnButton { margin-bottom: 18px; }
+.dataNotice { margin: 0 0 14px; color: var(--text-muted); font-size: 0.9rem; }
+.fullText { display: grid; gap: 14px; }
+.fullText section { border: 1px solid var(--line); border-radius: 6px; padding: 17px; }
+.fullText p { white-space: pre-wrap; }
+@media (max-width: 700px) { .listItem { grid-template-columns: 1fr; gap: 16px; } .listActions { flex-wrap: wrap; } .summaryColumns { grid-template-columns: 1fr; } .modalHeader, .modalContent { padding-left: 18px; padding-right: 18px; } }
