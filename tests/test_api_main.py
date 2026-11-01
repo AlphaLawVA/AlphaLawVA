@@ -35,6 +35,14 @@ from api.services.precedent_search_sessions import (
     SearchSessionNotFoundError,
     SimilarityExplanationInProgressError,
 )
+from api.services.certified_letter_results import (
+    CertifiedLetterResultNotFoundError,
+    CertifiedLetterResultNotReadyError,
+)
+from api.services.supabase_auth import (
+    AuthenticationRequiredError,
+    AuthenticationServiceUnavailableError,
+)
 
 
 class ApiMainTests(unittest.TestCase):
@@ -56,6 +64,8 @@ class ApiMainTests(unittest.TestCase):
         )
         self.assertIn("/api/v1/precedent-favorites", paths)
         self.assertIn("/api/v1/precedents/{precedent_id}/full-text", paths)
+        self.assertIn("/api/v1/certified-letter-results", paths)
+        self.assertIn("/api/v1/certified-letter-results/{result_id}", paths)
 
     def test_default_service_keeps_embedding_model_lazy(self):
         with patch.dict(
@@ -89,6 +99,10 @@ class ApiMainTests(unittest.TestCase):
             SimilarityExplanationUnavailableError,
             PrecedentCaseDataError,
             PrecedentSearchBackendUnavailableError,
+            AuthenticationRequiredError,
+            AuthenticationServiceUnavailableError,
+            CertifiedLetterResultNotFoundError,
+            CertifiedLetterResultNotReadyError,
         ):
             with self.subTest(error_type=error_type):
                 self.assertIn(error_type, app.exception_handlers)
@@ -100,7 +114,7 @@ class ApiMainTests(unittest.TestCase):
         self.assertTrue(response.headers["content-type"].startswith("text/html"))
         self.assertIn("AlphaLawVA 판례 검색", response.text)
         self.assertIn("/api/v1/precedent-searches", response.text)
-        self.assertIn('/demo/certified-letter', response.text)
+        self.assertIn("/demo/certified-letter", response.text)
 
     def test_serves_certified_letter_demo(self):
         response = TestClient(create_app(object())).get("/demo/certified-letter")
@@ -109,7 +123,7 @@ class ApiMainTests(unittest.TestCase):
         self.assertTrue(response.headers["content-type"].startswith("text/html"))
         self.assertIn("AlphaLawVA 내용증명 생성", response.text)
         self.assertIn("/api/v1/certified-letter-drafts", response.text)
-        self.assertIn('/demo/precedent-search', response.text)
+        self.assertIn("/demo/precedent-search", response.text)
         self.assertIn('window.location.protocol === "file:"', response.text)
         self.assertIn("API 서버에 연결할 수 없습니다", response.text)
 
