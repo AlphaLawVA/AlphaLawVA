@@ -23,6 +23,13 @@ from api.models.certified_letters import (
     CertifiedLetterDraftRequest,
 )
 from api.models.errors import ApiErrorResponse
+from api.models.user_results import (
+    CertifiedLetterResultDetail,
+    CertifiedLetterResultList,
+    CertifiedLetterResultSaveRequest,
+)
+from api.dependencies.auth import CurrentUser
+from api.services.certified_letter_results import CertifiedLetterResultService
 from api.services.certified_letter_service import CertifiedLetterService
 
 
@@ -39,6 +46,21 @@ def get_certified_letter_service(request: Request) -> CertifiedLetterService:
 CertifiedLetterServiceDependency = Annotated[
     CertifiedLetterService,
     Depends(get_certified_letter_service),
+]
+
+
+def get_certified_letter_result_service(
+    request: Request,
+) -> CertifiedLetterResultService:
+    service = getattr(request.app.state, "certified_letter_result_service", None)
+    if service is None:
+        raise RuntimeError("내용증명 결과 저장 서비스가 초기화되지 않았습니다.")
+    return service
+
+
+CertifiedLetterResultServiceDependency = Annotated[
+    CertifiedLetterResultService,
+    Depends(get_certified_letter_result_service),
 ]
 IdempotencyKeyHeader = Annotated[
     str | None,
@@ -88,3 +110,57 @@ def get_certified_letter_draft(
     service: CertifiedLetterServiceDependency,
 ) -> CertifiedLetterDraftJobResponse:
     return service.get(draft_id)
+
+
+@router.post(
+    "/certified-letter-results",
+    response_model=CertifiedLetterResultDetail,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        401: {"model": ApiErrorResponse, "description": "로그인 필요"},
+        404: {"model": ApiErrorResponse, "description": "생성 작업 없음"},
+        409: {"model": ApiErrorResponse, "description": "저장 가능한 결과가 아님"},
+        503: {"model": ApiErrorResponse, "description": "인증 서비스 사용 불가"},
+    },
+    summary="완성된 내용증명 결과를 내 보관함에 저장",
+)
+def save_certified_letter_result(
+    payload: CertifiedLetterResultSaveRequest,
+    current_user: CurrentUser,
+    service: CertifiedLetterResultServiceDependency,
+) -> CertifiedLetterResultDetail:
+    return service.save(current_user.user_id, payload.draft_id)
+
+
+@router.get(
+    "/certified-letter-results",
+    response_model=CertifiedLetterResultList,
+    responses={
+        401: {"model": ApiErrorResponse, "description": "로그인 필요"},
+        503: {"model": ApiErrorResponse, "description": "인증 서비스 사용 불가"},
+    },
+    summary="내 내용증명 저장 결과 목록 조회",
+)
+def list_certified_letter_results(
+    current_user: CurrentUser,
+    service: CertifiedLetterResultServiceDependency,
+) -> CertifiedLetterResultList:
+    return service.list(current_user.user_id)
+
+
+@router.get(
+    "/certified-letter-results/{result_id}",
+    response_model=CertifiedLetterResultDetail,
+    responses={
+        401: {"model": ApiErrorResponse, "description": "로그인 필요"},
+        404: {"model": ApiErrorResponse, "description": "저장 결과 없음"},
+        503: {"model": ApiErrorResponse, "description": "인증 서비스 사용 불가"},
+    },
+    summary="내 내용증명 저장 결과 상세 조회",
+)
+def get_certified_letter_result(
+    result_id: UUID,
+    current_user: CurrentUser,
+    service: CertifiedLetterResultServiceDependency,
+) -> CertifiedLetterResultDetail:
+    return service.get(current_user.user_id, result_id)

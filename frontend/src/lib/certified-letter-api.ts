@@ -118,6 +118,18 @@ export type CertifiedLetterJobResponse = {
   completed_at: string | null;
 };
 
+export type SavedCertifiedLetterSummary = {
+  result_id: string;
+  draft_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SavedCertifiedLetterDetail = SavedCertifiedLetterSummary & {
+  result: CertifiedLetterResult;
+};
+
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -130,7 +142,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     throw new CertifiedLetterApiError(
-      "내용증명 생성 서버에 연결할 수 없습니다. 백엔드 실행 상태를 확인해주세요.",
+      "AlphaLawVA API 서버에 연결할 수 없습니다. 백엔드 실행 상태를 확인해주세요.",
       0,
     );
   }
@@ -163,6 +175,28 @@ export function createCertifiedLetterDraft(
 export function getCertifiedLetterDraft(draftId: string) {
   return apiRequest<CertifiedLetterJobResponse>(
     `/api/v1/certified-letter-drafts/${encodeURIComponent(draftId)}`,
+  );
+}
+
+export function saveCertifiedLetterResult(draftId: string, accessToken: string) {
+  return apiRequest<SavedCertifiedLetterDetail>("/api/v1/certified-letter-results", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ draft_id: draftId }),
+  });
+}
+
+export function listCertifiedLetterResults(accessToken: string) {
+  return apiRequest<{ items: SavedCertifiedLetterSummary[] }>(
+    "/api/v1/certified-letter-results",
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+}
+
+export function getSavedCertifiedLetterResult(resultId: string, accessToken: string) {
+  return apiRequest<SavedCertifiedLetterDetail>(
+    `/api/v1/certified-letter-results/${encodeURIComponent(resultId)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
   );
 }
 

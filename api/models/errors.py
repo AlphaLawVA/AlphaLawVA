@@ -34,6 +34,10 @@ class ApiErrorCode(str, Enum):
     )
     GENERATION_SERVICE_UNAVAILABLE = "generation_service_unavailable"
     SNAPSHOT_NOT_FOUND = "snapshot_not_found"
+    AUTHENTICATION_REQUIRED = "authentication_required"
+    AUTHENTICATION_SERVICE_UNAVAILABLE = "authentication_service_unavailable"
+    CERTIFIED_LETTER_RESULT_NOT_FOUND = "certified_letter_result_not_found"
+    CERTIFIED_LETTER_RESULT_NOT_READY = "certified_letter_result_not_ready"
 
 
 class ApiErrorModel(BaseModel):

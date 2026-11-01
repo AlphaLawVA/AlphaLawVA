@@ -14,7 +14,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
@@ -22,6 +22,7 @@ from api.main import create_app
 from api.models.precedents import SimilarityExplanationMethod
 from api.services.precedent_case_repository import PrecedentCaseRepository
 from api.services.precedent_search_service import PrecedentSearchService
+from api.services.supabase_auth import AuthenticatedUser
 from ml.rag.precedent_retriever import (
     PrecedentChunkMatch,
     PrecedentSearchResult,
@@ -84,6 +85,19 @@ class FakeExplainer:
         return "사용자 상황과 이 판례는 임대차 종료가 문제 된 점에서 유사합니다."
 
 
+class FakeAuthVerifier:
+    def verify(self, access_token):
+        user_id = (
+            UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            if access_token == "other-token"
+            else UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        )
+        return AuthenticatedUser(
+            user_id=user_id,
+            email="user@example.com",
+        )
+
+
 class PrecedentApiIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -120,7 +134,8 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
             repository=self.repository,
             similarity_explainer=self.explainer,
         )
-        self.client = TestClient(create_app(service))
+        self.client = TestClient(create_app(service, auth_verifier=FakeAuthVerifier()))
+        self.auth_headers = {"Authorization": "Bearer test-token"}
 
     def tearDown(self):
         self.client.close()
@@ -158,13 +173,9 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
             detail_payload["similarity_explanation"]["status"],
             "not_generated",
         )
-        self.assertIsNone(
-            detail_payload["similarity_explanation"]["matched_reason"]
-        )
+        self.assertIsNone(detail_payload["similarity_explanation"]["matched_reason"])
         self.assertEqual(
-            detail_payload["similarity_explanation"]["matched_chunks"][0][
-                "chunk_id"
-            ],
+            detail_payload["similarity_explanation"]["matched_chunks"][0]["chunk_id"],
             "precedent:64441:reason:0001",
         )
 
@@ -178,9 +189,7 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
             ["order", "lower_court_decision", "reason"],
         )
         self.assertTrue(
-            full_text_payload["links"]["official_source"].endswith(
-                "precSeq=64441"
-            )
+            full_text_payload["links"]["official_source"].endswith("precSeq=64441")
         )
 
     def test_favorite_can_generate_and_reuse_similarity_explanation(self):
@@ -192,6 +201,7 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
 
         favorite_response = self.client.post(
             "/api/v1/precedent-favorites",
+            headers=self.auth_headers,
             json={"search_id": search_id, "precedent_id": "64441"},
         )
         self.assertEqual(favorite_response.status_code, 200)
@@ -203,8 +213,8 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         )
 
         generated_response = self.client.post(
-            f"/api/v1/precedent-favorites/{favorite_id}"
-            "/similarity-explanation"
+            f"/api/v1/precedent-favorites/{favorite_id}/similarity-explanation",
+            headers=self.auth_headers,
         )
         self.assertEqual(generated_response.status_code, 200)
         generated_payload = generated_response.json()
@@ -224,26 +234,54 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
         detail_payload = self.client.get(
             f"/api/v1/precedent-searches/{search_id}/results/64441"
         ).json()
-        favorite_list = self.client.get("/api/v1/precedent-favorites").json()
-        self.assertTrue(detail_payload["is_favorited"])
+        favorite_list = self.client.get(
+            "/api/v1/precedent-favorites", headers=self.auth_headers
+        ).json()
+        # 공개 상세 조회는 로그인 사용자의 비공개 즐겨찾기 상태를 노출하지 않는다.
+        self.assertFalse(detail_payload["is_favorited"])
         self.assertEqual(favorite_list["favorite_count"], 1)
         self.assertEqual(
-            favorite_list["favorites"][0]["similarity_explanation"][
-                "matched_reason"
-            ],
+            favorite_list["favorites"][0]["similarity_explanation"]["matched_reason"],
             generated_payload["matched_reason"],
         )
 
         deleted = self.client.delete(
-            f"/api/v1/precedent-favorites/{favorite_id}"
+            f"/api/v1/precedent-favorites/{favorite_id}",
+            headers=self.auth_headers,
         )
         self.assertEqual(deleted.status_code, 204)
         self.assertEqual(
-            self.client.get("/api/v1/precedent-favorites").json()[
-                "favorite_count"
-            ],
+            self.client.get(
+                "/api/v1/precedent-favorites", headers=self.auth_headers
+            ).json()["favorite_count"],
             0,
         )
+
+    def test_favorite_is_hidden_from_other_user(self):
+        search_payload = self.client.post(
+            "/api/v1/precedent-searches",
+            json={"query": "임대인이 경매를 신청했습니다."},
+        ).json()
+        saved = self.client.post(
+            "/api/v1/precedent-favorites",
+            headers=self.auth_headers,
+            json={
+                "search_id": search_payload["search_id"],
+                "precedent_id": "64441",
+            },
+        ).json()
+        other_headers = {"Authorization": "Bearer other-token"}
+
+        other_list = self.client.get(
+            "/api/v1/precedent-favorites", headers=other_headers
+        )
+        hidden_detail = self.client.get(
+            f"/api/v1/precedent-favorites/{saved['favorite_id']}",
+            headers=other_headers,
+        )
+
+        self.assertEqual(other_list.json()["favorites"], [])
+        self.assertEqual(hidden_detail.status_code, 404)
 
     def test_validation_error_uses_public_error_shape(self):
         response = self.client.post(
@@ -264,15 +302,15 @@ class PrecedentApiIntegrationTests(unittest.TestCase):
             f"/api/v1/precedent-searches/{uuid4()}/results/64441"
         )
         missing_favorite = self.client.get(
-            f"/api/v1/precedent-favorites/{uuid4()}"
+            f"/api/v1/precedent-favorites/{uuid4()}",
+            headers=self.auth_headers,
         )
         search_payload = self.client.post(
             "/api/v1/precedent-searches",
             json={"query": "보증금 반환"},
         ).json()
         missing_result = self.client.get(
-            f"/api/v1/precedent-searches/{search_payload['search_id']}"
-            "/results/99999"
+            f"/api/v1/precedent-searches/{search_payload['search_id']}/results/99999"
         )
 
         self.assertEqual(invalid_id.status_code, 400)

@@ -37,6 +37,8 @@ from api.routers.precedents import (
 
 SEARCH_ID = UUID("12345678-1234-5678-1234-567812345678")
 FAVORITE_ID = UUID("22345678-1234-5678-1234-567812345678")
+USER_ID = UUID("32345678-1234-5678-1234-567812345678")
+CURRENT_USER = SimpleNamespace(user_id=USER_ID)
 
 
 class FakeSearchService:
@@ -59,24 +61,24 @@ class FakeSearchService:
         self.calls.append(("generate", search_id, precedent_id))
         return "explanation-response"
 
-    def create_favorite(self, search_id, precedent_id):
-        self.calls.append(("favorite", search_id, precedent_id))
+    def create_favorite(self, search_id, precedent_id, user_id):
+        self.calls.append(("favorite", search_id, precedent_id, user_id))
         return "favorite-response"
 
-    def list_favorites(self):
-        self.calls.append(("favorite-list",))
+    def list_favorites(self, user_id):
+        self.calls.append(("favorite-list", user_id))
         return "favorite-list-response"
 
-    def get_favorite(self, favorite_id):
-        self.calls.append(("favorite-detail", favorite_id))
+    def get_favorite(self, favorite_id, user_id):
+        self.calls.append(("favorite-detail", favorite_id, user_id))
         return "favorite-detail-response"
 
-    def generate_favorite_similarity_explanation(self, favorite_id):
-        self.calls.append(("favorite-generate", favorite_id))
+    def generate_favorite_similarity_explanation(self, favorite_id, user_id):
+        self.calls.append(("favorite-generate", favorite_id, user_id))
         return "favorite-explanation-response"
 
-    def delete_favorite(self, favorite_id):
-        self.calls.append(("favorite-delete", favorite_id))
+    def delete_favorite(self, favorite_id, user_id):
+        self.calls.append(("favorite-delete", favorite_id, user_id))
 
 
 class PrecedentRouterTests(unittest.TestCase):
@@ -107,15 +109,17 @@ class PrecedentRouterTests(unittest.TestCase):
                 frozenset({"POST"}),
             )
         ]
-        favorite_route = routes[
-            ("/api/v1/precedent-favorites", frozenset({"POST"}))
-        ]
+        favorite_route = routes[("/api/v1/precedent-favorites", frozenset({"POST"}))]
         favorite_list_route = routes[
             ("/api/v1/precedent-favorites", frozenset({"GET"}))
         ]
 
-        self.assertEqual(search_route.response_model.__name__, "PrecedentSearchResponse")
-        self.assertEqual(detail_route.response_model.__name__, "PrecedentDetailResponse")
+        self.assertEqual(
+            search_route.response_model.__name__, "PrecedentSearchResponse"
+        )
+        self.assertEqual(
+            detail_route.response_model.__name__, "PrecedentDetailResponse"
+        )
         self.assertEqual(
             full_text_route.response_model.__name__,
             "PrecedentFullTextResponse",
@@ -151,13 +155,16 @@ class PrecedentRouterTests(unittest.TestCase):
                 precedent_id="64441",
             ),
             service,
+            CURRENT_USER,
         )
-        favorite_list_response = list_precedent_favorites(service)
-        favorite_detail_response = get_precedent_favorite(FAVORITE_ID, service)
-        favorite_explanation_response = (
-            generate_favorite_similarity_explanation(FAVORITE_ID, service)
+        favorite_list_response = list_precedent_favorites(service, CURRENT_USER)
+        favorite_detail_response = get_precedent_favorite(
+            FAVORITE_ID, service, CURRENT_USER
         )
-        delete_response = delete_precedent_favorite(FAVORITE_ID, service)
+        favorite_explanation_response = generate_favorite_similarity_explanation(
+            FAVORITE_ID, service, CURRENT_USER
+        )
+        delete_response = delete_precedent_favorite(FAVORITE_ID, service, CURRENT_USER)
 
         self.assertEqual(search_response, "search-response")
         self.assertEqual(detail_response, "detail-response")
@@ -178,20 +185,18 @@ class PrecedentRouterTests(unittest.TestCase):
                 ("detail", SEARCH_ID, "64441"),
                 ("full-text", "64441"),
                 ("generate", SEARCH_ID, "64441"),
-                ("favorite", SEARCH_ID, "64441"),
-                ("favorite-list",),
-                ("favorite-detail", FAVORITE_ID),
-                ("favorite-generate", FAVORITE_ID),
-                ("favorite-delete", FAVORITE_ID),
+                ("favorite", SEARCH_ID, "64441", USER_ID),
+                ("favorite-list", USER_ID),
+                ("favorite-detail", FAVORITE_ID, USER_ID),
+                ("favorite-generate", FAVORITE_ID, USER_ID),
+                ("favorite-delete", FAVORITE_ID, USER_ID),
             ],
         )
 
     def test_dependency_reads_service_from_application_state(self):
         service = FakeSearchService()
         request = SimpleNamespace(
-            app=SimpleNamespace(
-                state=SimpleNamespace(precedent_search_service=service)
-            )
+            app=SimpleNamespace(state=SimpleNamespace(precedent_search_service=service))
         )
 
         self.assertIs(get_precedent_search_service(request), service)

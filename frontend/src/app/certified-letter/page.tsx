@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, CheckCircle2, Download, FileText, LoaderCircle, ScanText, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertCircle, Bookmark, Check, CheckCircle2, Download, FileText, LoaderCircle, ScanText, Upload } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { UploadGuide } from "@/components/upload-guide";
 import {
@@ -9,12 +10,14 @@ import {
   createCertifiedLetterDraft,
   getCertifiedLetterDraft,
   mapCertifiedLetterPrecedent,
+  saveCertifiedLetterResult,
 } from "@/lib/certified-letter-api";
 import type { CertifiedLetterResult } from "@/lib/certified-letter-api";
 import { certifiedLetterContractSnapshot } from "@/lib/certified-letter-data";
 import type { CaseBasis, ConfirmedContractSnapshot } from "@/lib/demo-types";
 import { validateDemoFile, validateRealEstateInput } from "@/lib/demo-validation";
 import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
+import { createClient } from "@/lib/supabase/client";
 import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-demo";
 import styles from "../feature-demo.module.css";
 
@@ -24,6 +27,7 @@ const samplePurpose = "계약 종료 후 보증금을 반환받고 싶습니다.
 const sampleFacts = "임대차계약이 종료되었지만 임대인이 보증금을 아직 반환하지 않았습니다.";
 
 export default function CertifiedLetterPage() {
+  const router = useRouter();
   const [stage, setStage] = useState<Stage>("upload");
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(8);
@@ -33,6 +37,9 @@ export default function CertifiedLetterPage() {
   const [requestedDeadline, setRequestedDeadline] = useState("");
   const [confirmedSnapshot, setConfirmedSnapshot] = useState<ConfirmedContractSnapshot>(certifiedLetterContractSnapshot);
   const [draftResult, setDraftResult] = useState<CertifiedLetterResult | null>(null);
+  const [completedDraftId, setCompletedDraftId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveError, setSaveError] = useState("");
   const [generationStatus, setGenerationStatus] = useState<"queued" | "processing">("queued");
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
@@ -93,6 +100,7 @@ export default function CertifiedLetterPage() {
         return;
       }
       setDraftResult(job.result);
+      setCompletedDraftId(job.draft_id);
       setProgress(100);
       setStage("result");
     } catch (pollError) {
@@ -154,6 +162,9 @@ export default function CertifiedLetterPage() {
     setLoaded(false);
     setFileName("");
     setDraftResult(null);
+    setCompletedDraftId(null);
+    setSaveStatus("idle");
+    setSaveError("");
     setConfirmedSnapshot(certifiedLetterContractSnapshot);
     setSenderRole("lessee");
     setPurpose(samplePurpose);
@@ -164,6 +175,30 @@ export default function CertifiedLetterPage() {
     setGenerationStatus("queued");
     setProgress(8);
     setStage("upload");
+  }
+
+  async function saveToLibrary() {
+    if (!completedDraftId || saveStatus !== "idle") return;
+    setSaveError("");
+    setSaveStatus("saving");
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setSaveStatus("idle");
+        router.push("/login?next=/certified-letter");
+        return;
+      }
+      await saveCertifiedLetterResult(completedDraftId, session.access_token);
+      setSaveStatus("saved");
+    } catch (saveResultError) {
+      setSaveStatus("idle");
+      setSaveError(
+        saveResultError instanceof Error
+          ? saveResultError.message
+          : "내용증명 결과를 저장하지 못했습니다.",
+      );
+    }
   }
 
   const stepIndex = stage === "upload" || stage === "processing" ? 0 : stage === "verify" ? 1 : stage === "request" ? 2 : 3;
@@ -267,7 +302,8 @@ export default function CertifiedLetterPage() {
             </details>
           </section>
           <section className={styles.preflight}><h2>발송 전에 확인하세요</h2>{["수신인과 발신인의 이름·주소가 정확한지", "계약 종료일·보증금·반환 기한이 실제 사실과 같은지", "계약서·입금내역·대화 기록을 별도로 보관했는지", "우체국 발송본과 배달증명 등 발송 기록을 보관할지"].map((item) => <p key={item}><Check size={16} />{item}</p>)}</section>
-          <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => window.print()}><Download size={16} />인쇄·PDF 저장</button><button className={styles.primaryButton} type="button" onClick={resetForm}>새 내용증명 작성</button></div>
+          {saveError && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>보관함에 저장하지 못했습니다</strong><span>{saveError}</span></div></div>}
+          <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => window.print()}><Download size={16} />인쇄·PDF 저장</button><button className={styles.secondaryButton} type="button" disabled={saveStatus !== "idle"} onClick={() => void saveToLibrary()}><Bookmark size={16} />{saveStatus === "saving" ? "저장 중..." : saveStatus === "saved" ? "보관함에 저장됨" : "보관함에 저장"}</button><button className={styles.primaryButton} type="button" onClick={resetForm}>새 내용증명 작성</button></div>
           {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
         </>
       )}

@@ -54,8 +54,12 @@ class SimilarityExplanationSnapshot:
 
 
 class SearchResultInteractionState:
-    def __init__(self) -> None:
-        self._snapshot = SimilarityExplanationSnapshot(
+    def __init__(
+        self,
+        *,
+        initial_snapshot: SimilarityExplanationSnapshot | None = None,
+    ) -> None:
+        self._snapshot = initial_snapshot or SimilarityExplanationSnapshot(
             status=SimilarityExplanationStatus.NOT_GENERATED,
         )
         self._lock = RLock()
@@ -200,11 +204,7 @@ class PrecedentSearchSessionStore:
     ]:
         session = self.get(search_id)
         result = next(
-            (
-                item
-                for item in session.results
-                if item.precedent_id == precedent_id
-            ),
+            (item for item in session.results if item.precedent_id == precedent_id),
             None,
         )
         if result is None:

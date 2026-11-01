@@ -17,6 +17,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
+from api.dependencies.auth import CurrentUser
 from api.models.errors import ApiErrorResponse
 from api.models.precedents import (
     PrecedentDetailResponse,
@@ -47,8 +48,9 @@ EXPLANATION_RESPONSES = {
     409: {"model": ApiErrorResponse, "description": "유사성 설명 생성 중"},
 }
 FAVORITE_LOOKUP_RESPONSES = {
+    401: {"model": ApiErrorResponse, "description": "로그인 필요"},
     404: {"model": ApiErrorResponse, "description": "즐겨찾기 없음"},
-    503: {"model": ApiErrorResponse, "description": "판례 데이터 사용 불가"},
+    503: {"model": ApiErrorResponse, "description": "인증 또는 판례 데이터 사용 불가"},
 }
 
 
@@ -111,16 +113,18 @@ def generate_precedent_similarity_explanation(
     response_model=PrecedentFavoriteResponse,
     responses=PRECEDENT_LOOKUP_RESPONSES,
     summary="검색 결과 판례 즐겨찾기",
-    description=(
-        "인증·영구 DB 연결 전에는 현재 API 프로세스 메모리에 검색 질문, "
-        "판례 결과와 설명 상태를 함께 보관합니다."
-    ),
+    description="로그인 사용자의 검색 질문과 판례 결과를 함께 보관합니다.",
 )
 def create_precedent_favorite(
     payload: PrecedentFavoriteCreateRequest,
     service: PrecedentSearchServiceDependency,
+    current_user: CurrentUser,
 ) -> PrecedentFavoriteResponse:
-    return service.create_favorite(payload.search_id, payload.precedent_id)
+    return service.create_favorite(
+        payload.search_id,
+        payload.precedent_id,
+        current_user.user_id,
+    )
 
 
 @router.get(
@@ -130,8 +134,9 @@ def create_precedent_favorite(
 )
 def list_precedent_favorites(
     service: PrecedentSearchServiceDependency,
+    current_user: CurrentUser,
 ) -> PrecedentFavoriteListResponse:
-    return service.list_favorites()
+    return service.list_favorites(current_user.user_id)
 
 
 @router.get(
@@ -143,8 +148,9 @@ def list_precedent_favorites(
 def get_precedent_favorite(
     favorite_id: UUID,
     service: PrecedentSearchServiceDependency,
+    current_user: CurrentUser,
 ) -> PrecedentFavoriteResponse:
-    return service.get_favorite(favorite_id)
+    return service.get_favorite(favorite_id, current_user.user_id)
 
 
 @router.post(
@@ -159,8 +165,12 @@ def get_precedent_favorite(
 def generate_favorite_similarity_explanation(
     favorite_id: UUID,
     service: PrecedentSearchServiceDependency,
+    current_user: CurrentUser,
 ) -> SimilarityExplanation:
-    return service.generate_favorite_similarity_explanation(favorite_id)
+    return service.generate_favorite_similarity_explanation(
+        favorite_id,
+        current_user.user_id,
+    )
 
 
 @router.delete(
@@ -172,8 +182,9 @@ def generate_favorite_similarity_explanation(
 def delete_precedent_favorite(
     favorite_id: UUID,
     service: PrecedentSearchServiceDependency,
+    current_user: CurrentUser,
 ) -> Response:
-    service.delete_favorite(favorite_id)
+    service.delete_favorite(favorite_id, current_user.user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

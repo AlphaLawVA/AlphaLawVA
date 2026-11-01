@@ -76,16 +76,14 @@ class FakeCertifiedLetterService:
 
 
 class CertifiedLetterRouterTests(unittest.TestCase):
-    def test_declares_create_and_get_routes(self):
+    def test_declares_draft_and_saved_result_routes(self):
         routes = {
             (route.path, frozenset(route.methods)): route
             for route in router.routes
             if isinstance(route, APIRoute)
         }
 
-        create_route = routes[
-            ("/api/v1/certified-letter-drafts", frozenset({"POST"}))
-        ]
+        create_route = routes[("/api/v1/certified-letter-drafts", frozenset({"POST"}))]
         get_route = routes[
             (
                 "/api/v1/certified-letter-drafts/{draft_id}",
@@ -101,6 +99,27 @@ class CertifiedLetterRouterTests(unittest.TestCase):
         self.assertEqual(
             get_route.response_model.__name__,
             "CertifiedLetterDraftJobResponse",
+        )
+        self.assertEqual(
+            routes[
+                ("/api/v1/certified-letter-results", frozenset({"POST"}))
+            ].response_model.__name__,
+            "CertifiedLetterResultDetail",
+        )
+        self.assertEqual(
+            routes[
+                ("/api/v1/certified-letter-results", frozenset({"GET"}))
+            ].response_model.__name__,
+            "CertifiedLetterResultList",
+        )
+        self.assertEqual(
+            routes[
+                (
+                    "/api/v1/certified-letter-results/{result_id}",
+                    frozenset({"GET"}),
+                )
+            ].response_model.__name__,
+            "CertifiedLetterResultDetail",
         )
 
     def test_create_delegates_and_schedules_only_new_job(self):
@@ -140,9 +159,7 @@ class CertifiedLetterRouterTests(unittest.TestCase):
     def test_dependency_reads_service_from_application_state(self):
         service = FakeCertifiedLetterService()
         request = SimpleNamespace(
-            app=SimpleNamespace(
-                state=SimpleNamespace(certified_letter_service=service)
-            )
+            app=SimpleNamespace(state=SimpleNamespace(certified_letter_service=service))
         )
 
         self.assertIs(get_certified_letter_service(request), service)
