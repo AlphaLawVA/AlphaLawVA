@@ -186,6 +186,10 @@ class ContractReviewGraphTests(unittest.TestCase):
             },
         )
         queries = {item.item_id: item.query for item in result.retrieval_queries}
+        self.assertNotIn("property_address_match", queries)
+        self.assertNotIn("registered_owner_match", queries)
+        self.assertNotIn("payment_total_match", queries)
+        self.assertNotIn("registry_checked_disclosure", queries)
         self.assertIn("term-1", queries)
         self.assertIn("registry_4", queries)
         self.assertNotIn("임대인", queries["term-1"])
@@ -224,6 +228,24 @@ class ContractReviewGraphTests(unittest.TestCase):
         self.assertTrue(statute_retriever.queries)
         self.assertTrue(precedent_retriever.queries)
 
+    def test_filters_evidence_below_minimum_similarity(self):
+        evidence_retriever = ContractReviewRagRetriever(
+            statute_retriever=FakeStatuteRetriever(),
+            precedent_retriever=FakePrecedentRetriever(),
+            min_similarity=0.85,
+        )
+
+        result = ContractReviewGraph().prepare(
+            self._contract_snapshot(),
+            self._registry_snapshot(),
+            evidence_retriever=evidence_retriever,
+        )
+
+        self.assertTrue(result.evidence)
+        self.assertTrue(
+            all(item.source_type == "statute" for item in result.evidence)
+        )
+
     def test_returns_evidence_bound_analysis_from_analyzer(self):
         statute_retriever = FakeStatuteRetriever()
         evidence_retriever = ContractReviewRagRetriever(
@@ -240,7 +262,7 @@ class ContractReviewGraphTests(unittest.TestCase):
 
         self.assertFalse(result.analysis_unavailable)
         self.assertEqual(len(result.analyses), 1)
-        self.assertEqual(result.analyses[0].item_id, "property_address_match")
+        self.assertEqual(result.analyses[0].item_id, "term-1")
         self.assertEqual(
             result.analyses[0].evidence_source_ids,
             ["law:001248:article:0003"],
@@ -250,6 +272,10 @@ class ContractReviewGraphTests(unittest.TestCase):
         result = ContractReviewGraph().prepare(self._contract_snapshot(), None)
 
         self.assertIn("registry_document", [item.item_id for item in result.items])
+        self.assertNotIn(
+            "registry_document",
+            [item.item_id for item in result.retrieval_queries],
+        )
 
     def test_rag_retriever_is_opt_in_by_environment(self):
         with patch.dict("os.environ", {}, clear=True):

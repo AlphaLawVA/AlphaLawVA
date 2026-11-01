@@ -120,9 +120,8 @@ def create_contract_review(
 @router.post(
     "/special-clause-drafts",
     response_model=SpecialClauseDraftResponse,
-    status_code=status.HTTP_202_ACCEPTED,
     responses=VALIDATION_RESPONSES,
-    summary="자연어 특약 생성 요청 접수",
+    summary="자연어 특약 생성 결과 구성",
 )
 def create_special_clause_draft(
     payload: SpecialClauseDraftRequest,

@@ -95,6 +95,48 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "제공되지 않은 근거"):
                 self.analyzer.analyze(self.queries, self.evidence)
 
+    def test_keeps_highest_similarity_evidence_without_source_balance(self):
+        evidence = [
+            *self.evidence,
+            ContractReviewEvidence(
+                item_id="term-1",
+                source_type="statute",
+                source_id="law:001248:article:0004",
+                title="주택임대차보호법 제4조",
+                text="다른 법령 원문",
+                rank=2,
+                similarity=0.8,
+                metadata={},
+            ),
+            ContractReviewEvidence(
+                item_id="term-1",
+                source_type="statute",
+                source_id="law:001248:article:0005",
+                title="주택임대차보호법 제5조",
+                text="추가 법령 원문",
+                rank=3,
+                similarity=0.7,
+                metadata={},
+            ),
+            ContractReviewEvidence(
+                item_id="term-1",
+                source_type="precedent",
+                source_id="precedent:64441",
+                title="임대차보증금등",
+                text="판례 원문",
+                rank=1,
+                similarity=0.2,
+                metadata={},
+            ),
+        ]
+
+        payload = self.analyzer._build_payload(self.queries, evidence)
+
+        self.assertEqual(
+            [item["source_type"] for item in payload["items"][0]["evidence"]],
+            ["statute", "statute", "statute"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

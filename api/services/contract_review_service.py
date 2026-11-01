@@ -106,8 +106,15 @@ class ContractReviewService:
                     )
                     for item in precheck_result.analyses
                 ]
-        contract_items = self._build_contract_items(contract_snapshot)
-        registry_items = self._build_registry_items(registry_snapshot)
+        evidence_item_ids = {item.item_id for item in precheck_result.evidence}
+        contract_items = self._build_contract_items(
+            contract_snapshot,
+            evidence_item_ids,
+        )
+        registry_items = self._build_registry_items(
+            registry_snapshot,
+            evidence_item_ids,
+        )
         return ContractReviewResponse(
             review_id=uuid4(),
             status="completed",
@@ -143,6 +150,7 @@ class ContractReviewService:
     @staticmethod
     def _build_contract_items(
         contract_snapshot: ConfirmedContractSnapshot,
+        evidence_item_ids: set[str],
     ) -> list[ContractReviewItem]:
         contract = contract_snapshot.contract
         items: list[ContractReviewItem] = []
@@ -183,14 +191,23 @@ class ContractReviewService:
                 )
 
         for term in contract.special_terms:
+            is_review_ready = term.term_id in evidence_item_ids
             items.append(
                 ContractReviewItem(
                     item_id=term.term_id,
                     category="special_term",
                     label=f"특약 {term.order}",
                     original_text=term.original_text,
-                    status=ReviewItemStatus.PENDING_EVIDENCE,
-                    message="법령·판례 근거 검색 전 검토 대기 항목입니다.",
+                    status=(
+                        ReviewItemStatus.REVIEW_READY
+                        if is_review_ready
+                        else ReviewItemStatus.PENDING_EVIDENCE
+                    ),
+                    message=(
+                        "법령·판례 근거를 연결했습니다. 원문과 함께 확인해 주세요."
+                        if is_review_ready
+                        else "법령·판례 근거 검색 전 검토 대기 항목입니다."
+                    ),
                 )
             )
         return items
@@ -198,6 +215,7 @@ class ContractReviewService:
     @staticmethod
     def _build_registry_items(
         registry: ConfirmedRegistrySnapshot | None,
+        evidence_item_ids: set[str],
     ) -> list[ContractReviewItem]:
         if registry is None:
             return []
@@ -224,8 +242,16 @@ class ContractReviewService:
                 category="registry_field",
                 label=f"{encumbrance.rank_number}순위 {encumbrance.registration_purpose}",
                 original_text=encumbrance.raw_text,
-                status=ReviewItemStatus.PENDING_EVIDENCE,
-                message="법령·판례 근거 검색 전 검토 대기 항목입니다.",
+                status=(
+                    ReviewItemStatus.REVIEW_READY
+                    if f"registry_{encumbrance.rank_number}" in evidence_item_ids
+                    else ReviewItemStatus.PENDING_EVIDENCE
+                ),
+                message=(
+                    "법령·판례 근거를 연결했습니다. 원문과 함께 확인해 주세요."
+                    if f"registry_{encumbrance.rank_number}" in evidence_item_ids
+                    else "법령·판례 근거 검색 전 검토 대기 항목입니다."
+                ),
             )
             for encumbrance in active_encumbrances
         ]

@@ -1,13 +1,13 @@
 # special_clause_service.py
 """
-Description: 특약 생성 자연어 요청을 검증 후 생성 대기 응답으로 변환한다.
-LLM과 RAG가 연결되기 전에는 특약 문안이나 법률 근거를 생성하지 않는다.
+Description: 자연어 특약 요청을 근거 검색과 사용자 확인용 초안 생성으로 연결한다.
+근거 또는 생성기가 없으면 안전하게 생성 대기 상태만 반환한다.
 Author: ooheunsu
-Date: 2026-10-24
+Date: 2026-10-31
 Before:
-    - 자연어 특약 요청을 API 수준에서 수신하고 안전하게 상태를 반환할 서비스가 없는 상태.
+    - 특약 생성 요청을 생성 대기 상태로만 반환하는 초기 서비스가 있는 상태.
 After:
-    - 특약 요청 목록을 생성 대기 상태로 반환하는 초기 서비스가 제공됨.
+    - RAG 근거와 Gemini 구조화 출력이 연결된 특약 생성 응답을 반환할 수 있음.
 """
 
 from __future__ import annotations
@@ -16,38 +16,116 @@ from uuid import uuid4
 
 from api.models.contracts import (
     EvidenceStatus,
+    GenerationStatus,
     SpecialClauseDraftItem,
     SpecialClauseDraftRequest,
     SpecialClauseDraftResponse,
 )
+from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
+from ml.agent.special_clause_graph import SpecialClauseGenerator, SpecialClauseGraph
 
 
 class SpecialClauseService:
-    """RAG·LLM 연결 전 특약 생성 요청을 접수한다."""
+    """자연어 특약 요청을 근거 기반 사용자 확인용 결과로 구성한다."""
+
+    def __init__(
+        self,
+        *,
+        graph: SpecialClauseGraph | None = None,
+        evidence_retriever: ContractReviewEvidenceRetriever | None = None,
+        generator: SpecialClauseGenerator | None = None,
+    ) -> None:
+        self._graph = graph or SpecialClauseGraph()
+        self._evidence_retriever = evidence_retriever
+        self._generator = generator
 
     def create_draft(
         self,
         payload: SpecialClauseDraftRequest,
     ) -> SpecialClauseDraftResponse:
-        items = [
-            SpecialClauseDraftItem(
-                request_index=index,
-                request_text=request_text,
-                status="pending_generation",
+        evidence_status = EvidenceStatus.PENDING_RETRIEVAL
+        generation_status = GenerationStatus.PENDING
+        try:
+            result = self._graph.prepare(
+                payload.requests,
+                evidence_retriever=self._evidence_retriever,
+                generator=self._generator,
             )
-            for index, request_text in enumerate(payload.requests, start=1)
-        ]
+        except (FileNotFoundError, RuntimeError, ValueError):
+            result = self._graph.prepare(payload.requests)
+            if self._evidence_retriever is not None:
+                evidence_status = EvidenceStatus.UNAVAILABLE
+            if self._generator is not None:
+                generation_status = GenerationStatus.UNAVAILABLE
+        else:
+            if self._evidence_retriever is not None:
+                evidence_status = EvidenceStatus.RETRIEVED
+            if self._generator is not None and result.evidence:
+                generation_status = (
+                    GenerationStatus.UNAVAILABLE
+                    if result.generation_unavailable
+                    else GenerationStatus.GENERATED
+                )
+
+        generations = {
+            generation.item_id: generation for generation in result.generations
+        }
+        items = []
+        for index, request_text in enumerate(payload.requests, start=1):
+            generation = generations.get(f"request-{index}")
+            items.append(
+                SpecialClauseDraftItem(
+                    request_index=index,
+                    request_text=request_text,
+                    status=(generation.status if generation else "pending_generation"),
+                    draft_text=generation.draft_text if generation else None,
+                    needs_input=generation.needs_input if generation else [],
+                    evidence_source_ids=(
+                        generation.evidence_source_ids if generation else []
+                    ),
+                )
+            )
         return SpecialClauseDraftResponse(
             draft_id=uuid4(),
-            status="pending_generation",
-            items=items,
-            evidence_status=EvidenceStatus.PENDING_RETRIEVAL,
-            message=(
-                "특약 생성 요청을 접수했습니다. "
-                "RAG와 생성 모델 연결 전에는 문안과 법률 근거를 반환하지 않습니다."
+            status=(
+                "completed"
+                if generation_status == GenerationStatus.GENERATED
+                else "pending_generation"
             ),
+            items=items,
+            evidence=[
+                {
+                    "item_id": item.item_id,
+                    "source_type": item.source_type,
+                    "source_id": item.source_id,
+                    "title": item.title,
+                    "text": item.text,
+                    "rank": item.rank,
+                    "similarity": item.similarity,
+                    "metadata": item.metadata,
+                }
+                for item in result.evidence
+            ],
+            evidence_status=evidence_status,
+            generation_status=generation_status,
+            message=self._message(evidence_status, generation_status),
             disclaimer=(
-                "생성될 특약은 초안이며, 계약 당사자는 최종 문안과 사실관계를 "
-                "직접 확인해야 합니다."
+                "이 결과는 법률 자문이나 최종 계약서가 아닙니다. 특약 초안과 "
+                "사실관계·근거 원문을 당사자가 직접 확인해야 합니다."
             ),
         )
+
+    @staticmethod
+    def _message(
+        evidence_status: EvidenceStatus,
+        generation_status: GenerationStatus,
+    ) -> str:
+        if generation_status == GenerationStatus.GENERATED:
+            return "근거가 연결된 특약 초안 또는 추가 확인 항목을 구성했습니다."
+        if generation_status == GenerationStatus.UNAVAILABLE:
+            return "검색 근거는 찾았지만 특약 초안 생성은 현재 사용할 수 없습니다."
+        if evidence_status == EvidenceStatus.RETRIEVED:
+            return "검색 근거를 찾았습니다. 특약 초안 생성은 아직 연결되지 않았습니다."
+        if evidence_status == EvidenceStatus.UNAVAILABLE:
+            return "검색 근거를 불러올 수 없어 특약 초안 생성을 진행하지 않았습니다."
+        return "특약 생성 요청을 접수했습니다. 검색과 생성 모델 연결 전에는 초안을 반환하지 않습니다."

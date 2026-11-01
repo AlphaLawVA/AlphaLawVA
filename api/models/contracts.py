@@ -40,8 +40,15 @@ class AnalysisStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class GenerationStatus(str, Enum):
+    PENDING = "pending"
+    GENERATED = "generated"
+    UNAVAILABLE = "unavailable"
+
+
 class ReviewItemStatus(str, Enum):
     PENDING_EVIDENCE = "pending_evidence"
+    REVIEW_READY = "review_ready"
     NEEDS_INPUT = "needs_input"
 
 
@@ -107,12 +114,17 @@ class SpecialClauseDraftItem(ContractApiModel):
     request_index: int = Field(ge=1)
     request_text: str = Field(min_length=2, max_length=1000)
     status: str = Field(min_length=1)
+    draft_text: str | None = Field(default=None, min_length=2, max_length=1500)
+    needs_input: list[str] = Field(default_factory=list, max_length=5)
+    evidence_source_ids: list[str] = Field(default_factory=list, max_length=3)
 
 
 class SpecialClauseDraftResponse(ContractApiModel):
     draft_id: UUID
     status: str = Field(min_length=1)
     items: list[SpecialClauseDraftItem] = Field(min_length=1)
+    evidence: list[ContractReviewEvidenceItem]
     evidence_status: EvidenceStatus
+    generation_status: GenerationStatus
     message: str = Field(min_length=1)
     disclaimer: str = Field(min_length=1)

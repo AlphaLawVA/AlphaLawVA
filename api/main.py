@@ -28,6 +28,9 @@ from api.services.gemini_similarity_explainer import (
 from api.services.gemini_contract_review_analyzer import (
     create_gemini_contract_review_analyzer_from_env,
 )
+from api.services.gemini_special_clause_generator import (
+    create_gemini_special_clause_generator_from_env,
+)
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
     PrecedentCaseDataError,
@@ -47,6 +50,7 @@ from api.services.precedent_search_sessions import (
 from api.services.special_clause_service import SpecialClauseService
 from ml.rag.contract_review_retriever import (
     create_contract_review_rag_retriever_from_env,
+    create_special_clause_rag_retriever_from_env,
 )
 from api.services.mysql_snapshot_store import create_mysql_snapshot_store_from_env
 
@@ -240,7 +244,10 @@ def create_app(
     app.state.special_clause_service = (
         special_clause_service
         if special_clause_service is not None
-        else SpecialClauseService()
+        else SpecialClauseService(
+            evidence_retriever=create_special_clause_rag_retriever_from_env(),
+            generator=create_gemini_special_clause_generator_from_env(),
+        )
     )
     app.include_router(contracts_router)
     app.include_router(precedents_router)

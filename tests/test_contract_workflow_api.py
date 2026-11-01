@@ -30,6 +30,7 @@ from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewRetrievalQuery,
 )
+from ml.agent.special_clause_graph import SpecialClauseGeneration
 
 
 class FakeEvidenceRetriever:
@@ -65,6 +66,35 @@ class FakeAnalyzer:
             ContractReviewAnalysis(
                 item_id=queries[0].item_id,
                 summary="확인 필요: 검색 근거와 원문을 비교해 주세요.",
+                evidence_source_ids=[evidence[0].source_id],
+            )
+        ]
+
+
+class FakeSpecialClauseEvidenceRetriever:
+    def retrieve(self, queries):
+        return [
+            ContractReviewEvidence(
+                item_id=queries[0].item_id,
+                source_type="statute",
+                source_id="law:001248:article:0003",
+                title="주택임대차보호법 제3조",
+                text="법령 원문",
+                rank=1,
+                similarity=0.9,
+                metadata={},
+            )
+        ]
+
+
+class FakeSpecialClauseGenerator:
+    def generate(self, queries, evidence):
+        return [
+            SpecialClauseGeneration(
+                item_id=queries[0].item_id,
+                status="needs_input",
+                draft_text=None,
+                needs_input=["적용 기간을 알려주세요."],
                 evidence_source_ids=[evidence[0].source_id],
             )
         ]
@@ -171,6 +201,7 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.evidence[0].source_type, "statute")
         self.assertEqual(response.evidence[0].metadata["law_name"], "주택임대차보호법")
         self.assertEqual(response.analysis_status, "pending")
+        self.assertEqual(response.contract_items[0].status, "review_ready")
         self.assertIn("검색 근거를 찾았습니다", response.message)
 
     def test_contract_review_returns_evidence_bound_analysis_when_enabled(self):
@@ -187,7 +218,7 @@ class ContractWorkflowApiTests(unittest.TestCase):
         )
 
         self.assertEqual(response.analysis_status, "analyzed")
-        self.assertEqual(response.analysis[0].item_id, "registry_document")
+        self.assertEqual(response.analysis[0].item_id, "term-1")
         self.assertEqual(response.analysis[0].evidence_source_ids, ["law:001248:article:0003"])
 
     def test_contract_review_keeps_prechecks_when_retrieval_is_unavailable(self):
@@ -249,6 +280,27 @@ class ContractWorkflowApiTests(unittest.TestCase):
                     "confirmed_contract": {"contract_type": "jeonse"},
                 }
             )
+
+    def test_special_clause_returns_evidence_bound_needs_input(self):
+        service = SpecialClauseService(
+            evidence_retriever=FakeSpecialClauseEvidenceRetriever(),
+            generator=FakeSpecialClauseGenerator(),
+        )
+
+        response = service.create_draft(
+            SpecialClauseDraftRequest(
+                requests=["임대인이 추가 담보권을 설정하지 못하게 하고 싶어요."]
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.evidence_status, "retrieved")
+        self.assertEqual(response.generation_status, "generated")
+        self.assertEqual(response.items[0].status, "needs_input")
+        self.assertEqual(
+            response.items[0].evidence_source_ids,
+            ["law:001248:article:0003"],
+        )
 
 
 if __name__ == "__main__":

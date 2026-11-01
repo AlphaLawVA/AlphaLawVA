@@ -53,6 +53,9 @@ class PrecedentRetriever(Protocol):
 class ContractReviewRagRetriever:
     """검색기 구현을 계약서 검토 그래프의 근거 인터페이스로 맞춘다."""
 
+    DEFAULT_EVIDENCE_TOP_K = 3
+    DEFAULT_MIN_SIMILARITY = 0.35
+
     def __init__(
         self,
         *,
@@ -60,13 +63,19 @@ class ContractReviewRagRetriever:
         precedent_retriever: PrecedentRetriever | None = None,
         statute_top_k: int = 3,
         precedent_top_k: int = 3,
+        evidence_top_k: int = DEFAULT_EVIDENCE_TOP_K,
+        min_similarity: float = DEFAULT_MIN_SIMILARITY,
     ) -> None:
-        if statute_top_k < 1 or precedent_top_k < 1:
+        if min(statute_top_k, precedent_top_k, evidence_top_k) < 1:
             raise ValueError("검색 결과 수는 1 이상이어야 합니다.")
+        if not -1 <= min_similarity <= 1:
+            raise ValueError("최소 유사도는 -1 이상 1 이하여야 합니다.")
         self._statute_retriever = statute_retriever
         self._precedent_retriever = precedent_retriever
         self._statute_top_k = statute_top_k
         self._precedent_top_k = precedent_top_k
+        self._evidence_top_k = evidence_top_k
+        self._min_similarity = min_similarity
         self._lock = RLock()
 
     def retrieve(
@@ -78,11 +87,34 @@ class ContractReviewRagRetriever:
         with self._lock:
             evidence: list[ContractReviewEvidence] = []
             for query in queries:
+                candidates: list[ContractReviewEvidence] = []
                 if self._statute_retriever is not None:
-                    evidence.extend(self._retrieve_statutes(query))
+                    candidates.extend(self._retrieve_statutes(query))
                 if self._precedent_retriever is not None:
-                    evidence.extend(self._retrieve_precedents(query))
+                    candidates.extend(self._retrieve_precedents(query))
+                evidence.extend(self._select_relevant_evidence(candidates))
             return evidence
+
+    def _select_relevant_evidence(
+        self,
+        candidates: list[ContractReviewEvidence],
+    ) -> list[ContractReviewEvidence]:
+        """최소 관련도를 통과한 근거만 항목별 상위 순으로 보존한다."""
+
+        relevant = [
+            candidate
+            for candidate in candidates
+            if candidate.similarity >= self._min_similarity
+        ]
+        return sorted(
+            relevant,
+            key=lambda candidate: (
+                -candidate.similarity,
+                candidate.rank,
+                candidate.source_type,
+                candidate.source_id,
+            ),
+        )[: self._evidence_top_k]
 
     def _retrieve_statutes(
         self,
@@ -164,15 +196,33 @@ class SharedBgeM3ModelLoader:
             return self._model
 
 
-def create_contract_review_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
-    """명시적으로 활성화한 환경에서만 지연 로딩 RAG 검색기를 만든다."""
+_SHARED_BGE_MODEL_LOADER = SharedBgeM3ModelLoader(load_bge_model)
 
-    enabled = os.getenv("CONTRACT_REVIEW_RAG_ENABLED", "false").lower()
+
+def _create_rag_retriever_from_env(
+    enabled_variable: str,
+) -> ContractReviewRagRetriever | None:
+    """명시적으로 활성화한 기능에서만 지연 로딩 RAG 검색기를 만든다."""
+
+    enabled = os.getenv(enabled_variable, "false").lower()
     if enabled not in {"1", "true", "yes"}:
         return None
 
-    shared_model_loader = SharedBgeM3ModelLoader(load_bge_model)
     return ContractReviewRagRetriever(
-        statute_retriever=BgeM3StatuteRetriever(model_loader=shared_model_loader),
-        precedent_retriever=BgeM3PrecedentRetriever(model_loader=shared_model_loader),
+        statute_retriever=BgeM3StatuteRetriever(model_loader=_SHARED_BGE_MODEL_LOADER),
+        precedent_retriever=BgeM3PrecedentRetriever(
+            model_loader=_SHARED_BGE_MODEL_LOADER
+        ),
     )
+
+
+def create_contract_review_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
+    """계약서 검토용 RAG 검색기를 환경 설정에 따라 만든다."""
+
+    return _create_rag_retriever_from_env("CONTRACT_REVIEW_RAG_ENABLED")
+
+
+def create_special_clause_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
+    """특약 생성용 RAG 검색기를 환경 설정에 따라 만든다."""
+
+    return _create_rag_retriever_from_env("SPECIAL_CLAUSE_RAG_ENABLED")

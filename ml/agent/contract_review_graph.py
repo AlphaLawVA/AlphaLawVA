@@ -185,6 +185,8 @@ class ContractReviewGraph:
         queries: list[ContractReviewRetrievalQuery] = []
 
         for item in state["precheck_items"]:
+            if item.status == ReviewItemStatus.NEEDS_INPUT:
+                continue
             query = ContractReviewGraph._query_for_precheck(
                 contract.contract_type.value,
                 item.item_id,
