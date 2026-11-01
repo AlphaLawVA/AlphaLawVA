@@ -23,11 +23,265 @@
   line-height: 1.6;
 }
 
-.grid {
+.pendingGrid {
   margin-top: 40px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.loading,
+.error {
+  margin-top: 40px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+.error {
+  border-color: #e4b4ae;
+  color: #9b342a;
+}
+
+.librarySection {
+  margin-top: 24px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.sectionHeading,
+.sectionHeading > div,
+.itemActions {
+  display: flex;
+  align-items: center;
+}
+
+.sectionHeading {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionHeading > div {
+  gap: 9px;
+}
+
+.sectionHeading h2 {
+  font-size: 21px;
+}
+
+.sectionHeading > span {
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.empty {
+  margin-top: 22px;
+  padding: 26px;
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.resultList,
+.favoriteList {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.resultItem {
+  width: 100%;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.resultItem:hover {
+  border-color: var(--navy);
+}
+
+.resultItem span {
+  display: grid;
+  gap: 7px;
+}
+
+.resultItem small {
+  color: var(--text-subtle);
+}
+
+.resultItem b {
+  flex: 0 0 auto;
+  color: var(--navy);
+  font-size: 13px;
+}
+
+.favoriteItem {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.favoriteItem h3 {
+  margin-top: 8px;
+  font-size: 17px;
+}
+
+.favoriteItem > p:not(.savedQuery) {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.savedQuery {
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.itemActions {
+  margin-top: 16px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.itemActions a {
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.itemActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: #9b342a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  padding: 40px 20px;
+  display: grid;
+  place-items: center;
+  background: rgb(8 17 43 / 52%);
+}
+
+.modal {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+  padding: 34px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgb(8 17 43 / 24%);
+}
+
+.modalClose {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.modalEyebrow {
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.modal h2 {
+  margin-top: 8px;
+  padding-right: 38px;
+  font-size: 25px;
+}
+
+.parties {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.parties div {
+  padding: 14px;
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.parties dt {
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.parties dd {
+  margin-top: 5px;
+  font-weight: 700;
+}
+
+.letterBody {
+  margin-top: 20px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  line-height: 1.8;
+}
+
+.modalSection {
+  margin-top: 22px;
+}
+
+.modalSection h3 {
+  font-size: 16px;
+}
+
+.modalSection p {
+  margin-top: 8px;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .card {
@@ -70,7 +324,21 @@
     font-size: 30px;
   }
 
-  .grid {
+  .pendingGrid {
     grid-template-columns: 1fr;
+  }
+
+  .modal {
+    padding: 28px 20px;
+  }
+
+  .parties {
+    grid-template-columns: 1fr;
+  }
+
+  .resultItem,
+  .itemActions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
