@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
-from api.routers import certified_letters_router, precedents_router
+from api.routers import certified_letters_router, contracts_router, precedents_router
 from api.services.certified_letter_jobs import (
     CertifiedLetterIdempotencyConflictError,
     CertifiedLetterJobNotFoundError,
@@ -31,8 +31,18 @@ from api.services.certified_letter_service import (
     CertifiedLetterGenerationUnavailableError,
     CertifiedLetterService,
 )
+from api.services.contract_review_service import ContractReviewService
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
+from api.services.confirmed_snapshot_store import SnapshotNotFoundError
 from api.services.gemini_similarity_explainer import (
     create_gemini_similarity_explainer_from_env,
+)
+from api.services.gemini_contract_review_analyzer import (
+    create_gemini_contract_review_analyzer_from_env,
+)
+from api.services.gemini_special_clause_generator import (
+    create_gemini_special_clause_generator_from_env,
 )
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
@@ -50,6 +60,12 @@ from api.services.precedent_search_sessions import (
     SearchSessionNotFoundError,
     SimilarityExplanationInProgressError,
 )
+from api.services.special_clause_service import SpecialClauseService
+from ml.rag.contract_review_retriever import (
+    create_contract_review_rag_retriever_from_env,
+    create_special_clause_rag_retriever_from_env,
+)
+from api.services.mysql_snapshot_store import create_mysql_snapshot_store_from_env
 
 
 PRECEDENT_DEMO_PATH = (
@@ -238,9 +254,24 @@ async def certified_letter_generation_unavailable_error_handler(
     )
 
 
+async def snapshot_not_found_error_handler(
+    _request: Request,
+    _error: SnapshotNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.SNAPSHOT_NOT_FOUND,
+        message="확정 계약서 또는 등본 정보를 찾을 수 없습니다.",
+    )
+
+
 def create_app(
     precedent_search_service: PrecedentSearchService | None = None,
     certified_letter_service: CertifiedLetterService | None = None,
+    *,
+    contract_review_service: ContractReviewService | None = None,
+    special_clause_service: SpecialClauseService | None = None,
+    confirmed_snapshot_store: ConfirmedSnapshotRepository | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AlphaLawVA API",
@@ -267,6 +298,27 @@ def create_app(
         )
     )
     app.include_router(certified_letters_router)
+    app.state.confirmed_snapshot_store = confirmed_snapshot_store or (
+        create_mysql_snapshot_store_from_env() or ConfirmedSnapshotStore()
+    )
+    app.state.contract_review_service = (
+        contract_review_service
+        if contract_review_service is not None
+        else ContractReviewService(
+            app.state.confirmed_snapshot_store,
+            evidence_retriever=create_contract_review_rag_retriever_from_env(),
+            analyzer=create_gemini_contract_review_analyzer_from_env(),
+        )
+    )
+    app.state.special_clause_service = (
+        special_clause_service
+        if special_clause_service is not None
+        else SpecialClauseService(
+            evidence_retriever=create_special_clause_rag_retriever_from_env(),
+            generator=create_gemini_special_clause_generator_from_env(),
+        )
+    )
+    app.include_router(contracts_router)
     app.include_router(precedents_router)
     app.add_exception_handler(
         RequestValidationError,
@@ -319,6 +371,10 @@ def create_app(
     app.add_exception_handler(
         CertifiedLetterGenerationUnavailableError,
         certified_letter_generation_unavailable_error_handler,
+    )
+    app.add_exception_handler(
+        SnapshotNotFoundError,
+        snapshot_not_found_error_handler,
     )
 
     @app.get("/health", tags=["health"])

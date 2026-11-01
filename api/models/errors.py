@@ -33,6 +33,7 @@ class ApiErrorCode(str, Enum):
         "certified_letter_idempotency_conflict"
     )
     GENERATION_SERVICE_UNAVAILABLE = "generation_service_unavailable"
+    SNAPSHOT_NOT_FOUND = "snapshot_not_found"
 
 
 class ApiErrorModel(BaseModel):

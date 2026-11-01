@@ -45,6 +45,10 @@ class ApiMainTests(unittest.TestCase):
 
         self.assertIs(app.state.precedent_search_service, service)
         self.assertIn("/health", paths)
+        self.assertIn("/api/v1/contract-snapshots", paths)
+        self.assertIn("/api/v1/registry-snapshots", paths)
+        self.assertIn("/api/v1/contract-reviews", paths)
+        self.assertIn("/api/v1/special-clause-drafts", paths)
         self.assertIn("/api/v1/precedent-searches", paths)
         self.assertIn(
             "/api/v1/precedent-searches/{search_id}/results/{precedent_id}",

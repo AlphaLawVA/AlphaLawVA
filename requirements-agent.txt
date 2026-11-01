@@ -1,0 +1,3 @@
+# Contract review graph dependencies. Keep this series compatible with the
+# project's existing langchain-core 0.3 runtime.
+langgraph==0.2.74

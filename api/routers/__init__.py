@@ -10,7 +10,8 @@ After:
     - 요청과 응답 처리를 담당하는 라우터 패키지가 제공됨.
 """
 
+from api.routers.contracts import router as contracts_router
 from api.routers.certified_letters import router as certified_letters_router
 from api.routers.precedents import router as precedents_router
 
-__all__ = ["certified_letters_router", "precedents_router"]
+__all__ = ["certified_letters_router", "contracts_router", "precedents_router"]

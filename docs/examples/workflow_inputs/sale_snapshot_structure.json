@@ -1,0 +1,45 @@
+{
+  "schema_version": "confirmed_contract_snapshot.v0.1",
+  "snapshot_id": "00000000-0000-4000-8000-000000000005",
+  "document_id": "00000000-0000-4000-8000-000000000006",
+  "confirmation": {
+    "confirmed_by_user": true,
+    "revision": 1,
+    "confirmed_at": "2026-10-25T12:00:00+09:00"
+  },
+  "contract": {
+    "contract_type": "sale",
+    "document_title": "부동산매매계약서",
+    "page_count": 3,
+    "contract_kind": null,
+    "contract_date": "2026-10-25",
+    "property": {
+      "address": "목적물 주소",
+      "detail_address": "동·호수",
+      "property_type": "부동산 유형",
+      "building_area_m2": null
+    },
+    "parties": [
+      {"role": "seller", "name": "매도인 이름"},
+      {"role": "buyer", "name": "매수인 이름"}
+    ],
+    "brokers": [],
+    "sale_price": {"amount": 0, "korean_text": null},
+    "down_payment": null,
+    "intermediate_payments": [],
+    "remaining_balance": null,
+    "remaining_balance_date": null,
+    "handover_date": null,
+    "ownership_transfer_date": null,
+    "encumbrance_handling": null,
+    "loan_assumption": null,
+    "existing_occupancies": [],
+    "clauses": [],
+    "special_terms": [],
+    "disclosures": {},
+    "signatures": [],
+    "attachment_names": []
+  },
+  "field_confirmations": [],
+  "warnings": []
+}

@@ -21,6 +21,13 @@ from api.services.precedent_case_repository import (
 from api.services.certified_letter_configuration import (
     create_certified_letter_service_from_env,
 )
+from api.services.contract_review_service import ContractReviewService
+from api.services.confirmed_snapshot_store import (
+    ConfirmedSnapshotRepository,
+    ConfirmedSnapshotStore,
+    SnapshotNotFoundError,
+)
+from api.services.mysql_snapshot_store import MySqlConfirmedSnapshotStore
 from api.services.gemini_similarity_explainer import (
     GeminiSimilarityExplainer,
     create_gemini_similarity_explainer_from_env,
@@ -48,9 +55,13 @@ from api.services.precedent_search_sessions import (
     SimilarityExplanationInProgressError,
     SimilarityExplanationSnapshot,
 )
+from api.services.special_clause_service import SpecialClauseService
 
 __all__ = [
     "DEFAULT_FINAL_CASES_DIR",
+    "ContractReviewService",
+    "ConfirmedSnapshotRepository",
+    "ConfirmedSnapshotStore",
     "InvalidPrecedentIdError",
     "GeminiSimilarityExplainer",
     "PrecedentFavorite",
@@ -74,6 +85,9 @@ __all__ = [
     "SimilarityExplanationInProgressError",
     "SimilarityExplanationSnapshot",
     "SimilarityExplanationUnavailableError",
+    "SpecialClauseService",
+    "SnapshotNotFoundError",
+    "MySqlConfirmedSnapshotStore",
     "create_gemini_similarity_explainer_from_env",
     "create_certified_letter_service_from_env",
 ]
