@@ -3,7 +3,7 @@ const offTopicPatterns = [
 ];
 
 const realEstatePatterns = [
-  /계약|임대|임차|전세|월세|보증금|집주인|세입자|부동산|주택|아파트|원룸|매매|등기|근저당|퇴거|수리|반려|흡연|담배|벽|못|타공|보일러|원상회복/,
+  /계약|임대|임차|전세|월세|보증금|집주인|세입자|부동산|주택|아파트|원룸|매매|매수|등기|근저당|퇴거|수리|누수|곰팡이|하자|반려|흡연|담배|벽|못|타공|보일러|원상회복/,
 ];
 
 export function validateRealEstateInput(value: string, minimumLength: number) {

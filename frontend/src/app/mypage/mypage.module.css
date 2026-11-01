@@ -105,6 +105,57 @@
   gap: 10px;
 }
 
+.questionGroups {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.questionGroup {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--background);
+  overflow: hidden;
+}
+
+.questionGroup > summary {
+  padding: 22px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 20px;
+  color: var(--navy);
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.questionGroup > summary span {
+  grid-column: 1 / -1;
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.questionGroup > summary strong {
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.questionGroup > summary small {
+  align-self: center;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.questionGroup[open] > summary {
+  border-bottom: 1px solid var(--line);
+  background: var(--navy-soft);
+}
+
+.questionGroup .favoriteList {
+  margin: 0;
+  padding: 14px;
+}
+
 .resultItem {
   width: 100%;
   padding: 18px;
@@ -156,6 +207,10 @@
   color: var(--text-muted);
   font-size: 14px;
   line-height: 1.65;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .savedQuery {
@@ -187,6 +242,21 @@
   cursor: pointer;
 }
 
+.itemActions .detailButton {
+  color: var(--navy);
+}
+
+.comparisonSaved {
+  margin-top: 12px;
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: var(--navy);
+  background: var(--navy-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .modalBackdrop {
   position: fixed;
   inset: 0;
@@ -199,7 +269,7 @@
 
 .modal {
   position: relative;
-  width: min(760px, 100%);
+  width: min(920px, 100%);
   max-height: calc(100vh - 80px);
   overflow: auto;
   padding: 34px;
@@ -257,6 +327,13 @@
   font-weight: 700;
 }
 
+.parties small {
+  margin-top: 5px;
+  display: block;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 .letterBody {
   margin-top: 20px;
   padding: 24px;
@@ -278,6 +355,43 @@
   margin-top: 8px;
   color: var(--text-muted);
   line-height: 1.65;
+}
+
+.modalSection ol,
+.modalSection ul {
+  margin: 10px 0 0 20px;
+  color: var(--text-muted);
+  line-height: 1.75;
+}
+
+.evidenceList,
+.savedPrecedents {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.evidenceCard {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.evidenceCard strong {
+  color: var(--navy);
+}
+
+.evidenceCard a {
+  margin-top: 10px;
+  display: inline-block;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.savedPrecedents > article {
+  padding: 18px;
 }
 
 @keyframes spin {
@@ -340,5 +454,9 @@
   .itemActions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .questionGroup > summary {
+    grid-template-columns: 1fr;
   }
 }

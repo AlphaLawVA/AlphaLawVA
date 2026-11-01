@@ -68,16 +68,14 @@ export function PrecedentReference({
 
 export function PrecedentSummary({
   precedent,
-  highlight = true,
 }: {
   precedent: CaseBasis;
-  highlight?: boolean;
 }) {
   return (
     <div className={styles.summaryColumns}>
       <section>
         <h3>판례요약</h3>
-        <p><span className={highlight ? styles.textHighlight : undefined}>{precedent.summary}</span></p>
+        <p>{precedent.summary}</p>
       </section>
       <section className={styles.easySummary}>
         <h3>쉬운요약</h3>
@@ -129,6 +127,12 @@ type ModalProps = {
   fullTextReturnLabel?: string;
   highlight?: boolean;
   onHighlightChange?: (value: boolean) => void;
+  comparisonQuery?: string;
+  comparisonStatus?: "generated" | "generating" | "not_generated" | "failed";
+  comparisonText?: string;
+  onGenerateComparison?: () => void;
+  onOpenFullText?: () => Promise<void> | void;
+  fullTextLoading?: boolean;
   onClose: () => void;
 };
 
@@ -139,6 +143,12 @@ export function PrecedentModal({
   fullTextReturnLabel = "관련 판례 목록으로 돌아가기",
   highlight: controlledHighlight,
   onHighlightChange,
+  comparisonQuery,
+  comparisonStatus,
+  comparisonText,
+  onGenerateComparison,
+  onOpenFullText,
+  fullTextLoading = false,
   onClose,
 }: ModalProps) {
   const [view, setView] = useState<"detail" | "fullText">(initialView);
@@ -153,6 +163,15 @@ export function PrecedentModal({
   ].filter((item): item is [string, string, string] => Boolean(item[2]));
   const openedFromList = initialView === "fullText";
 
+  async function openFullText() {
+    try {
+      await onOpenFullText?.();
+      setView("fullText");
+    } catch {
+      // The caller reports the load error and keeps the detail view open.
+    }
+  }
+
   return (
     <div aria-modal="true" className={styles.overlay} role="dialog">
       <section className={styles.modal}>
@@ -166,10 +185,26 @@ export function PrecedentModal({
 
         {view === "detail" ? (
           <div className={styles.modalContent}>
-            <PrecedentSummary highlight={highlight} precedent={precedent} />
+            <PrecedentSummary precedent={precedent} />
+            {comparisonQuery && (
+              <section className={styles.comparisonBox}>
+                <span>저장한 질문</span>
+                <h3>{comparisonQuery}</h3>
+                {comparisonStatus === "generated" && comparisonText ? (
+                  <p>{comparisonText}</p>
+                ) : comparisonStatus === "generating" ? (
+                  <p>내 상황과 판례를 비교하고 있습니다.</p>
+                ) : (
+                  <>
+                    <p>{comparisonStatus === "failed" ? "비교 결과를 만들지 못했습니다. 다시 시도해 주세요." : "저장한 질문과 이 판례를 비교한 설명은 아직 생성하지 않았습니다."}</p>
+                    {onGenerateComparison && <button className={styles.primaryAction} onClick={onGenerateComparison} type="button">{comparisonStatus === "failed" ? "다시 비교하기" : "내 상황과 비교하기"}</button>}
+                  </>
+                )}
+              </section>
+            )}
             <PrecedentReference highlight={highlight} mode={referenceMode} onHighlightChange={setHighlight} precedent={precedent} />
             <div className={styles.modalActions}>
-              <button className={styles.primaryAction} onClick={() => setView("fullText")} type="button">판례 전문 보기</button>
+              <button className={styles.primaryAction} disabled={fullTextLoading} onClick={() => void openFullText()} type="button">{fullTextLoading ? "전문 불러오는 중" : "판례 전문 보기"}</button>
               <OfficialLink precedent={precedent} />
             </div>
           </div>
@@ -183,7 +218,7 @@ export function PrecedentModal({
               {fullTextSections.map(([key, heading, content]) => (
                 <section key={heading}>
                   <h3>{heading}</h3>
-                  <p><HighlightedFullText content={content} highlight={highlight} ranges={key === "reason" ? precedent.highlightChunks : undefined} /></p>
+                  <p><HighlightedFullText content={content} highlight={highlight} ranges={findHighlightRanges(precedent, key, content)} /></p>
                 </section>
               ))}
             </div>
@@ -197,7 +232,7 @@ export function PrecedentModal({
 
 function HighlightedFullText({ content, highlight, ranges }: { content: string; highlight: boolean; ranges?: Array<{ startOffset: number; endOffset: number }> }) {
   if (!highlight) return content;
-  if (ranges === undefined) return <span className={styles.textHighlight}>{content}</span>;
+  if (ranges === undefined) return content;
   if (ranges.length === 0) return content;
   const parts: Array<{ text: string; highlighted: boolean }> = [];
   let cursor = 0;
@@ -210,6 +245,22 @@ function HighlightedFullText({ content, highlight, ranges }: { content: string; 
   }
   if (cursor < content.length) parts.push({ text: content.slice(cursor), highlighted: false });
   return <>{parts.map((part, index) => <span className={part.highlighted ? styles.textHighlight : undefined} key={`${index}-${part.text.length}`}>{part.text}</span>)}</>;
+}
+
+function findHighlightRanges(precedent: CaseBasis, sectionKey: string, content: string) {
+  const configured = sectionKey === "reason"
+    ? (precedent.highlightChunks ?? []).map(({ startOffset, endOffset }) => ({ startOffset, endOffset }))
+    : [];
+  const exactMatches = (precedent.evidenceChunks ?? []).flatMap((chunk) => {
+    const startOffset = content.indexOf(chunk.content);
+    return startOffset < 0
+      ? []
+      : [{ startOffset, endOffset: startOffset + chunk.content.length }];
+  });
+  const ranges = [...configured, ...exactMatches]
+    .filter((range) => range.startOffset >= 0 && range.endOffset > range.startOffset && range.startOffset < content.length)
+    .sort((a, b) => a.startOffset - b.startOffset);
+  return ranges.length > 0 ? ranges : undefined;
 }
 
 function OfficialLink({ precedent }: { precedent: CaseBasis }) {

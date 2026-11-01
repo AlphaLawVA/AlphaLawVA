@@ -67,7 +67,7 @@ export type PrecedentSearchResponse = {
   message: string | null;
 };
 
-type SimilarityExplanation = {
+export type SimilarityExplanation = {
   status: "generated" | "generating" | "not_generated" | "failed";
   method: "local_llm" | "gemini" | "matched_chunks_only";
   model: string | null;
@@ -211,6 +211,26 @@ export function listPrecedentFavorites(accessToken: string) {
   );
 }
 
+export function getPrecedentFavorite(favoriteId: string, accessToken: string) {
+  return apiRequest<PrecedentFavoriteResponse>(
+    `/api/v1/precedent-favorites/${encodeURIComponent(favoriteId)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+}
+
+export function generateFavoriteSimilarityExplanation(
+  favoriteId: string,
+  accessToken: string,
+) {
+  return apiRequest<SimilarityExplanation>(
+    `/api/v1/precedent-favorites/${encodeURIComponent(favoriteId)}/similarity-explanation`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+}
+
 function displayCaseNumber(metadata: PrecedentMetadata) {
   return metadata.case_number ?? (metadata.case_numbers.join(", ") || `판례 ${metadata.precedent_id}`);
 }
@@ -254,6 +274,26 @@ export function mergePrecedentDetail(
     matchedReason: detail.similarity_explanation.matched_reason ?? undefined,
     evidenceChunks: evidenceChunks(detail.similarity_explanation.matched_chunks),
     url: detail.links.official_source,
+  };
+}
+
+export function mapFavoriteResponse(favorite: PrecedentFavoriteResponse): CaseBasis {
+  return {
+    title: favorite.precedent.case_name ?? "판례",
+    caseNumber: displayCaseNumber(favorite.precedent),
+    precedentId: favorite.precedent.precedent_id,
+    summary:
+      favorite.summaries.precedent_summary
+      ?? favorite.summaries.easy_summary
+      ?? favorite.similarity_explanation.matched_chunks[0]?.text
+      ?? "요약 정보가 없습니다.",
+    easySummary: favorite.summaries.easy_summary ?? undefined,
+    matchedReason: favorite.similarity_explanation.matched_reason ?? undefined,
+    court: favorite.precedent.court_name ?? undefined,
+    decisionDate: favorite.precedent.decision_date ?? undefined,
+    judgmentType: favorite.precedent.judgment_type ?? undefined,
+    evidenceChunks: evidenceChunks(favorite.similarity_explanation.matched_chunks),
+    url: favorite.links.official_source,
   };
 }
 

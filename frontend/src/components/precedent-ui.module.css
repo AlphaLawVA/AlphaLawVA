@@ -33,6 +33,12 @@
 .chunk strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 0.85rem; }
 .modalActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .modalActions .primaryAction { min-height: 40px; border: 1px solid var(--primary); border-radius: 5px; background: var(--primary); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
+.modalActions .primaryAction:disabled, .comparisonBox .primaryAction:disabled { opacity: 0.6; cursor: wait; }
+.comparisonBox { margin-top: 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-subtle); padding: 20px; }
+.comparisonBox > span { color: var(--text-muted); font-size: 0.78rem; font-weight: 800; }
+.comparisonBox h3 { margin: 7px 0 11px; color: var(--ink); font-size: 1.02rem; line-height: 1.5; }
+.comparisonBox p { margin: 0; color: var(--text-muted); line-height: 1.7; }
+.comparisonBox .primaryAction { min-height: 40px; margin-top: 14px; border: 1px solid var(--primary); border-radius: 5px; background: var(--primary); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
 .returnButton { margin-bottom: 18px; }
 .dataNotice { margin: 0 0 14px; color: var(--text-muted); font-size: 0.9rem; }
 .fullText { display: grid; gap: 14px; }

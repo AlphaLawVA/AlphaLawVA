@@ -200,7 +200,7 @@ function PrecedentSearchPage() {
             <p className={styles.loadingInline}><LoaderCircle className={styles.spinner} size={17} />판례 상세정보를 불러오고 있습니다.</p>
           ) : (
             <>
-              <PrecedentSummary highlight={highlightSimilar} precedent={current} />
+              <PrecedentSummary precedent={current} />
               <section className={styles.similarBox}>
                 <h2>내 상황과 유사한 부분</h2>
                 {comparison === "idle" && <><p>필요할 때 검색 질문과 판례 근거를 비교해 설명합니다.</p><button className={styles.primaryButton} type="button" onClick={() => void compareCurrent()}>내 상황과 비교하기</button></>}
