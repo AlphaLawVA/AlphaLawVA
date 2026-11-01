@@ -19,7 +19,15 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Callable, Sequence
 
+from dotenv import load_dotenv
+
 from ml.data_collection.statutes.law_api_common import PROJECT_ROOT
+
+
+# The retriever resolves its default data directories during module import.
+# Load the untracked local configuration first so a Git worktree can reuse the
+# shared data directory declared in its local .env.
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 BGE_M3_MODEL_NAME = "BAAI/bge-m3"

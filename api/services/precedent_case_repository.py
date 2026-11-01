@@ -17,8 +17,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Resolve the shared local-data directory before calculating this module's
+# import-time defaults. This lets API worktrees reuse local final_cases data.
+load_dotenv(PROJECT_ROOT / ".env")
 LOCAL_DATA_ROOT = Path(
     os.environ.get("ALPHALAWVA_LOCAL_DATA_DIR", PROJECT_ROOT / "local_data")
 ).expanduser()
