@@ -85,7 +85,9 @@ AI and RAG:
 
 Databases:
 
-- MySQL for users, contracts, analysis history, and glossary data
+- Supabase Auth for account creation, login sessions, and user identity
+- MySQL for confirmed contract snapshots, generated-result history, favorites,
+  and other application-owned records
 - ChromaDB for precedent vector search
 - ChromaDB plus Neo4j for statute search and hierarchy traversal
 
@@ -180,6 +182,26 @@ Keep entrypoints thin and isolate external dependencies behind clear modules.
 
 The following structure is provisional and may change as implementation,
 experiments, and evaluation progress.
+
+### User Identity and Saved Results
+
+- Supabase Auth owns passwords and login sessions. AlphaLawVA does not store or
+  compare raw passwords in MySQL.
+- FastAPI verifies the Supabase access token before accepting saved-result or
+  favorite requests. The verified token subject is the only source of
+  `user_id`; a client-provided user identifier is not trusted.
+- MySQL stores application results with that Supabase user UUID. Queries for
+  list, detail, update, and deletion must include the verified `user_id`.
+- `certified_letter_results` stores searchable metadata in columns and the
+  complete generated output in a JSON payload so the result UI can be restored.
+- `precedent_favorites` stores the original user question, selected precedent
+  retrieval result, and similarity-explanation state together. This preserves
+  the question-to-precedent grouping required by the My Page UI.
+- The current local development tables are created lazily by repository
+  adapters when `SNAPSHOT_STORE_BACKEND=mysql`. A migration framework may
+  replace this bootstrap behavior before production deployment.
+- Contract-review and special-clause result persistence remains pending until
+  their final output contracts and teammate integration are ready.
 
 ### Precedent DB
 
