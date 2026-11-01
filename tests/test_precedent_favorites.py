@@ -11,7 +11,7 @@ After:
 """
 
 import unittest
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from api.services.precedent_favorites import (
     PrecedentFavoriteNotFoundError,
@@ -43,6 +43,23 @@ def make_result(precedent_id: str) -> PrecedentSearchResult:
 
 
 class PrecedentFavoriteStoreTests(unittest.TestCase):
+    def test_isolates_favorites_by_user(self):
+        store = PrecedentFavoriteStore()
+        user_a = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        user_b = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        favorite = store.create(
+            search_id=uuid4(),
+            query="보증금 반환",
+            result=make_result("111"),
+            interaction=SearchResultInteractionState(),
+            user_id=user_a,
+        )
+
+        self.assertEqual(len(store.list(user_a)), 1)
+        self.assertEqual(store.list(user_b), [])
+        with self.assertRaises(PrecedentFavoriteNotFoundError):
+            store.get(favorite.favorite_id, user_b)
+
     def test_reuses_same_favorite_and_shared_interaction(self):
         store = PrecedentFavoriteStore()
         search_id = uuid4()

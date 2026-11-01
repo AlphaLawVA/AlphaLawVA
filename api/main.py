@@ -56,7 +56,10 @@ from api.services.precedent_case_repository import (
     PrecedentCaseDataError,
     PrecedentCaseNotFoundError,
 )
-from api.services.precedent_favorites import PrecedentFavoriteNotFoundError
+from api.services.precedent_favorites import (
+    PrecedentFavoriteNotFoundError,
+    create_precedent_favorite_store_from_env,
+)
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
     PrecedentSearchService,
@@ -359,6 +362,7 @@ def create_app(
         precedent_search_service
         if precedent_search_service is not None
         else PrecedentSearchService(
+            favorites=create_precedent_favorite_store_from_env(),
             similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )
     )

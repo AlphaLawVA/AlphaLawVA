@@ -115,6 +115,19 @@ export type PrecedentFullTextResponse = {
   links: PrecedentLinks;
 };
 
+export type PrecedentFavoriteResponse = {
+  favorite_id: string;
+  created_at: string;
+  search_id: string;
+  query: { text: string };
+  precedent: PrecedentMetadata;
+  summaries: PrecedentDetailResponse["summaries"];
+  official_fields: PrecedentDetailResponse["official_fields"];
+  similarity_explanation: SimilarityExplanation;
+  is_favorited: boolean;
+  links: PrecedentLinks;
+};
+
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -139,6 +152,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
       response.status,
     );
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -165,6 +179,35 @@ export function generateSimilarityExplanation(searchId: string, precedentId: str
   return apiRequest<SimilarityExplanation>(
     `/api/v1/precedent-searches/${encodeURIComponent(searchId)}/results/${encodeURIComponent(precedentId)}/similarity-explanation`,
     { method: "POST" },
+  );
+}
+
+export function createPrecedentFavorite(
+  searchId: string,
+  precedentId: string,
+  accessToken: string,
+) {
+  return apiRequest<PrecedentFavoriteResponse>("/api/v1/precedent-favorites", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ search_id: searchId, precedent_id: precedentId }),
+  });
+}
+
+export function deletePrecedentFavorite(favoriteId: string, accessToken: string) {
+  return apiRequest<void>(
+    `/api/v1/precedent-favorites/${encodeURIComponent(favoriteId)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+}
+
+export function listPrecedentFavorites(accessToken: string) {
+  return apiRequest<{ favorite_count: number; favorites: PrecedentFavoriteResponse[] }>(
+    "/api/v1/precedent-favorites",
+    { headers: { Authorization: `Bearer ${accessToken}` } },
   );
 }
 

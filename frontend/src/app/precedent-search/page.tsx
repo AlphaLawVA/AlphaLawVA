@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Bookmark, LoaderCircle, Search } from "lucide-react";
 import { PrecedentListItem, PrecedentMeta, PrecedentModal, PrecedentReference, PrecedentSummary } from "@/components/precedent-ui";
 import type { CaseBasis } from "@/lib/demo-types";
 import {
+  createPrecedentFavorite,
+  deletePrecedentFavorite,
   generateSimilarityExplanation,
   getPrecedentDetail,
   getPrecedentFullText,
@@ -15,6 +18,7 @@ import {
   searchPrecedents,
 } from "@/lib/precedent-api";
 import { validateRealEstateInput } from "@/lib/demo-validation";
+import { createClient } from "@/lib/supabase/client";
 import styles from "../feature-demo.module.css";
 
 type Stage = "search" | "searching" | "results" | "empty" | "detail";
@@ -27,6 +31,7 @@ const exampleQueries = [
 ];
 
 function PrecedentSearchPage() {
+  const router = useRouter();
   const [stage, setStage] = useState<Stage>("search");
   const [query, setQuery] = useState("");
   const [queryFocused, setQueryFocused] = useState(false);
@@ -85,15 +90,43 @@ function PrecedentSearchPage() {
     }
   }
 
-  function toggleFavorite(index: number) {
+  async function toggleFavorite(index: number) {
     const precedent = results[index];
-    if (!precedent) return;
-    setFavorites((items) => {
-      const next = { ...items };
-      if (next[precedent.precedentId]) delete next[precedent.precedentId];
-      else next[precedent.precedentId] = query;
-      return next;
-    });
+    if (!precedent || !searchId) return;
+    setActionError("");
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        router.push("/login?next=/precedent-search");
+        return;
+      }
+      const favoriteId = favorites[precedent.precedentId];
+      if (favoriteId) {
+        await deletePrecedentFavorite(favoriteId, session.access_token);
+        setFavorites((items) => {
+          const next = { ...items };
+          delete next[precedent.precedentId];
+          return next;
+        });
+        return;
+      }
+      const saved = await createPrecedentFavorite(
+        searchId,
+        precedent.precedentId,
+        session.access_token,
+      );
+      setFavorites((items) => ({
+        ...items,
+        [precedent.precedentId]: saved.favorite_id,
+      }));
+    } catch (favoriteError) {
+      setActionError(
+        favoriteError instanceof Error
+          ? favoriteError.message
+          : "판례 즐겨찾기를 변경하지 못했습니다.",
+      );
+    }
   }
 
   async function openDetail(index: number) {
@@ -160,7 +193,7 @@ function PrecedentSearchPage() {
             <div><PrecedentMeta precedent={current} /><h1>{current.caseNumber}</h1></div>
             <div className={styles.detailHeadActions}>
               <button className={styles.primaryButton} disabled={fullTextLoadingId === current.precedentId} type="button" onClick={() => void openFullText(selected)}>{fullTextLoadingId === current.precedentId ? "전문 불러오는 중" : "판례 전문 보기"}</button>
-              <button className={styles.favoriteButton} type="button" onClick={() => toggleFavorite(selected)}><Bookmark size={18} fill={favorites[current.precedentId] ? "currentColor" : "none"} />{favorites[current.precedentId] ? "저장됨" : "즐겨찾기"}</button>
+              <button className={styles.favoriteButton} type="button" onClick={() => void toggleFavorite(selected)}><Bookmark size={18} fill={favorites[current.precedentId] ? "currentColor" : "none"} />{favorites[current.precedentId] ? "저장됨" : "즐겨찾기"}</button>
             </div>
           </div>
           {detailLoading ? (
@@ -215,7 +248,7 @@ function PrecedentSearchPage() {
           <div className={styles.resultsHeading}><h2>유사 판례 목록</h2><span>{results.length}건</span></div>
           {actionError && <div className={styles.validationNotice} role="alert"><Search size={19} /><div><strong>정보를 불러오지 못했습니다</strong><span>{actionError}</span></div></div>}
           <div className={styles.caseCardList}>
-            {results.map((item, index) => <PrecedentListItem favorite={Boolean(favorites[item.precedentId])} key={item.precedentId} onOpenDetail={() => void openDetail(index)} onOpenFullText={() => void openFullText(index)} onToggleFavorite={() => toggleFavorite(index)} precedent={item} />)}
+            {results.map((item, index) => <PrecedentListItem favorite={Boolean(favorites[item.precedentId])} key={item.precedentId} onOpenDetail={() => void openDetail(index)} onOpenFullText={() => void openFullText(index)} onToggleFavorite={() => void toggleFavorite(index)} precedent={item} />)}
           </div>
         </section>
       )}

@@ -40,6 +40,7 @@ from api.models.precedents import (
 )
 from api.services.precedent_case_repository import PrecedentCaseRepository
 from api.services.precedent_favorites import (
+    ANONYMOUS_USER_ID,
     PrecedentFavorite,
     PrecedentFavoriteStore,
 )
@@ -59,7 +60,9 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_PREVIEW_MAX_LENGTH = 180
 OFFICIAL_SOURCE_URL = "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq={precedent_id}"
-NO_RESULTS_MESSAGE = "입력한 상황과 유사한 판례를 찾지 못했습니다. 상황을 더 구체적으로 입력해 주세요."
+NO_RESULTS_MESSAGE = (
+    "입력한 상황과 유사한 판례를 찾지 못했습니다. 상황을 더 구체적으로 입력해 주세요."
+)
 DEFAULT_OUT_OF_SCOPE_MESSAGE = (
     "부동산 계약이나 임대차 분쟁과 관련된 상황을 구체적으로 입력해 주세요."
 )
@@ -125,12 +128,18 @@ class PrecedentSearchService:
         scope_guard: QueryScopeGuard | None = None,
         similarity_explainer: SimilarityExplainer | None = None,
     ) -> None:
-        self.retriever = retriever if retriever is not None else BgeM3PrecedentRetriever()
+        self.retriever = (
+            retriever if retriever is not None else BgeM3PrecedentRetriever()
+        )
         self.repository = (
             repository if repository is not None else PrecedentCaseRepository()
         )
-        self.sessions = sessions if sessions is not None else PrecedentSearchSessionStore()
-        self.favorites = favorites if favorites is not None else PrecedentFavoriteStore()
+        self.sessions = (
+            sessions if sessions is not None else PrecedentSearchSessionStore()
+        )
+        self.favorites = (
+            favorites if favorites is not None else PrecedentFavoriteStore()
+        )
         self.scope_guard = scope_guard
         self.similarity_explainer = similarity_explainer
 
@@ -166,8 +175,7 @@ class PrecedentSearchService:
             )
 
         items = [
-            self._build_search_item(session.search_id, result)
-            for result in results
+            self._build_search_item(session.search_id, result) for result in results
         ]
         return PrecedentSearchResponse(
             search_id=session.search_id,
@@ -221,6 +229,7 @@ class PrecedentSearchService:
         self,
         search_id: UUID,
         precedent_id: str,
+        user_id: UUID = ANONYMOUS_USER_ID,
     ) -> PrecedentFavoriteResponse:
         session, result, interaction = self.sessions.get_result_context(
             search_id,
@@ -231,36 +240,52 @@ class PrecedentSearchService:
             query=session.query,
             result=result,
             interaction=interaction,
+            user_id=user_id,
         )
         return self._build_favorite_response(favorite)
 
-    def list_favorites(self) -> PrecedentFavoriteListResponse:
+    def list_favorites(
+        self,
+        user_id: UUID = ANONYMOUS_USER_ID,
+    ) -> PrecedentFavoriteListResponse:
         favorites = [
             self._build_favorite_response(favorite)
-            for favorite in self.favorites.list()
+            for favorite in self.favorites.list(user_id)
         ]
         return PrecedentFavoriteListResponse(
             favorite_count=len(favorites),
             favorites=favorites,
         )
 
-    def get_favorite(self, favorite_id: UUID) -> PrecedentFavoriteResponse:
-        return self._build_favorite_response(self.favorites.get(favorite_id))
+    def get_favorite(
+        self,
+        favorite_id: UUID,
+        user_id: UUID = ANONYMOUS_USER_ID,
+    ) -> PrecedentFavoriteResponse:
+        return self._build_favorite_response(self.favorites.get(favorite_id, user_id))
 
-    def delete_favorite(self, favorite_id: UUID) -> None:
-        self.favorites.delete(favorite_id)
+    def delete_favorite(
+        self,
+        favorite_id: UUID,
+        user_id: UUID = ANONYMOUS_USER_ID,
+    ) -> None:
+        self.favorites.delete(favorite_id, user_id)
 
     def generate_favorite_similarity_explanation(
         self,
         favorite_id: UUID,
+        user_id: UUID = ANONYMOUS_USER_ID,
     ) -> SimilarityExplanation:
-        favorite = self.favorites.get(favorite_id)
-        return self._generate_similarity_explanation(
-            search_id=favorite.search_id,
-            query=favorite.query,
-            result=favorite.result,
-            interaction=favorite.interaction,
-        )
+        favorite = self.favorites.get(favorite_id, user_id)
+        try:
+            return self._generate_similarity_explanation(
+                search_id=favorite.search_id,
+                query=favorite.query,
+                result=favorite.result,
+                interaction=favorite.interaction,
+            )
+        finally:
+            self.favorites.update_interaction(favorite)
 
     def get_full_text(self, precedent_id: str) -> PrecedentFullTextResponse:
         case_data = self.repository.get(precedent_id)
@@ -296,8 +321,7 @@ class PrecedentSearchService:
             similarity_score=result.similarity,
             matched_chunk_count=len(result.matched_chunks),
             matched_chunks=[
-                self._build_matched_chunk(chunk)
-                for chunk in result.matched_chunks
+                self._build_matched_chunk(chunk) for chunk in result.matched_chunks
             ],
             preview=self._build_preview(case_data),
             is_favorited=self.favorites.is_favorited(
@@ -415,7 +439,11 @@ class PrecedentSearchService:
         precedent_id = str(case_data["판례일련번호"])
         case_numbers = case_data.get("사건번호목록")
         normalized_case_numbers = (
-            [item.strip() for item in case_numbers if isinstance(item, str) and item.strip()]
+            [
+                item.strip()
+                for item in case_numbers
+                if isinstance(item, str) and item.strip()
+            ]
             if isinstance(case_numbers, list)
             else []
         )
