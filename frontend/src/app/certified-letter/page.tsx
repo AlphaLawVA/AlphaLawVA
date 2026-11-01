@@ -15,7 +15,7 @@ import {
 import type { CertifiedLetterResult } from "@/lib/certified-letter-api";
 import { certifiedLetterContractSnapshot } from "@/lib/certified-letter-data";
 import type { CaseBasis, ConfirmedContractSnapshot } from "@/lib/demo-types";
-import { validateDemoFile, validateRealEstateInput } from "@/lib/demo-validation";
+import { validateDemoFile } from "@/lib/demo-validation";
 import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
 import { createClient } from "@/lib/supabase/client";
 import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-demo";
@@ -115,12 +115,6 @@ export default function CertifiedLetterPage() {
       setError("내용증명으로 달성하려는 목적을 조금 더 구체적으로 적어주세요.");
       return;
     }
-    const validationError = validateRealEstateInput(facts, 10);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
     try {
       const contract = buildCertifiedLetterContract(confirmedSnapshot);
       setError("");

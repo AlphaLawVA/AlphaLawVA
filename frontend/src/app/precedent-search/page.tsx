@@ -17,7 +17,6 @@ import {
   mergeSimilarityExplanation,
   searchPrecedents,
 } from "@/lib/precedent-api";
-import { validateRealEstateInput } from "@/lib/demo-validation";
 import { createClient } from "@/lib/supabase/client";
 import styles from "../feature-demo.module.css";
 
@@ -61,13 +60,6 @@ function PrecedentSearchPage() {
   }
 
   async function startSearch() {
-    const validationError = validateRealEstateInput(query, 10);
-    if (validationError) {
-      setError(validationError);
-      setStage("search");
-      return;
-    }
-
     setError("");
     setActionError("");
     setEmptyMessage("");
