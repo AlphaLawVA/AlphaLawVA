@@ -4,7 +4,7 @@
 .preview { display: -webkit-box; overflow: hidden; margin: 0; color: var(--text-muted); line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .listActions { display: flex; align-items: center; gap: 8px; }
 .listActions button, .modalActions a, .returnButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 0 12px; font: inherit; font-size: 0.88rem; font-weight: 800; cursor: pointer; text-decoration: none; }
-.listActions button:hover, .modalActions a:hover, .returnButton:hover { border-color: var(--primary); color: var(--primary); }
+.listActions button:hover, .modalActions a:hover, .returnButton:hover { border-color: var(--navy); color: var(--navy); }
 .bookmarkButton { width: 40px; padding: 0 !important; }
 .overlay { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 22px; background: rgb(21 20 19 / 52%); }
 .modal { display: flex; max-height: min(780px, calc(100vh - 44px)); width: min(860px, 100%); flex-direction: column; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 24px 70px rgb(0 0 0 / 22%); }
@@ -25,20 +25,20 @@
 .switchRow > span { margin-right: auto; }
 .highlightSwitch { width: 48px; height: 28px; border: 1px solid var(--line-strong); border-radius: 999px; background: #cbc7be; padding: 3px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 6%); cursor: pointer; }
 .highlightSwitch span { display: block; width: 20px; height: 20px; border: 1px solid rgb(0 0 0 / 12%); border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 18%); transition: transform 150ms ease; }
-.highlightSwitchOn { border-color: var(--primary); background: var(--primary); box-shadow: none; }
+.highlightSwitchOn { border-color: var(--navy); background: var(--navy); box-shadow: none; }
 .highlightSwitchOn span { transform: translateX(18px); }
 .switchValue { min-width: 26px; color: var(--ink); font-size: 0.75rem; }
 .chunkList { display: grid; gap: 10px; padding: 3px 0 16px; }
 .chunk { border: 1px solid var(--line); border-radius: 5px; padding: 13px; }
 .chunk strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 0.85rem; }
 .modalActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
-.modalActions .primaryAction { min-height: 40px; border: 1px solid var(--primary); border-radius: 5px; background: var(--primary); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
+.modalActions .primaryAction { min-height: 40px; border: 1px solid var(--navy); border-radius: 5px; background: var(--navy); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
 .modalActions .primaryAction:disabled, .comparisonAction:disabled { opacity: 0.6; cursor: wait; }
 .comparisonBox { margin-top: 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-subtle); padding: 20px; }
 .comparisonBox > span { color: var(--text-muted); font-size: 0.78rem; font-weight: 800; }
 .comparisonBox h3 { margin: 7px 0 11px; color: var(--ink); font-size: 1.02rem; line-height: 1.5; }
 .comparisonBox p { margin: 0; color: var(--text-muted); line-height: 1.7; }
-.comparisonAction { width: 100%; min-height: 44px; margin-top: 14px; border: 1px solid var(--primary); border-radius: 5px; background: var(--primary); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
+.comparisonAction { width: 100%; min-height: 44px; margin-top: 14px; border: 1px solid var(--navy); border-radius: 5px; background: var(--navy); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
 .returnButton { margin-bottom: 18px; }
 .dataNotice { margin: 0 0 14px; color: var(--text-muted); font-size: 0.9rem; }
 .fullText { display: grid; gap: 14px; }

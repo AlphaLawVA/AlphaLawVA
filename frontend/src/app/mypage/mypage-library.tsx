@@ -43,6 +43,7 @@ export function MyPageLibrary() {
   const [selectedLetterPrecedent, setSelectedLetterPrecedent] = useState<LetterPrecedentModal | null>(null);
   const [selectedFavorite, setSelectedFavorite] = useState<PrecedentFavoriteResponse | null>(null);
   const [selectedFavoriteCase, setSelectedFavoriteCase] = useState<CaseBasis | null>(null);
+  const [selectedFavoriteInitialView, setSelectedFavoriteInitialView] = useState<"detail" | "fullText">("detail");
   const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
@@ -93,14 +94,26 @@ export function MyPageLibrary() {
     }
   }
 
-  async function openFavorite(favoriteId: string) {
+  async function openFavorite(
+    favorite: PrecedentFavoriteResponse,
+    initialView: "detail" | "fullText",
+  ) {
     if (!accessToken || favoriteDetailLoadingId) return;
     setError("");
-    setFavoriteDetailLoadingId(favoriteId);
+    setFavoriteDetailLoadingId(favorite.favorite_id);
     try {
-      const favorite = await getPrecedentFavorite(favoriteId, accessToken);
-      setSelectedFavorite(favorite);
-      setSelectedFavoriteCase(mapFavoriteResponse(favorite));
+      const [detail, fullText] = await Promise.all([
+        getPrecedentFavorite(favorite.favorite_id, accessToken),
+        initialView === "fullText"
+          ? getPrecedentFullText(favorite.precedent.precedent_id)
+          : Promise.resolve(null),
+      ]);
+      const precedent = mapFavoriteResponse(detail);
+      setSelectedFavorite(detail);
+      setSelectedFavoriteCase(
+        fullText ? mergePrecedentFullText(precedent, fullText) : precedent,
+      );
+      setSelectedFavoriteInitialView(initialView);
     } catch (detailError) {
       setError(detailError instanceof Error ? detailError.message : "즐겨찾기 판례를 불러오지 못했습니다.");
     } finally {
@@ -193,12 +206,17 @@ export function MyPageLibrary() {
             <details className={styles.questionGroup} key={group.query}>
               <summary><span>검색 질문</span><strong>{group.query}</strong><small>판례 {group.favorites.length}건</small></summary>
               <div className={styles.favoriteList}>{group.favorites.map((favorite) => (
-                <article className={styles.favoriteItem} key={favorite.favorite_id}>
-                  <h3>{favorite.precedent.case_name ?? favorite.precedent.case_number ?? `판례 ${favorite.precedent.precedent_id}`}</h3>
-                  <p>{favorite.summaries.easy_summary ?? favorite.summaries.precedent_summary ?? "요약 정보가 없습니다."}</p>
-                  {favorite.similarity_explanation.status === "generated" && <span className={styles.comparisonSaved}>내 상황과 비교 결과 저장됨</span>}
-                  <div className={styles.itemActions}><button className={styles.detailButton} type="button" disabled={favoriteDetailLoadingId === favorite.favorite_id} onClick={() => void openFavorite(favorite.favorite_id)}>{favoriteDetailLoadingId === favorite.favorite_id ? "불러오는 중" : "상세보기"}</button><button type="button" disabled={deletingFavoriteId === favorite.favorite_id} onClick={() => void removeFavorite(favorite.favorite_id)}><Trash2 size={15} />{deletingFavoriteId === favorite.favorite_id ? "삭제 중" : "삭제"}</button></div>
-                </article>
+                <div className={styles.favoriteEntry} key={favorite.favorite_id}>
+                  <PrecedentListItem
+                    onOpenDetail={() => void openFavorite(favorite, "detail")}
+                    onOpenFullText={() => void openFavorite(favorite, "fullText")}
+                    precedent={mapFavoriteResponse(favorite)}
+                  />
+                  <div className={styles.favoriteEntryFooter}>
+                    {favorite.similarity_explanation.status === "generated" ? <span className={styles.comparisonSaved}>내 상황과 비교 결과 저장됨</span> : <span>비교 결과 미생성</span>}
+                    <button type="button" disabled={deletingFavoriteId === favorite.favorite_id} onClick={() => void removeFavorite(favorite.favorite_id)}><Trash2 size={15} />{deletingFavoriteId === favorite.favorite_id ? "삭제 중" : "즐겨찾기 삭제"}</button>
+                  </div>
+                </div>
               ))}</div>
             </details>
           ))}</div>
@@ -221,7 +239,7 @@ export function MyPageLibrary() {
         </div>
       )}
 
-      {selectedFavorite && selectedFavoriteCase && <PrecedentModal comparisonQuery={selectedFavorite.query.text} comparisonStatus={favoriteComparisonLoading ? "generating" : selectedFavorite.similarity_explanation.status} comparisonText={selectedFavorite.similarity_explanation.matched_reason ?? undefined} fullTextLoading={favoriteFullTextLoading} onClose={() => { setSelectedFavorite(null); setSelectedFavoriteCase(null); }} onGenerateComparison={() => void compareFavorite()} onOpenFullText={loadFavoriteFullText} precedent={selectedFavoriteCase} referenceMode="search" />}
+      {selectedFavorite && selectedFavoriteCase && <PrecedentModal comparisonQuery={selectedFavorite.query.text} comparisonStatus={favoriteComparisonLoading ? "generating" : selectedFavorite.similarity_explanation.status} comparisonText={selectedFavorite.similarity_explanation.matched_reason ?? undefined} fullTextLoading={favoriteFullTextLoading} initialView={selectedFavoriteInitialView} onClose={() => { setSelectedFavorite(null); setSelectedFavoriteCase(null); setSelectedFavoriteInitialView("detail"); }} onGenerateComparison={() => void compareFavorite()} onOpenFullText={loadFavoriteFullText} precedent={selectedFavoriteCase} referenceMode="search" />}
       {selectedLetterPrecedent && <PrecedentModal initialView={selectedLetterPrecedent.initialView} onClose={() => setSelectedLetterPrecedent(null)} precedent={selectedLetterPrecedent.precedent} />}
     </>
   );

@@ -156,6 +156,32 @@
   padding: 14px;
 }
 
+.favoriteEntry {
+  display: grid;
+  gap: 8px;
+}
+
+.favoriteEntryFooter {
+  padding: 0 4px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.favoriteEntryFooter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: #9b342a;
+  font-weight: 700;
+}
+
 .resultItem {
   width: 100%;
   padding: 18px;
@@ -458,5 +484,10 @@
 
   .questionGroup > summary {
     grid-template-columns: 1fr;
+  }
+
+  .favoriteEntryFooter {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
