@@ -289,6 +289,8 @@ export function mapCertifiedLetterPrecedent(
     evidenceChunks: precedent.matched_chunks.map((chunk) => ({
       section: chunk.section ?? "검색 적중 부분",
       content: chunk.text,
+      chunkType: chunk.chunk_type ?? undefined,
+      sectionChunkIndex: chunk.section_chunk_index ?? undefined,
     })),
     fullText: {
       order: sections.order,

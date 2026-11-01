@@ -68,18 +68,20 @@ export function PrecedentReference({
 
 export function PrecedentSummary({
   precedent,
+  highlight = true,
 }: {
   precedent: CaseBasis;
+  highlight?: boolean;
 }) {
   return (
     <div className={styles.summaryColumns}>
       <section>
         <h3>판례요약</h3>
-        <p>{precedent.summary}</p>
+        <p><HighlightedEvidenceText content={precedent.summary} highlight={highlight} ranges={findEvidenceRanges(precedent, "summary", precedent.summary)} /></p>
       </section>
       <section className={styles.easySummary}>
         <h3>쉬운요약</h3>
-        <p>{precedent.easySummary ?? precedent.summary}</p>
+        <p><HighlightedEvidenceText content={precedent.easySummary ?? precedent.summary} highlight={highlight} ranges={findEvidenceRanges(precedent, precedent.easySummary ? "easySummary" : "summary", precedent.easySummary ?? precedent.summary)} /></p>
       </section>
     </div>
   );
@@ -185,7 +187,7 @@ export function PrecedentModal({
 
         {view === "detail" ? (
           <div className={styles.modalContent}>
-            <PrecedentSummary precedent={precedent} />
+            <PrecedentSummary highlight={highlight} precedent={precedent} />
             {comparisonQuery && (
               <section className={styles.comparisonBox}>
                 <span>저장한 질문</span>
@@ -197,7 +199,7 @@ export function PrecedentModal({
                 ) : (
                   <>
                     <p>{comparisonStatus === "failed" ? "비교 결과를 만들지 못했습니다. 다시 시도해 주세요." : "저장한 질문과 이 판례를 비교한 설명은 아직 생성하지 않았습니다."}</p>
-                    {onGenerateComparison && <button className={styles.primaryAction} onClick={onGenerateComparison} type="button">{comparisonStatus === "failed" ? "다시 비교하기" : "내 상황과 비교하기"}</button>}
+                    <button className={styles.comparisonAction} disabled={!onGenerateComparison} onClick={onGenerateComparison} type="button">{comparisonStatus === "failed" ? "다시 비교하기" : "내 상황과 비교하기"}</button>
                   </>
                 )}
               </section>
@@ -218,7 +220,7 @@ export function PrecedentModal({
               {fullTextSections.map(([key, heading, content]) => (
                 <section key={heading}>
                   <h3>{heading}</h3>
-                  <p><HighlightedFullText content={content} highlight={highlight} ranges={findHighlightRanges(precedent, key, content)} /></p>
+                  <p><HighlightedEvidenceText content={content} highlight={highlight} ranges={findEvidenceRanges(precedent, key, content)} /></p>
                 </section>
               ))}
             </div>
@@ -230,7 +232,7 @@ export function PrecedentModal({
   );
 }
 
-function HighlightedFullText({ content, highlight, ranges }: { content: string; highlight: boolean; ranges?: Array<{ startOffset: number; endOffset: number }> }) {
+function HighlightedEvidenceText({ content, highlight, ranges }: { content: string; highlight: boolean; ranges?: Array<{ startOffset: number; endOffset: number }> }) {
   if (!highlight) return content;
   if (ranges === undefined) return content;
   if (ranges.length === 0) return content;
@@ -247,20 +249,58 @@ function HighlightedFullText({ content, highlight, ranges }: { content: string; 
   return <>{parts.map((part, index) => <span className={part.highlighted ? styles.textHighlight : undefined} key={`${index}-${part.text.length}`}>{part.text}</span>)}</>;
 }
 
-function findHighlightRanges(precedent: CaseBasis, sectionKey: string, content: string) {
+function findEvidenceRanges(precedent: CaseBasis, sectionKey: string, content: string) {
   const configured = sectionKey === "reason"
     ? (precedent.highlightChunks ?? []).map(({ startOffset, endOffset }) => ({ startOffset, endOffset }))
     : [];
-  const exactMatches = (precedent.evidenceChunks ?? []).flatMap((chunk) => {
-    const startOffset = content.indexOf(chunk.content);
-    return startOffset < 0
-      ? []
-      : [{ startOffset, endOffset: startOffset + chunk.content.length }];
-  });
+  const exactMatches = (precedent.evidenceChunks ?? [])
+    .filter((chunk) => chunkBelongsToSection(chunk, sectionKey))
+    .flatMap((chunk) => findTextRanges(content, chunk.content));
   const ranges = [...configured, ...exactMatches]
     .filter((range) => range.startOffset >= 0 && range.endOffset > range.startOffset && range.startOffset < content.length)
     .sort((a, b) => a.startOffset - b.startOffset);
   return ranges.length > 0 ? ranges : undefined;
+}
+
+function chunkBelongsToSection(
+  chunk: NonNullable<CaseBasis["evidenceChunks"]>[number],
+  sectionKey: string,
+) {
+  const source = `${chunk.chunkType ?? ""} ${chunk.section}`.toLowerCase();
+  const markers: Record<string, string[]> = {
+    summary: ["생성요약", "summary"],
+    easySummary: ["쉬운요약", "easy_summary"],
+    order: ["주문", "order"],
+    claim: ["청구취지", "claim"],
+    lowerCourt: ["원심판결", "lower_court"],
+    reason: ["이유", "reason"],
+  };
+  return (markers[sectionKey] ?? []).some((marker) => source.includes(marker.toLowerCase()));
+}
+
+function findTextRanges(content: string, chunk: string) {
+  const directStart = content.indexOf(chunk);
+  if (directStart >= 0) {
+    return [{ startOffset: directStart, endOffset: directStart + chunk.length }];
+  }
+
+  const compactContent: string[] = [];
+  const originalOffsets: number[] = [];
+  for (let index = 0; index < content.length; index += 1) {
+    if (!/\s/.test(content[index])) {
+      compactContent.push(content[index]);
+      originalOffsets.push(index);
+    }
+  }
+  const compactChunk = chunk.replace(/\s/g, "");
+  if (!compactChunk) return [];
+  const compactStart = compactContent.join("").indexOf(compactChunk);
+  if (compactStart < 0) return [];
+  const compactEnd = compactStart + compactChunk.length - 1;
+  return [{
+    startOffset: originalOffsets[compactStart],
+    endOffset: originalOffsets[compactEnd] + 1,
+  }];
 }
 
 function OfficialLink({ precedent }: { precedent: CaseBasis }) {

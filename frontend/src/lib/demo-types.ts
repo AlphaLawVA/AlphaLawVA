@@ -20,7 +20,12 @@ export type CaseBasis = {
   court?: string;
   decisionDate?: string;
   judgmentType?: string;
-  evidenceChunks?: Array<{ section: string; content: string }>;
+  evidenceChunks?: Array<{
+    section: string;
+    content: string;
+    chunkType?: string;
+    sectionChunkIndex?: number;
+  }>;
   highlightChunks?: Array<{ section: string; startOffset: number; endOffset: number }>;
   fullText?: {
     order?: string;
