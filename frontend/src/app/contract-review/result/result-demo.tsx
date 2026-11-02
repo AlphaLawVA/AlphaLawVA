@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { clauseReviews, registryReviews } from "@/lib/mock-data";
+import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, DocumentMode } from "@/lib/demo-types";
+import { LiveReviewResult } from "./live-review-result";
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
@@ -22,6 +24,11 @@ export function ResultDemo() {
   const [tab, setTab] = useState<ResultTab>(initialTab);
   const [selectedId, setSelectedId] = useState(clauseReviews[0].id);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
+  const liveResult = useSyncExternalStore(
+    () => () => undefined,
+    loadContractReviewResult,
+    () => null,
+  );
   const selectedClause = useMemo(
     () => clauseReviews.find((clause) => clause.id === selectedId) ?? clauseReviews[0],
     [selectedId],
@@ -30,6 +37,8 @@ export function ResultDemo() {
   const checkClauseCount = clauseReviews.length - safeClauseCount;
   const safeRegistryCount = registryReviews.filter((item) => item.status === "safe").length;
   const checkRegistryCount = registryReviews.length - safeRegistryCount;
+
+  if (liveResult) return <LiveReviewResult result={liveResult} />;
 
   return (
     <>

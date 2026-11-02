@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, FileSearch, MapPin, ShieldCheck } from "lucide-react";
 import { DemoDocument } from "@/components/demo-document";
 import { confirmedContractSnapshot, confirmedRegistrySnapshot, contractSnapshots } from "@/lib/mock-data";
+import { createContractReview } from "@/lib/contract-api";
+import { saveContractReviewResult } from "@/lib/contract-review-session";
 import type { ConfirmedContractSnapshot, ConfirmedRegistrySnapshot, DocumentMode, FieldStatus, SnapshotField } from "@/lib/demo-types";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../contract-review.module.css";
@@ -56,6 +58,8 @@ export function VerifySnapshotDemo({ allowedContractTypes, initialContractSnapsh
   const [confirmedRightIds, setConfirmedRightIds] = useState<string[]>([]);
   const [showAutomatic, setShowAutomatic] = useState(false);
   const [activeAnchor, setActiveAnchor] = useState("contract-date");
+  const [submissionError, setSubmissionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const snapshot = tab === "contract" ? contractSnapshot : registrySnapshot;
   const fields = snapshot.fields;
   const pendingFields = fields.filter(isPending);
@@ -126,12 +130,31 @@ export function VerifySnapshotDemo({ allowedContractTypes, initialContractSnapsh
     setActiveAnchor("contract-type");
   }
 
-  function completeVerification() {
+  async function completeVerification() {
     if (onComplete) {
       onComplete(contractSnapshot);
       return;
     }
-    router.push(`/contract-review/result?documents=${mode}`);
+    if (mode === "registry") {
+      setSubmissionError("현재 등본 단독 검토 API는 준비되지 않았습니다. 계약서와 함께 검토해주세요.");
+      return;
+    }
+    setSubmissionError("");
+    setIsSubmitting(true);
+    try {
+      const result = await createContractReview(
+        contractSnapshot,
+        mode === "both" ? registrySnapshot : null,
+      );
+      saveContractReviewResult(result);
+      router.push(`/contract-review/result?documents=${mode}`);
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error ? error.message : "계약서 검토 요청을 처리하지 못했습니다.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return <>
@@ -149,10 +172,11 @@ export function VerifySnapshotDemo({ allowedContractTypes, initialContractSnapsh
           <details className={styles.automaticDisclosure} open={showAutomatic} onToggle={(event) => setShowAutomatic(event.currentTarget.open)}><summary><ChevronDown size={17} />자동 인식된 보조 정보 {automaticFields.length}건</summary><p>형식 검증을 통과한 일반 필드입니다. 필요할 때만 펼쳐 원문과 비교하세요.</p>{Object.entries(groupedAutomaticFields).map(([group, groupFields]) => <section className={styles.snapshotGroup} key={group}><h3>{group}</h3><div className={styles.snapshotFieldList}>{groupFields.map((field) => <SnapshotFieldRow active={activeAnchor === field.id} field={field} key={field.id} onConfirm={confirmField} onFocus={setActiveAnchor} onUpdate={updateField} />)}</div></section>)}</details>
         </div>
         {!documentReady && <div className={styles.validationBanner} role="alert"><AlertCircle size={19} /><div><strong>아직 확인할 항목이 있습니다</strong><span>{pendingFields.length + pendingRights.length}건을 원문과 대조해 확인 또는 수정한 뒤 제출할 수 있습니다.</span></div></div>}
+        {submissionError && <div className={styles.validationBanner} role="alert"><AlertCircle size={19} /><div><strong>검토 요청을 처리하지 못했습니다</strong><span>{submissionError}</span></div></div>}
         <button className={styles.confirmAllButton} disabled={documentReady} type="button" onClick={confirmAllFields}>원문과 일치함 전체 확인</button>
         <div className={styles.checkRow}><label><input type="checkbox" checked={currentConfirmed} disabled={!documentReady} onChange={(event) => setCurrentConfirmed(event.target.checked)} /><span>{tab === "contract" ? "개별 확인을 마쳤으며, 이 계약서 정보를 검토 입력으로 확정합니다." : "개별 확인을 마쳤으며, 이 등본 정보를 검토 입력으로 확정합니다."}</span></label></div>
         {mode === "both" && !canSubmit && <p className={styles.confirmGuide}>계약서와 등본의 개별 확인 및 최종 확인을 모두 마쳐야 검토 결과를 볼 수 있습니다.</p>}
-        <div className={styles.actions}>{onBack ? <button className={styles.secondaryButton} type="button" onClick={onBack}>문서 다시 선택</button> : <Link className={styles.secondaryButton} href="/contract-review">문서 다시 선택</Link>}{mode === "both" && tab === "contract" && !registryConfirmed ? <button className={styles.primaryButton} disabled={!contractReady} type="button" onClick={() => setTab("registry")}>등본 정보 확인</button> : <button className={styles.primaryButton} disabled={!canSubmit} type="button" onClick={completeVerification}>{submitLabel ?? "검토 결과 보기"}</button>}</div>
+        <div className={styles.actions}>{onBack ? <button className={styles.secondaryButton} type="button" onClick={onBack}>문서 다시 선택</button> : <Link className={styles.secondaryButton} href="/contract-review">문서 다시 선택</Link>}{mode === "both" && tab === "contract" && !registryConfirmed ? <button className={styles.primaryButton} disabled={!contractReady || isSubmitting} type="button" onClick={() => setTab("registry")}>등본 정보 확인</button> : <button className={styles.primaryButton} disabled={!canSubmit || isSubmitting} type="button" onClick={completeVerification}>{isSubmitting ? "검토 결과를 준비하고 있습니다" : submitLabel ?? "검토 결과 보기"}</button>}</div>
       </section>
     </div>
   </>;

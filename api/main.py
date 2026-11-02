@@ -10,8 +10,18 @@ After:
     - api.main:app으로 서버를 실행하고 판례·내용증명 API와 상태를 확인할 수 있음.
 """
 
+# RAG 경로 환경변수를 서비스 import 전에 읽어야 하므로 아래 import 순서는 의도적이다.
+# ruff: noqa: E402
+
 import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+# RAG retrievers resolve their local data paths during import. Load the
+# worktree-local configuration before importing application services.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
