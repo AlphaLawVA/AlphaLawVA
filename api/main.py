@@ -13,6 +13,13 @@ After:
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+# RAG retrievers resolve their local data paths during import. Load the
+# worktree-local configuration before importing application services.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
