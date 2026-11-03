@@ -95,6 +95,9 @@ export function AnalyzingDemo() {
     return () => {
       mounted.current = false;
       window.clearInterval(timer);
+      // 보존된 화면이 다음에 열릴 때 이전 진행도(100%)가 잠깐 보이지 않도록 되돌려 둔다.
+      setProgress(12);
+      setError("");
     };
   }, [isOcrFlow, router]);
 
