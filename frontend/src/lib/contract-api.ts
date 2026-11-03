@@ -39,11 +39,15 @@ export type ContractEvidence = {
   text: string;
   rank: number;
   similarity: number;
+  metadata: Record<string, string | number | null>;
 };
 
 export type ContractReviewAnalysis = {
   item_id: string;
   summary: string;
+  review_status: "safe" | "check";
+  revision: string;
+  negotiation: string;
   evidence_source_ids: string[];
 };
 
@@ -66,6 +70,9 @@ export type SpecialClauseDraftItem = {
   request_text: string;
   status: "draft_ready" | "needs_input" | "pending_generation";
   draft_text: string | null;
+  title: string | null;
+  reason: string | null;
+  strategy: string | null;
   needs_input: string[];
   evidence_source_ids: string[];
 };
