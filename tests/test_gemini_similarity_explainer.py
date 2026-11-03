@@ -23,6 +23,7 @@ from api.services.gemini_similarity_explainer import (
     DEFAULT_GEMINI_MODEL,
     DEFAULT_MAX_CHUNKS,
     GeminiSimilarityExplainer,
+    PROMPT_VERSION,
     create_gemini_similarity_explainer_from_env,
 )
 from ml.rag.precedent_retriever import PrecedentChunkMatch
@@ -104,16 +105,28 @@ class GeminiSimilarityExplainerTests(unittest.TestCase):
             },
         }
 
+    @staticmethod
+    def comparison_fields():
+        return {
+            "similarities": [
+                {
+                    "user_point": "계약이 끝났지만 보증금을 받지 못했습니다",
+                    "case_point": "임대차 종료와 보증금 반환을 판단한",
+                    "explanation": "임대차 종료 뒤 보증금 반환 문제가 공통됩니다.",
+                }
+            ],
+            "differences": [],
+        }
+
     @patch("api.services.gemini_similarity_explainer.urlopen")
     def test_explains_with_structured_output_and_records_usage(self, mock_urlopen):
         mock_urlopen.return_value = FakeHttpResponse(
             self.response_payload(
                 {
-                    "user_evidence": "계약이 끝났지만 보증금을 받지 못했습니다",
-                    "precedent_evidence": "임대차 종료와 보증금 반환을 판단한",
+                    **self.comparison_fields(),
                     "matched_reason": (
-                        "사용자 상황과 이 판례는 임대차 종료 후 보증금 반환이 "
-                        "문제 된 점에서 유사합니다."
+                        "계약이 끝난 뒤 보증금을 돌려받지 못한 상황이 판례의 "
+                        "임대차 종료 후 보증금 반환 문제와 연결된다."
                     ),
                 }
             )
@@ -147,20 +160,50 @@ class GeminiSimilarityExplainerTests(unittest.TestCase):
         )
         self.assertEqual(len(user_payload["matched_evidence"]), DEFAULT_MAX_CHUNKS)
         self.assertNotIn("이유", user_payload["precedent"])
+        self.assertNotIn("판시사항", user_payload["precedent"])
+        self.assertNotIn("판결요지", user_payload["precedent"])
+        self.assertIn("실제 공통점", request_payload["systemInstruction"]["parts"][0]["text"])
+        self.assertEqual(
+            request_payload["generationConfig"]["responseJsonSchema"]["properties"]["similarities"]["minItems"],
+            1,
+        )
 
         usage = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         self.assertTrue(usage["success"])
         self.assertEqual(usage["input_tokens"], 1000)
         self.assertEqual(usage["output_tokens"], 100)
         self.assertEqual(usage["estimated_cost_usd"], 0.00055)
+        self.assertEqual(usage["prompt_version"], PROMPT_VERSION)
 
     @patch("api.services.gemini_similarity_explainer.urlopen")
-    def test_rejects_evidence_not_found_in_input(self, mock_urlopen):
+    def test_accepts_a_relationship_explanation_without_the_word_similarity(self, mock_urlopen):
         mock_urlopen.return_value = FakeHttpResponse(
             self.response_payload(
                 {
-                    "user_evidence": "사용자가 말하지 않은 상속 문제",
-                    "precedent_evidence": "임대차 종료와 보증금 반환을 판단한",
+                    **self.comparison_fields(),
+                    "matched_reason": (
+                        "계약이 끝난 뒤 보증금을 돌려받지 못한 상황이 이 판례에서 "
+                        "다룬 반환 문제와 연결된다."
+                    ),
+                }
+            )
+        )
+
+        reason = self.explainer.explain(
+            query="계약이 끝났지만 보증금을 받지 못했습니다.",
+            precedent=self.precedent,
+            matched_chunks=[make_chunk(1)],
+        )
+
+        self.assertNotIn("유사", reason)
+
+    @patch("api.services.gemini_similarity_explainer.urlopen")
+    def test_rejects_missing_comparison_points(self, mock_urlopen):
+        mock_urlopen.return_value = FakeHttpResponse(
+            self.response_payload(
+                {
+                    "similarities": [],
+                    "differences": [],
                     "matched_reason": (
                         "사용자 상황과 이 판례는 상속 문제가 있는 점에서 유사합니다."
                     ),
@@ -168,7 +211,7 @@ class GeminiSimilarityExplainerTests(unittest.TestCase):
             )
         )
 
-        with self.assertRaisesRegex(ValueError, "사용자 근거"):
+        with self.assertRaisesRegex(ValueError, "유사점을 제시하지"):
             self.explainer.explain(
                 query="보증금을 받지 못했습니다.",
                 precedent=self.precedent,
@@ -178,6 +221,28 @@ class GeminiSimilarityExplainerTests(unittest.TestCase):
         usage = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         self.assertFalse(usage["success"])
         self.assertEqual(usage["error_type"], "ValueError")
+
+    @patch("api.services.gemini_similarity_explainer.urlopen")
+    def test_rejects_incomplete_similarity_point(self, mock_urlopen):
+        content = {
+            "similarities": [
+                {
+                    "user_point": "계약이 끝났지만 보증금을 받지 못했습니다",
+                    "case_point": "임대차 종료와 보증금 반환을 판단한",
+                    "explanation": "",
+                }
+            ],
+            "differences": [],
+            "matched_reason": "임대차 종료 뒤 보증금 반환 문제와 관련되는 판례입니다.",
+        }
+        mock_urlopen.return_value = FakeHttpResponse(self.response_payload(content))
+
+        with self.assertRaisesRegex(ValueError, "유사점 항목이 비어"):
+            self.explainer.explain(
+                query="계약이 끝났지만 보증금을 받지 못했습니다.",
+                precedent=self.precedent,
+                matched_chunks=[make_chunk(1)],
+            )
 
     @patch("api.services.gemini_similarity_explainer.urlopen")
     def test_wraps_gemini_connection_error(self, mock_urlopen):
