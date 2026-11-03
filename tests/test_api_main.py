@@ -129,7 +129,12 @@ class ApiMainTests(unittest.TestCase):
         self.assertIn("API 서버에 연결할 수 없습니다", response.text)
 
     def test_allows_local_frontend_cors_preflight(self):
-        response = TestClient(create_app(object())).options(
+        with patch.dict(
+            os.environ,
+            {"ALPHALAWVA_CORS_ORIGINS": "http://localhost:3000,http://127.0.0.1:3000"},
+        ):
+            app = create_app(object())
+        response = TestClient(app).options(
             "/api/v1/precedent-searches",
             headers={
                 "Origin": "http://localhost:3000",
@@ -149,7 +154,9 @@ class ApiMainTests(unittest.TestCase):
         )
 
     def test_contract_ocr_is_disabled_without_explicit_configuration(self):
-        response = TestClient(create_app(object())).post(
+        with patch.dict(os.environ, {"DOCUMENT_AI_OCR_ENABLED": "false"}):
+            app = create_app(object())
+        response = TestClient(app).post(
             "/api/v1/contract-ocr-drafts",
             data={"contract_type": "jeonse", "provider_consent": "true"},
             files={"file": ("contract.pdf", b"%PDF-test", "application/pdf")},

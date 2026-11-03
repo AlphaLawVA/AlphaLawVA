@@ -37,6 +37,7 @@ export function AnalyzingDemo() {
       : ""
   ));
   const started = useRef(false);
+  const mounted = useRef(true);
 
   useEffect(() => {
     if (isOcrFlow) return;
@@ -47,11 +48,16 @@ export function AnalyzingDemo() {
   }, [isOcrFlow]);
 
   useEffect(() => {
-    if (!isOcrFlow || started.current) return;
+    // Strict Mode는 개발 환경에서 effect를 두 번 실행하므로 마운트 여부는 ref로 추적한다.
+    mounted.current = true;
+    if (!isOcrFlow || started.current) {
+      return () => {
+        mounted.current = false;
+      };
+    }
     started.current = true;
     if (!ocrRequest) return;
 
-    let active = true;
     const timer = window.setInterval(() => {
       setProgress((value) => Math.min(78, value + 3));
     }, 650);
@@ -63,17 +69,17 @@ export function AnalyzingDemo() {
           ocrRequest.file,
           ocrRequest.contractType,
         );
-        if (!active) return;
+        if (!mounted.current) return;
         setProgress(88);
         saveContractOcrDraft(mapContractOcrDraftToSnapshot(draft));
         window.setTimeout(() => {
-          if (active) {
+          if (mounted.current) {
             setProgress(100);
             router.replace("/contract-review/verify?documents=contract&source=ocr");
           }
         }, 400);
       } catch (requestError) {
-        if (active) {
+        if (mounted.current) {
           setError(
             requestError instanceof Error
               ? requestError.message
@@ -86,7 +92,7 @@ export function AnalyzingDemo() {
     })();
 
     return () => {
-      active = false;
+      mounted.current = false;
       window.clearInterval(timer);
     };
   }, [isOcrFlow, ocrRequest, router]);
