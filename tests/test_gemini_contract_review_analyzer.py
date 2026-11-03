@@ -12,7 +12,10 @@ After:
 
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from api.services.gemini_contract_review_analyzer import GeminiContractReviewAnalyzer
@@ -58,6 +61,9 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
                                 "text": (
                                     '{"items":[{"item_id":"term-1",'
                                     '"summary":"확인 필요: 특약 원문과 적용 범위를 비교해 주세요.",'
+                                    '"review_status":"check",'
+                                    '"revision":"적용 범위와 위반 시 처리 방법을 합의해 기재한다.",'
+                                    '"negotiation":"종료 시점과 책임 범위를 상대방과 확인하세요.",'
                                     '"evidence_source_ids":["law:001248:article:0003"]}]}'
                                 )
                             }
@@ -71,6 +77,7 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
             result = self.analyzer.analyze(self.queries, self.evidence)
 
         self.assertEqual(result[0].item_id, "term-1")
+        self.assertEqual(result[0].review_status, "check")
         self.assertEqual(result[0].evidence_source_ids, ["law:001248:article:0003"])
 
     def test_rejects_unprovided_evidence_id(self):
@@ -83,6 +90,9 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
                                 "text": (
                                     '{"items":[{"item_id":"term-1",'
                                     '"summary":"확인 필요: 특약 원문과 적용 범위를 비교해 주세요.",'
+                                    '"review_status":"check",'
+                                    '"revision":"적용 범위와 처리 방법을 합의한다.",'
+                                    '"negotiation":"책임 범위를 확인하세요.",'
                                     '"evidence_source_ids":["invented-source"]}]}'
                                 )
                             }
@@ -94,6 +104,39 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
         with patch.object(self.analyzer, "_post_json", return_value=response):
             with self.assertRaisesRegex(ValueError, "제공되지 않은 근거"):
                 self.analyzer.analyze(self.queries, self.evidence)
+
+    def test_records_validation_error_message_in_usage_manifest(self):
+        response = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": (
+                                    '{"items":[{"item_id":"unknown",'
+                                    '"summary":"확인 필요","review_status":"check",'
+                                    '"revision":"수정 초안","negotiation":"협의 안내",'
+                                    '"evidence_source_ids":["x"]}]}'
+                                )
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "usage.jsonl"
+            analyzer = GeminiContractReviewAnalyzer(
+                api_key="test-key", usage_manifest_path=manifest
+            )
+            with patch.object(analyzer, "_post_json", return_value=response):
+                with self.assertRaises(ValueError):
+                    analyzer.analyze(self.queries, self.evidence)
+            record = json.loads(manifest.read_text(encoding="utf-8").splitlines()[-1])
+
+        self.assertFalse(record["success"])
+        self.assertEqual(record["error_type"], "ValueError")
+        self.assertIn("알 수 없는 검토 항목", record["error_message"])
 
     def test_keeps_highest_similarity_evidence_without_source_balance(self):
         evidence = [
