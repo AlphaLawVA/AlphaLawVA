@@ -27,16 +27,9 @@ export function AnalyzingDemo() {
   const searchParams = useSearchParams();
   const documents = searchParams.get("documents") ?? "both";
   const isOcrFlow = searchParams.get("source") === "ocr";
-  const [ocrRequest] = useState(() => (
-    isOcrFlow ? takePendingContractOcrRequest() : null
-  ));
   const [progress, setProgress] = useState(isOcrFlow ? 12 : 8);
-  const [error, setError] = useState(() => (
-    isOcrFlow && !ocrRequest
-      ? "업로드한 파일 정보를 찾을 수 없습니다. 문서를 다시 선택해주세요."
-      : ""
-  ));
-  const started = useRef(false);
+  const [error, setError] = useState("");
+  const inFlight = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -50,52 +43,60 @@ export function AnalyzingDemo() {
   useEffect(() => {
     // Strict Mode는 개발 환경에서 effect를 두 번 실행하므로 마운트 여부는 ref로 추적한다.
     mounted.current = true;
-    if (!isOcrFlow || started.current) {
+    if (!isOcrFlow) {
       return () => {
         mounted.current = false;
       };
     }
-    started.current = true;
-    if (!ocrRequest) return;
 
     const timer = window.setInterval(() => {
-      setProgress((value) => Math.min(78, value + 3));
+      setProgress((value) => (value < 78 ? value + 3 : value));
     }, 650);
 
-    void (async () => {
-      try {
-        setProgress(40);
-        const draft = await createContractOcrDraft(
-          ocrRequest.file,
-          ocrRequest.contractType,
-        );
-        if (!mounted.current) return;
-        setProgress(88);
-        saveContractOcrDraft(mapContractOcrDraftToSnapshot(draft));
-        window.setTimeout(() => {
-          if (mounted.current) {
-            setProgress(100);
-            router.replace("/contract-review/verify?documents=contract&source=ocr");
-          }
-        }, 400);
-      } catch (requestError) {
-        if (mounted.current) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : "OCR 초안을 만들지 못했습니다.",
-          );
+    // 화면이 다시 보일 때마다 새 업로드 요청을 받아 처음부터 진행한다.
+    // 이미 진행 중인 요청이 있으면(Strict Mode의 두 번째 실행) 다시 보내지 않는다.
+    if (!inFlight.current) {
+      inFlight.current = true;
+      const request = takePendingContractOcrRequest();
+      void (async () => {
+        setError("");
+        setProgress(12);
+        if (!request) {
+          setError("업로드한 파일 정보를 찾을 수 없습니다. 문서를 다시 선택해주세요.");
+          inFlight.current = false;
+          return;
         }
-      } finally {
-        window.clearInterval(timer);
-      }
-    })();
+        try {
+          setProgress(40);
+          const draft = await createContractOcrDraft(request.file, request.contractType);
+          if (!mounted.current) return;
+          setProgress(88);
+          saveContractOcrDraft(mapContractOcrDraftToSnapshot(draft));
+          window.setTimeout(() => {
+            if (mounted.current) {
+              setProgress(100);
+              router.replace("/contract-review/verify?documents=contract&source=ocr");
+            }
+          }, 400);
+        } catch (requestError) {
+          if (mounted.current) {
+            setError(
+              requestError instanceof Error
+                ? requestError.message
+                : "OCR 초안을 만들지 못했습니다.",
+            );
+          }
+        } finally {
+          inFlight.current = false;
+        }
+      })();
+    }
 
     return () => {
       mounted.current = false;
       window.clearInterval(timer);
     };
-  }, [isOcrFlow, ocrRequest, router]);
+  }, [isOcrFlow, router]);
 
   useEffect(() => {
     if (isOcrFlow || error) return;

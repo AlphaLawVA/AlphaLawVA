@@ -36,9 +36,19 @@ export function UploadDemo() {
       ? ["등기사항증명서_샘플.pdf"]
       : ["전세_손글씨_샘플.pdf", "등기사항증명서_샘플.pdf"];
 
-  // 분석 화면에서 "문서 다시 선택"으로 돌아오면 이전 화면 상태가 유지될 수 있어,
-  // 화면을 떠날 때 제출 중 상태를 풀어, 다시 돌아와도 버튼이 "정보 확인하기"로 보이게 한다.
-  useEffect(() => () => setIsOcrSubmitting(false), []);
+  // 분석·확인 화면에서 "문서 다시 선택"으로 돌아오면 이전 화면 상태가 유지될 수 있어,
+  // 화면을 떠날 때 선택 파일·동의·제출 상태를 처음 상태로 되돌린다.
+  // 원본 미리보기(document-preview-store)는 확인 화면이 써야 하므로 지우지 않는다.
+  useEffect(() => () => {
+    setMode("both");
+    setLoaded(false);
+    setSelectedFiles([]);
+    setContractFile(null);
+    setContractType("jeonse");
+    setProviderConsent(false);
+    setIsOcrSubmitting(false);
+    setFileError("");
+  }, []);
 
   function selectMode(nextMode: DocumentMode) {
     setMode(nextMode);
