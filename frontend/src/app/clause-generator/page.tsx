@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
@@ -131,6 +131,15 @@ export default function ClauseGeneratorPage() {
   );
   const current = generated[selected] ?? generated[0];
 
+  // 응답을 기다리는 동안 진행도가 멈춰 보이지 않도록 계약서 검토 로딩과 같은 방식으로 천천히 올린다.
+  useEffect(() => {
+    if (stage !== "generating") return;
+    const timer = window.setInterval(() => {
+      setProgress((value) => (value >= 92 ? value : Math.min(92, value + (value < 55 ? 5 : 2))));
+    }, 650);
+    return () => window.clearInterval(timer);
+  }, [stage]);
+
   function updateRequest(id: number, value: string) {
     setRequests((items) => items.map((item) => item.id === id ? { ...item, value } : item));
   }
@@ -153,6 +162,8 @@ export default function ClauseGeneratorPage() {
       const result = await createSpecialClauseDraft(validRequests);
       setDraftResult(result);
       setProgress(100);
+      // 100%가 화면에 보인 뒤 결과 화면으로 넘어간다.
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
       setStage("result");
     } catch (requestError) {
       setError(
