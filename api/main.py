@@ -49,6 +49,12 @@ from api.services.certified_letter_results import (
     create_certified_letter_result_store_from_env,
 )
 from api.services.contract_review_service import ContractReviewService
+from api.services.contract_ocr_service import (
+    ContractOcrError,
+    ContractOcrService,
+    ContractOcrUnavailableError,
+    create_contract_ocr_service_from_env,
+)
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
 from api.services.confirmed_snapshot_store import SnapshotNotFoundError
@@ -291,6 +297,22 @@ async def snapshot_not_found_error_handler(
     )
 
 
+async def contract_ocr_error_handler(
+    _request: Request,
+    error: ContractOcrError,
+) -> JSONResponse:
+    code = (
+        ApiErrorCode.CONTRACT_OCR_UNAVAILABLE
+        if isinstance(error, ContractOcrUnavailableError)
+        else ApiErrorCode.CONTRACT_OCR_INVALID_INPUT
+    )
+    return _error_response(
+        status_code=503 if isinstance(error, ContractOcrUnavailableError) else 400,
+        code=code,
+        message=str(error),
+    )
+
+
 async def authentication_required_error_handler(
     _request: Request,
     _error: AuthenticationRequiredError,
@@ -342,6 +364,7 @@ def create_app(
     contract_review_service: ContractReviewService | None = None,
     special_clause_service: SpecialClauseService | None = None,
     confirmed_snapshot_store: ConfirmedSnapshotRepository | None = None,
+    contract_ocr_service: ContractOcrService | None = None,
     certified_letter_result_store: CertifiedLetterResultRepository | None = None,
     auth_verifier: AuthVerifier | None = None,
 ) -> FastAPI:
@@ -379,6 +402,11 @@ def create_app(
     app.include_router(certified_letters_router)
     app.state.confirmed_snapshot_store = confirmed_snapshot_store or (
         create_mysql_snapshot_store_from_env() or ConfirmedSnapshotStore()
+    )
+    app.state.contract_ocr_service = (
+        contract_ocr_service
+        if contract_ocr_service is not None
+        else create_contract_ocr_service_from_env()
     )
     app.state.contract_review_service = (
         contract_review_service
@@ -455,6 +483,7 @@ def create_app(
         SnapshotNotFoundError,
         snapshot_not_found_error_handler,
     )
+    app.add_exception_handler(ContractOcrError, contract_ocr_error_handler)
     app.add_exception_handler(
         AuthenticationRequiredError,
         authentication_required_error_handler,

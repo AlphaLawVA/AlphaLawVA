@@ -38,6 +38,8 @@ class ApiErrorCode(str, Enum):
     AUTHENTICATION_SERVICE_UNAVAILABLE = "authentication_service_unavailable"
     CERTIFIED_LETTER_RESULT_NOT_FOUND = "certified_letter_result_not_found"
     CERTIFIED_LETTER_RESULT_NOT_READY = "certified_letter_result_not_ready"
+    CONTRACT_OCR_INVALID_INPUT = "contract_ocr_invalid_input"
+    CONTRACT_OCR_UNAVAILABLE = "contract_ocr_unavailable"
 
 
 class ApiErrorModel(BaseModel):
