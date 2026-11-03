@@ -139,28 +139,52 @@ function parseMoney(value: string, label: string) {
   return amount;
 }
 
+// 2026.10.05, 2026-10-5, 2026/10/05, 2026년 10월 5일, 20261005를 모두 허용한다.
+const DATE_PATTERN =
+  /(\d{4})\s*(?:[.\/-]|년)\s*(\d{1,2})\s*(?:[.\/-]|월)\s*(\d{1,2})\s*일?|(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)/g;
+
+function findDates(value: string) {
+  return [...value.matchAll(DATE_PATTERN)].map((match) => ({
+    text: match[0],
+    year: match[1] ?? match[4],
+    month: match[2] ?? match[5],
+    day: match[3] ?? match[6],
+  }));
+}
+
 function parseDate(value: string, label: string) {
-  const match = value.match(/(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})/);
-  if (!match) throw new Error(`${label} 날짜 형식을 확인해주세요.`);
-  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  const found = findDates(value)[0];
+  const year = Number(found?.year);
+  const month = Number(found?.month);
+  const day = Number(found?.day);
+  const calendar = new Date(year, month - 1, day);
+  const isRealDate =
+    found !== undefined &&
+    calendar.getFullYear() === year &&
+    calendar.getMonth() === month - 1 &&
+    calendar.getDate() === day;
+  if (!isRealDate) {
+    throw new Error(`${label} 날짜 형식을 확인해주세요. (예: 2026.10.05)`);
+  }
+  return `${found.year}-${found.month.padStart(2, "0")}-${found.day.padStart(2, "0")}`;
 }
 
 function parsePeriod(value: string) {
-  const matches = [...value.matchAll(/(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})/g)];
+  const matches = findDates(value);
   if (matches.length < 2) throw new Error("임대차 시작일과 종료일을 확인해주세요.");
   return {
-    start_date: parseDate(matches[0][0], "임대차 시작일"),
-    end_date: parseDate(matches[1][0], "임대차 종료일"),
+    start_date: parseDate(matches[0].text, "임대차 시작일"),
+    end_date: parseDate(matches[1].text, "임대차 종료일"),
   };
 }
 
 function parseInstallment(value: string | null, label: string) {
   if (!value || value === "없음") return null;
-  const dateMatch = value.match(/\d{4}[.\/-]\d{1,2}[.\/-]\d{1,2}/);
+  const dateMatch = findDates(value)[0];
   return {
     label,
     amount: { amount: parseMoney(value, label), korean_text: null },
-    due_date: dateMatch ? parseDate(dateMatch[0], `${label} 지급일`) : null,
+    due_date: dateMatch ? parseDate(dateMatch.text, `${label} 지급일`) : null,
   };
 }
 

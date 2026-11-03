@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, FileText, Upload } from "lucide-react";
 import { UploadGuide } from "@/components/upload-guide";
@@ -35,6 +35,10 @@ export function UploadDemo() {
     : mode === "registry"
       ? ["등기사항증명서_샘플.pdf"]
       : ["전세_손글씨_샘플.pdf", "등기사항증명서_샘플.pdf"];
+
+  // 분석 화면에서 "문서 다시 선택"으로 돌아오면 이전 화면 상태가 유지될 수 있어,
+  // 화면을 떠날 때 제출 중 상태를 풀어, 다시 돌아와도 버튼이 "정보 확인하기"로 보이게 한다.
+  useEffect(() => () => setIsOcrSubmitting(false), []);
 
   function selectMode(nextMode: DocumentMode) {
     setMode(nextMode);
