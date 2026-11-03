@@ -570,6 +570,47 @@
   accent-color: var(--navy);
 }
 
+.consentRow {
+  margin-top: 22px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid #e4bc72;
+  border-left: 4px solid var(--warning);
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: #5c432d;
+  cursor: pointer;
+}
+
+.consentRow input {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  accent-color: var(--navy);
+}
+
+.consentCopy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.consentCopy strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.consentCopy small {
+  color: #80654a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .confirmAllButton {
   width: 100%;
   min-height: 44px;

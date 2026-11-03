@@ -31,6 +31,9 @@ class SpecialClauseGeneration:
     item_id: str
     status: str
     draft_text: str | None
+    title: str | None
+    reason: str | None
+    strategy: str | None
     needs_input: list[str]
     evidence_source_ids: list[str]
 

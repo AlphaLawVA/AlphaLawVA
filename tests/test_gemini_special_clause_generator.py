@@ -58,6 +58,9 @@ class GeminiSpecialClauseGeneratorTests(unittest.TestCase):
                                     '{"items":[{"item_id":"request-1",'
                                     '"status":"draft_ready",'
                                     '"draft_text":"임대인은 계약기간 중 추가 담보권을 설정하지 않는다.",'
+                                    '"title":"추가 담보권 설정 금지",'
+                                    '"reason":"보증금 회수 위험을 줄이기 위한 문구입니다.",'
+                                    '"strategy":"금지 기간과 위반 시 처리 방법을 합의하세요.",'
                                     '"needs_input":[],"evidence_source_ids":'
                                     '["law:001248:article:0003"]}]}'
                                 )
@@ -72,6 +75,7 @@ class GeminiSpecialClauseGeneratorTests(unittest.TestCase):
             result = self.generator.generate(self.queries, self.evidence)
 
         self.assertEqual(result[0].status, "draft_ready")
+        self.assertEqual(result[0].title, "추가 담보권 설정 금지")
         self.assertEqual(result[0].evidence_source_ids, ["law:001248:article:0003"])
 
     def test_rejects_unprovided_evidence_id(self):
@@ -84,6 +88,7 @@ class GeminiSpecialClauseGeneratorTests(unittest.TestCase):
                                 "text": (
                                     '{"items":[{"item_id":"request-1",'
                                     '"status":"needs_input","draft_text":"",'
+                                    '"title":"추가 정보 확인","reason":"","strategy":"",'
                                     '"needs_input":["적용 기간을 알려주세요."],'
                                     '"evidence_source_ids":["invented-source"]}]}'
                                 )
@@ -108,6 +113,7 @@ class GeminiSpecialClauseGeneratorTests(unittest.TestCase):
                                     '{"items":[{"item_id":"request-1",'
                                     '"status":"needs_input",'
                                     '"draft_text":"기한을 정한 특약 초안입니다.",'
+                                    '"title":"추가 정보 확인","reason":"설명","strategy":"전략",'
                                     '"needs_input":["금지 기한을 알려주세요."],'
                                     '"evidence_source_ids":'
                                     '["law:001248:article:0003"]}]}'

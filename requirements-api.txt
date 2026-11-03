@@ -1,6 +1,10 @@
 fastapi==0.143.0
+# cryptography is required directly for AES-256-GCM snapshot encryption.
+cryptography==50.0.2
+-r requirements-document-ai.txt
 langgraph==1.2.16
 pydantic==2.13.5
 PyMySQL[rsa]==1.1.2
 python-dotenv==1.1.0
+python-multipart==0.0.22
 uvicorn[standard]==0.54.0

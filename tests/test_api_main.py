@@ -12,7 +12,7 @@ After:
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
@@ -39,6 +39,7 @@ from api.services.certified_letter_results import (
     CertifiedLetterResultNotFoundError,
     CertifiedLetterResultNotReadyError,
 )
+from api.services.contract_ocr_service import ContractOcrError
 from api.services.supabase_auth import (
     AuthenticationRequiredError,
     AuthenticationServiceUnavailableError,
@@ -54,6 +55,7 @@ class ApiMainTests(unittest.TestCase):
         self.assertIs(app.state.precedent_search_service, service)
         self.assertIn("/health", paths)
         self.assertIn("/api/v1/contract-snapshots", paths)
+        self.assertIn("/api/v1/contract-ocr-drafts", paths)
         self.assertIn("/api/v1/registry-snapshots", paths)
         self.assertIn("/api/v1/contract-reviews", paths)
         self.assertIn("/api/v1/special-clause-drafts", paths)
@@ -128,7 +130,12 @@ class ApiMainTests(unittest.TestCase):
         self.assertIn("API 서버에 연결할 수 없습니다", response.text)
 
     def test_allows_local_frontend_cors_preflight(self):
-        response = TestClient(create_app(object())).options(
+        with patch.dict(
+            os.environ,
+            {"ALPHALAWVA_CORS_ORIGINS": "http://localhost:3000,http://127.0.0.1:3000"},
+        ):
+            app = create_app(object())
+        response = TestClient(app).options(
             "/api/v1/precedent-searches",
             headers={
                 "Origin": "http://localhost:3000",
@@ -146,6 +153,38 @@ class ApiMainTests(unittest.TestCase):
             "idempotency-key",
             response.headers["access-control-allow-headers"].lower(),
         )
+
+    def test_contract_ocr_is_disabled_without_explicit_configuration(self):
+        with patch.dict(os.environ, {"DOCUMENT_AI_OCR_ENABLED": "false"}):
+            app = create_app(object())
+        response = TestClient(app).post(
+            "/api/v1/contract-ocr-drafts",
+            data={"contract_type": "jeonse", "provider_consent": "true"},
+            files={"file": ("contract.pdf", b"%PDF-test", "application/pdf")},
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["error"]["code"],
+            "contract_ocr_unavailable",
+        )
+
+    def test_contract_ocr_bounds_upload_before_service_validation(self):
+        service = MagicMock()
+        service.create_draft.side_effect = ContractOcrError("파일이 너무 큽니다.")
+
+        with patch("api.routers.contracts.MAX_UPLOAD_BYTES", 8):
+            response = TestClient(
+                create_app(object(), contract_ocr_service=service)
+            ).post(
+                "/api/v1/contract-ocr-drafts",
+                data={"contract_type": "jeonse", "provider_consent": "true"},
+                files={"file": ("contract.pdf", b"x" * 100, "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        uploaded_content = service.create_draft.call_args.kwargs["content"]
+        self.assertEqual(len(uploaded_content), 9)
 
 
 if __name__ == "__main__":

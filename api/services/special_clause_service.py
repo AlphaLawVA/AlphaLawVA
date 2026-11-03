@@ -79,6 +79,9 @@ class SpecialClauseService:
                     request_text=request_text,
                     status=(generation.status if generation else "pending_generation"),
                     draft_text=generation.draft_text if generation else None,
+                    title=generation.title if generation else None,
+                    reason=generation.reason if generation else None,
+                    strategy=generation.strategy if generation else None,
                     needs_input=generation.needs_input if generation else [],
                     evidence_source_ids=(
                         generation.evidence_source_ids if generation else []
