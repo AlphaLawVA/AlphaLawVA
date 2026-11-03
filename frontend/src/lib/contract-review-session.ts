@@ -5,7 +5,13 @@ let cachedResult: ContractReviewResult | null | undefined;
 
 export function saveContractReviewResult(result: ContractReviewResult) {
   cachedResult = result;
-  window.sessionStorage.setItem(REVIEW_RESULT_KEY, JSON.stringify(result));
+  try {
+    window.sessionStorage.setItem(REVIEW_RESULT_KEY, JSON.stringify(result));
+  } catch {
+    // Large evidence payloads can exceed the browser storage quota. The
+    // in-memory result is still enough for the immediate result-page move.
+    window.sessionStorage.removeItem(REVIEW_RESULT_KEY);
+  }
 }
 
 export function loadContractReviewResult(): ContractReviewResult | null {

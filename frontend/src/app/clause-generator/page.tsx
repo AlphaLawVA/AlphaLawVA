@@ -6,8 +6,7 @@ import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
-import { createSpecialClauseDraft, type SpecialClauseDraftResult } from "@/lib/contract-api";
-import { LiveClauseResult } from "./live-clause-result";
+import { createSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
 import styles from "../feature-demo.module.css";
 
 type Stage = "input" | "review" | "generating" | "result";
@@ -78,6 +77,41 @@ function buildClause(request: string, index: number): GeneratedClause {
   };
 }
 
+function evidenceToLaw(evidence: ContractEvidence): LegalBasis {
+  return {
+    law: String(evidence.metadata.law_name ?? evidence.title),
+    article: String(evidence.metadata.article_label ?? ""),
+    excerpt: evidence.text,
+    explanation: "생성된 특약 초안에 연결된 법령 근거입니다.",
+    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
+  };
+}
+
+function evidenceToPrecedent(evidence: ContractEvidence): CaseBasis {
+  return {
+    title: evidence.title,
+    caseNumber: String(evidence.metadata.case_number ?? evidence.title),
+    precedentId: evidence.source_id,
+    summary: evidence.text,
+    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
+  };
+}
+
+function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
+  return result.items.map((item) => {
+    const evidence = result.evidence.filter((entry) => item.evidence_source_ids.includes(entry.source_id));
+    const needsInput = item.needs_input.join(" ");
+    return {
+      title: item.title ?? `특약 ${item.request_index}`,
+      clause: item.draft_text ?? `추가 확인 필요: ${needsInput || "요청 내용을 구체적으로 확인해주세요."}`,
+      reason: item.reason ?? "특약 초안을 만들기 전에 추가 정보가 필요합니다.",
+      strategy: item.strategy ?? (needsInput || "적용 범위와 이행 조건을 상대방과 확인하세요."),
+      statutes: evidence.filter((entry) => entry.source_type === "statute").map(evidenceToLaw),
+      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(evidenceToPrecedent),
+    };
+  });
+}
+
 export default function ClauseGeneratorPage() {
   const [stage, setStage] = useState<Stage>("input");
   const [nextId, setNextId] = useState(2);
@@ -91,7 +125,10 @@ export default function ClauseGeneratorPage() {
   const [draftResult, setDraftResult] = useState<SpecialClauseDraftResult | null>(null);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const validRequests = useMemo(() => requests.map((item) => item.value.trim()).filter(Boolean), [requests]);
-  const generated = useMemo(() => validRequests.map(buildClause), [validRequests]);
+  const generated = useMemo(
+    () => draftResult ? generatedFromApi(draftResult) : validRequests.map(buildClause),
+    [draftResult, validRequests],
+  );
   const current = generated[selected] ?? generated[0];
 
   function updateRequest(id: number, value: string) {
@@ -214,7 +251,7 @@ export default function ClauseGeneratorPage() {
       )}
 
       {stage === "result" && (
-        draftResult ? <LiveClauseResult result={draftResult} /> : current && (
+        current && (
         <>
           <div className={styles.notice}><AlertCircle size={18} aria-hidden="true" /><span>생성된 문구는 협의를 위한 AI 초안입니다. 실제 계약에 반영하기 전에 상대방과 합의하고 필요한 경우 전문가에게 확인하세요.</span></div>
           <div className={styles.resultSplit}>
@@ -231,7 +268,7 @@ export default function ClauseGeneratorPage() {
               <section className={styles.detailSection}><h3>생성된 이유</h3><p>{current.reason}</p></section>
               <section className={styles.detailSection}><h3>협상 전략</h3><p>{current.strategy}</p></section>
               <details className={styles.detailDisclosure}><summary>관련 법령 {current.statutes.length}건</summary>
-                {current.statutes.length ? current.statutes.map((law) => <article className={styles.basisCard} key={law.article}><strong>{law.law} {law.article}</strong><p>{law.excerpt}</p><span>{law.explanation}</span><a href={law.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a></article>) : <p>이 초안에 직접 연결된 법령 근거는 없습니다.</p>}
+                {current.statutes.length ? current.statutes.map((law) => <article className={styles.basisCard} key={`${law.law}-${law.article}`}><strong>{law.law} {law.article}</strong><p>{law.excerpt}</p><span>{law.explanation}</span>{law.url && <a href={law.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a>}</article>) : <p>이 초안에 직접 연결된 법령 근거는 없습니다.</p>}
               </details>
               <details className={styles.detailDisclosure}><summary>관련 판례 {current.precedents.length}건</summary>
                 {current.precedents.length ? current.precedents.map((item) => <PrecedentListItem key={item.caseNumber} onOpenDetail={() => setPrecedentModal({ precedent: item, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent: item, initialView: "fullText" })} precedent={item} />) : <p>이 초안에 직접 연결된 판례는 없습니다.</p>}
