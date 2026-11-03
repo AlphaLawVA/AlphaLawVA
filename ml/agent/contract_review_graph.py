@@ -217,7 +217,11 @@ class ContractReviewGraph:
 
         if registry is not None:
             for encumbrance in registry.encumbrances:
-                if encumbrance.status == RegistryEntryStatus.ACTIVE:
+                # 말소로 확정되지 않은 본 등기(변경·말소 부기 제외)를 검색 대상에 포함한다.
+                if (
+                    encumbrance.status != RegistryEntryStatus.CANCELLED
+                    and "-" not in encumbrance.rank_number
+                ):
                     queries.append(
                         ContractReviewRetrievalQuery(
                             item_id=f"registry_{encumbrance.rank_number}",
