@@ -61,7 +61,7 @@ def prepare(pdf, project, location, processor, version):
         raise LiveOCRError("An explicit dated OCR version is required")
     inspection = inspect_contract_document(pdf, max_pdf_pages=3)
     if inspection.kind != DocumentKind.PDF or inspection.page_count != 3:
-        raise LiveOCRError("A three-page synthetic standard contract PDF is required")
+        raise LiveOCRError("A three-page standard contract PDF is required")
     raw = pdf.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     if digest != inspection.sha256:

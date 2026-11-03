@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ml.document_processing.contracts.privacy import (
-    mask_resident_registration_numbers,
+    mask_sensitive_contract_text,
     redact_resident_number_rows,
 )
 
@@ -365,7 +365,7 @@ def main() -> None:
             inference_seconds = time.perf_counter() - page_started
             recognized_lines = [
                 {
-                    "text": mask_resident_registration_numbers(text),
+                    "text": mask_sensitive_contract_text(text),
                     "confidence": round(float(score), 6),
                     "box": box.tolist() if hasattr(box, "tolist") else box,
                 }
