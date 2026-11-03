@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, ChevronDown, FileSearch, MapPin, ScanText, ShieldCheck } from "lucide-react";
 import { DemoDocument } from "@/components/demo-document";
 import { confirmedContractSnapshot, confirmedRegistrySnapshot, contractSnapshots } from "@/lib/mock-data";
 import { createContractReview } from "@/lib/contract-api";
 import { saveContractReviewResult } from "@/lib/contract-review-session";
-import { clearContractOcrDraft, loadContractOcrDraft } from "@/lib/contract-ocr-session";
+import {
+  clearContractOcrDraft,
+  getContractOcrDraftVersion,
+  loadContractOcrDraft,
+  subscribeContractOcrDraft,
+} from "@/lib/contract-ocr-session";
 import { clearDocumentPreviews } from "@/lib/document-preview-store";
 import type { ConfirmedContractSnapshot, ConfirmedRegistrySnapshot, DocumentMode, FieldStatus, SnapshotField } from "@/lib/demo-types";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -48,7 +53,13 @@ function copyRegistrySnapshot(): ConfirmedRegistrySnapshot {
   return { ...confirmedRegistrySnapshot, fields: confirmedRegistrySnapshot.fields.map((field) => ({ ...field, source: { ...field.source } })), rights: confirmedRegistrySnapshot.rights.map((right) => ({ ...right, source: { ...right.source } })) };
 }
 
-export function VerifySnapshotDemo({ allowedContractTypes, initialContractSnapshot, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
+// 화면 상태가 보존되므로, 새 OCR 결과가 저장되면 key를 바꿔 확인 화면을 새로 만든다.
+export function VerifySnapshotDemo(props: VerifySnapshotDemoProps) {
+  const draftVersion = useSyncExternalStore(subscribeContractOcrDraft, getContractOcrDraftVersion, () => 0);
+  return <VerifySnapshotContent key={draftVersion} {...props} />;
+}
+
+function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = modeOverride ?? readMode(searchParams.get("documents"));
