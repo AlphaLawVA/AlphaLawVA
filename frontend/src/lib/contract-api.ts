@@ -342,8 +342,9 @@ function registryPayload(snapshot: DemoRegistrySnapshot) {
       section: right.section === "갑구" ? "gapgu" : "eulgu",
       rank_number: right.rank,
       registration_purpose: right.purpose,
-      registration_date: parseDate(right.receivedDate, "등기 접수일"),
-      holder: right.holder,
+      // 변경·말소 부기처럼 접수일이나 권리자가 없는 항목은 빈 값으로 보낸다.
+      registration_date: right.receivedDate ? parseDate(right.receivedDate, "등기 접수일") : null,
+      holder: right.holder || null,
       debtor: right.debtor ?? null,
       maximum_claim_amount: right.maximumAmount ? parseMoney(right.maximumAmount, "채권최고액") : null,
       raw_text: [right.rank, right.purpose, right.holder, right.maximumAmount].filter(Boolean).join(" · "),

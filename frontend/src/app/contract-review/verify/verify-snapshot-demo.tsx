@@ -11,6 +11,7 @@ import {
   clearContractOcrDraft,
   getContractOcrDraftVersion,
   loadContractOcrDraft,
+  loadRegistryOcrDraft,
   subscribeContractOcrDraft,
 } from "@/lib/contract-ocr-session";
 import { clearDocumentPreviews } from "@/lib/document-preview-store";
@@ -66,7 +67,9 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
   const isOcrSource = searchParams.get("source") === "ocr";
   const [tab, setTab] = useState<VerifyTab>(mode === "registry" ? "registry" : "contract");
   const [missingOcrDraft] = useState(() => (
-    isOcrSource && !initialContractSnapshot && !loadContractOcrDraft()
+    isOcrSource
+    && !initialContractSnapshot
+    && (!loadContractOcrDraft() || (mode === "both" && !loadRegistryOcrDraft()))
   ));
   const [contractSnapshot, setContractSnapshot] = useState(() => {
     const ocrDraft = isOcrSource ? loadContractOcrDraft() : null;
@@ -75,7 +78,15 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
       ? { ...initial, fields: initial.fields.map((field) => ({ ...field, source: { ...field.source } })) }
       : copyContractSnapshot();
   });
-  const [registrySnapshot, setRegistrySnapshot] = useState(copyRegistrySnapshot);
+  const [registrySnapshot, setRegistrySnapshot] = useState(() => {
+    const ocrDraft = isOcrSource && mode === "both" ? loadRegistryOcrDraft() : null;
+    return ocrDraft
+      ? {
+          fields: ocrDraft.fields.map((field) => ({ ...field, source: { ...field.source } })),
+          rights: ocrDraft.rights.map((right) => ({ ...right, source: { ...right.source } })),
+        }
+      : copyRegistrySnapshot();
+  });
   const [contractConfirmed, setContractConfirmed] = useState(false);
   const [registryConfirmed, setRegistryConfirmed] = useState(false);
   const [confirmedRightIds, setConfirmedRightIds] = useState<string[]>([]);
