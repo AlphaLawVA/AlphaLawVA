@@ -33,11 +33,11 @@ from precedents.precedent_config import load_env_file
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT_SECONDS = 30.0
-DEFAULT_MAX_OUTPUT_TOKENS = 800
+DEFAULT_MAX_OUTPUT_TOKENS = 1800
 DEFAULT_MAX_QUERIES = 12
 DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "contract_review_summary_v0.2"
+PROMPT_VERSION = "contract_review_result_v0.3"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -62,6 +62,9 @@ OUTPUT_SCHEMA = {
                 "properties": {
                     "item_id": {"type": "string"},
                     "summary": {"type": "string", "minLength": 2, "maxLength": 500},
+                    "review_status": {"type": "string", "enum": ["safe", "check"]},
+                    "revision": {"type": "string", "minLength": 2, "maxLength": 1000},
+                    "negotiation": {"type": "string", "minLength": 2, "maxLength": 700},
                     "evidence_source_ids": {
                         "type": "array",
                         "minItems": 1,
@@ -69,7 +72,14 @@ OUTPUT_SCHEMA = {
                         "items": {"type": "string"},
                     },
                 },
-                "required": ["item_id", "summary", "evidence_source_ids"],
+                "required": [
+                    "item_id",
+                    "summary",
+                    "review_status",
+                    "revision",
+                    "negotiation",
+                    "evidence_source_ids",
+                ],
                 "additionalProperties": False,
             },
         }
@@ -84,15 +94,20 @@ SYSTEM_PROMPT = """당신은 부동산 계약서 검토에서 사용자가 확�
 
 규칙:
 1. 각 항목은 제공된 item_id를 그대로 사용합니다.
-2. summary는 '확인 필요:'로 시작하고, 사용자가 원문에서 무엇을 확인해야
-   하는지만 한두 문장으로 설명합니다. 특약의 존재 여부는 묻지 마세요.
-3. 특약은 적용 범위, 기한 또는 종료 시점, 조건, 비용·부담 주체, 위반 시
-   처리, 반환 시점 중 해당하는 내용을 구체적으로 확인하도록 작성합니다.
-4. 법적 결론, 승소 가능성, 계약 체결·해제 권고, 사실 추정은 하지 않습니다.
-5. 제공 근거에 없는 법률, 조문, 판례, 금액, 당사자 정보는 만들지 않습니다.
-6. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
-7. 근거가 부족한 항목은 출력하지 않습니다.
-8. 지정된 JSON 스키마만 출력합니다.
+2. summary에는 기존 화면의 '이렇게 판단한 이유'에 표시할 내용을 한두
+   문장으로 작성합니다. 특약의 존재 여부를 다시 묻지 마세요.
+3. review_status는 문구를 그대로 사용해도 확인할 쟁점이 없고 직접 근거가
+   충분할 때만 safe로 하며, 그 외에는 check로 합니다.
+4. revision에는 원문의 취지를 임의로 바꾸지 않는 범위에서 범위, 기한,
+   조건, 비용·부담 주체, 위반 시 처리 또는 반환 시점을 명확히 한 사용자
+   협의용 수정 초안을 작성합니다.
+5. negotiation에는 상대방과 추가로 합의하거나 사실관계를 확인할 항목을
+   한두 문장으로 작성합니다.
+6. 법적 결론, 승소 가능성, 계약 체결·해제 권고, 사실 추정은 하지 않습니다.
+7. 제공 근거에 없는 법률, 조문, 판례, 금액, 당사자 정보는 만들지 않습니다.
+8. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
+9. 근거가 부족한 항목은 출력하지 않습니다.
+10. 지정된 JSON 스키마만 출력합니다.
 """
 
 _MANIFEST_LOCK = Lock()
@@ -161,7 +176,12 @@ class GeminiContractReviewAnalyzer:
             content = json.loads(self._extract_text(response))
             analyses = self._validate_response(content, payload)
         except Exception as error:
-            self._record_usage(usage, success=False, error_type=type(error).__name__)
+            self._record_usage(
+                usage,
+                success=False,
+                error_type=type(error).__name__,
+                error_message=str(error)[:200],
+            )
             raise
         self._record_usage(usage, success=True)
         return analyses
@@ -231,6 +251,9 @@ class GeminiContractReviewAnalyzer:
                 raise ValueError("Gemini 계약서 검토 항목 형식이 올바르지 않습니다.")
             item_id = item.get("item_id")
             summary = self._normalize_text(item.get("summary"))
+            review_status = item.get("review_status")
+            revision = self._normalize_text(item.get("revision"))
+            negotiation = self._normalize_text(item.get("negotiation"))
             source_ids = item.get("evidence_source_ids")
             if (
                 not isinstance(item_id, str)
@@ -238,8 +261,14 @@ class GeminiContractReviewAnalyzer:
                 or item_id in seen_item_ids
             ):
                 raise ValueError("Gemini가 알 수 없는 검토 항목을 반환했습니다.")
-            if not summary.startswith("확인 필요:") or len(summary) > 500:
+            if len(summary) < 2 or len(summary) > 500:
                 raise ValueError("Gemini 검토 요약 형식이 올바르지 않습니다.")
+            if review_status not in {"safe", "check"}:
+                raise ValueError("Gemini 검토 상태 형식이 올바르지 않습니다.")
+            if len(revision) < 2 or len(revision) > 1000:
+                raise ValueError("Gemini 수정 초안 형식이 올바르지 않습니다.")
+            if len(negotiation) < 2 or len(negotiation) > 700:
+                raise ValueError("Gemini 협상 안내 형식이 올바르지 않습니다.")
             if not isinstance(source_ids, list) or not source_ids:
                 raise ValueError("Gemini 검토 근거가 비어 있습니다.")
             normalized_ids = [value for value in source_ids if isinstance(value, str)]
@@ -251,6 +280,9 @@ class GeminiContractReviewAnalyzer:
                 ContractReviewAnalysis(
                     item_id=item_id,
                     summary=summary,
+                    review_status=review_status,
+                    revision=revision,
+                    negotiation=negotiation,
                     evidence_source_ids=normalized_ids,
                 )
             )
@@ -312,6 +344,7 @@ class GeminiContractReviewAnalyzer:
         *,
         success: bool,
         error_type: str | None = None,
+        error_message: str | None = None,
     ) -> None:
         if self._usage_manifest_path is None:
             return
@@ -334,6 +367,8 @@ class GeminiContractReviewAnalyzer:
         }
         if error_type:
             record["error_type"] = error_type
+        if error_message:
+            record["error_message"] = error_message
         with _MANIFEST_LOCK:
             self._usage_manifest_path.parent.mkdir(parents=True, exist_ok=True)
             with self._usage_manifest_path.open("a", encoding="utf-8") as file:
