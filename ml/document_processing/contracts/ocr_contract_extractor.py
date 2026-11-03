@@ -19,7 +19,7 @@ from typing import Any, Iterable
 
 from ml.document_processing.contracts.extraction_schema import ContractExtraction
 from ml.document_processing.contracts.privacy import (
-    mask_resident_registration_numbers,
+    mask_sensitive_contract_text,
 )
 
 
@@ -55,7 +55,7 @@ def _load_pages(document: dict[str, Any]) -> dict[int, list[OcrLine]]:
             (
                 OcrLine(
                     page_number=number,
-                    text=mask_resident_registration_numbers(str(item["text"])),
+                    text=mask_sensitive_contract_text(str(item["text"])),
                     confidence=float(item["confidence"]),
                     box=tuple(int(value) for value in item["box"]),
                 )

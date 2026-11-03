@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from ml.document_processing.contracts.extraction_schema import ContractExtraction
-from ml.document_processing.contracts.privacy import mask_resident_registration_numbers
+from ml.document_processing.contracts.privacy import mask_sensitive_contract_text
 
 
 @dataclass
@@ -58,7 +58,7 @@ def load_lines(document, level="lines"):
             ys = [v.get("y", 0) for v in vertices]
             result.append(
                 Line(
-                    mask_resident_registration_numbers(raw.strip()),
+                    mask_sensitive_contract_text(raw.strip()),
                     index,
                     (min(xs), min(ys), max(xs), max(ys)),
                 )
