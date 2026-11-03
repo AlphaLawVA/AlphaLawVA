@@ -10,6 +10,7 @@ After:
     - 로컬 MySQL 환경에서 스냅샷 저장·조회·정리 동작을 수동 검증할 수 있음.
 """
 
+import json
 import os
 import unittest
 from datetime import UTC, datetime
@@ -62,8 +63,30 @@ class MySqlSnapshotStoreIntegrationTests(unittest.TestCase):
             store.save_contract(snapshot)
             loaded = store.get_contract(snapshot.snapshot_id)
             self.assertEqual(loaded, snapshot)
+            self._assert_payload_is_not_plaintext(store, snapshot.snapshot_id)
         finally:
             self._delete_contract_snapshot(store, snapshot.snapshot_id)
+
+    def _assert_payload_is_not_plaintext(self, store, snapshot_id):
+        connection = store._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT payload, payload_ciphertext, encryption_version
+                    FROM confirmed_contract_snapshots
+                    WHERE snapshot_id = %s
+                    """,
+                    (str(snapshot_id),),
+                )
+                row = cursor.fetchone()
+        finally:
+            connection.close()
+
+        payload = row["payload"]
+        self.assertEqual(json.loads(payload) if isinstance(payload, str) else payload, {})
+        self.assertTrue(row["payload_ciphertext"])
+        self.assertEqual(row["encryption_version"], "aes-256-gcm.v1")
 
     @staticmethod
     def _delete_contract_snapshot(store, snapshot_id):

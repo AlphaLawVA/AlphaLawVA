@@ -12,9 +12,13 @@ After:
 
 import os
 import unittest
+from base64 import urlsafe_b64encode
 from unittest.mock import patch
 
 from api.services.mysql_snapshot_store import MySqlSnapshotStoreSettings
+
+
+TEST_ENCRYPTION_KEY = urlsafe_b64encode(b"a" * 32).decode("ascii")
 
 
 class MySqlSnapshotStoreSettingsTests(unittest.TestCase):
@@ -32,6 +36,7 @@ class MySqlSnapshotStoreSettingsTests(unittest.TestCase):
                 "MYSQL_DATABASE": "alphalawva",
                 "MYSQL_USER": "alphalawva_app",
                 "MYSQL_PASSWORD": "test-password",
+                "SNAPSHOT_ENCRYPTION_KEY": TEST_ENCRYPTION_KEY,
             },
         ):
             settings = MySqlSnapshotStoreSettings.from_env()
@@ -41,6 +46,7 @@ class MySqlSnapshotStoreSettingsTests(unittest.TestCase):
         self.assertEqual(settings.port, 3306)
         self.assertEqual(settings.database, "alphalawva")
         self.assertEqual(settings.user, "alphalawva_app")
+        self.assertEqual(settings.encryption_key, TEST_ENCRYPTION_KEY)
 
     def test_mysql_backend_rejects_empty_password(self):
         with patch.dict(
@@ -52,9 +58,26 @@ class MySqlSnapshotStoreSettingsTests(unittest.TestCase):
                 "MYSQL_DATABASE": "alphalawva",
                 "MYSQL_USER": "alphalawva_app",
                 "MYSQL_PASSWORD": "",
+                "SNAPSHOT_ENCRYPTION_KEY": TEST_ENCRYPTION_KEY,
             },
         ):
             with self.assertRaisesRegex(ValueError, "MYSQL_PASSWORD"):
+                MySqlSnapshotStoreSettings.from_env()
+
+    def test_mysql_backend_rejects_missing_encryption_key(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SNAPSHOT_STORE_BACKEND": "mysql",
+                "MYSQL_HOST": "127.0.0.1",
+                "MYSQL_PORT": "3306",
+                "MYSQL_DATABASE": "alphalawva",
+                "MYSQL_USER": "alphalawva_app",
+                "MYSQL_PASSWORD": "test-password",
+                "SNAPSHOT_ENCRYPTION_KEY": "",
+            },
+        ):
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_ENCRYPTION_KEY"):
                 MySqlSnapshotStoreSettings.from_env()
 
 
