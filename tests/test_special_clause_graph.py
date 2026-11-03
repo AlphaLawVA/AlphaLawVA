@@ -40,6 +40,9 @@ class FakeGenerator:
                 item_id=queries[0].item_id,
                 status="draft_ready",
                 draft_text="임대인은 계약기간 중 추가 담보권을 설정하지 않는다.",
+                title="추가 담보권 설정 금지",
+                reason="보증금 회수 위험을 줄이기 위한 문구입니다.",
+                strategy="금지 기간과 위반 시 처리 방법을 합의하세요.",
                 needs_input=[],
                 evidence_source_ids=[evidence[0].source_id],
             )
