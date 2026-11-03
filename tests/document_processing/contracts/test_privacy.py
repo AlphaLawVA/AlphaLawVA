@@ -13,8 +13,11 @@ After:
 import unittest
 
 from ml.document_processing.contracts.privacy import (
+    MASKED_ACCOUNT_NUMBER,
+    MASKED_PHONE_NUMBER,
     MASKED_RESIDENT_NUMBER,
     contains_resident_registration_number,
+    mask_sensitive_contract_text,
     mask_resident_registration_numbers,
     redact_resident_number_rows,
 )
@@ -35,6 +38,16 @@ class PrivacyMaskingTests(unittest.TestCase):
         original = "보증금 250000000원, 계약일 2026-10-05"
 
         self.assertEqual(mask_resident_registration_numbers(original), original)
+
+    def test_masks_phone_and_labeled_account_numbers(self):
+        original = "연락처 010-1234-5678, 입금계좌 신한 110-123-456789"
+
+        masked = mask_sensitive_contract_text(original)
+
+        self.assertIn(MASKED_PHONE_NUMBER, masked)
+        self.assertIn(MASKED_ACCOUNT_NUMBER, masked)
+        self.assertNotIn("010-1234-5678", masked)
+        self.assertNotIn("110-123-456789", masked)
 
     def test_redacts_misrecognized_value_on_resident_number_row(self):
         lines = [

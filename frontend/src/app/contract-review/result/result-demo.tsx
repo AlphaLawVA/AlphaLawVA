@@ -5,13 +5,68 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
-import { clauseReviews, registryReviews } from "@/lib/mock-data";
+import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
 import { loadContractReviewResult } from "@/lib/contract-review-session";
-import type { CaseBasis, DocumentMode } from "@/lib/demo-types";
-import { LiveReviewResult } from "./live-review-result";
+import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
+import type { ContractEvidence, ContractReviewResult } from "@/lib/contract-api";
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
+
+function statuteBasis(evidence: ContractEvidence): LegalBasis {
+  return {
+    law: String(evidence.metadata.law_name ?? evidence.title),
+    article: String(evidence.metadata.article_label ?? ""),
+    excerpt: evidence.text,
+    explanation: "검토 의견에 연결된 법령 근거입니다. 계약서 원문과 함께 확인하세요.",
+    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
+  };
+}
+
+function precedentBasis(evidence: ContractEvidence): CaseBasis {
+  return {
+    title: evidence.title,
+    caseNumber: String(evidence.metadata.case_number ?? evidence.title),
+    precedentId: evidence.source_id,
+    summary: evidence.text,
+    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
+  };
+}
+
+function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
+  return result.contract_items.map((item) => {
+    const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
+    const evidence = result.evidence.filter((entry) => (
+      entry.item_id === item.item_id
+      && (!analysis || analysis.evidence_source_ids.includes(entry.source_id))
+    ));
+    return {
+      id: item.item_id,
+      title: item.label,
+      original: item.original_text ?? "확인된 계약서 원문이 없습니다.",
+      status: analysis?.review_status ?? "check",
+      reason: analysis?.summary ?? item.message,
+      revision: analysis?.revision ?? "근거 기반 수정 초안을 생성하지 못했습니다. 원문을 직접 확인하세요.",
+      negotiation: analysis?.negotiation ?? "적용 범위와 사실관계를 상대방과 확인하세요.",
+      statutes: evidence.filter((entry) => entry.source_type === "statute").map(statuteBasis),
+      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(precedentBasis),
+    };
+  });
+}
+
+function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
+  return result.registry_items.map((item) => {
+    const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
+    return {
+      id: item.item_id,
+      title: item.label,
+      value: item.original_text ?? "확인된 원문 없음",
+      status: analysis?.review_status ?? "check",
+      summary: analysis?.summary ?? item.message,
+      action: analysis?.negotiation,
+    };
+  });
+}
 
 function readMode(value: string | null): DocumentMode {
   return value === "contract" || value === "registry" ? value : "both";
@@ -22,23 +77,29 @@ export function ResultDemo() {
   const mode = readMode(searchParams.get("documents"));
   const initialTab: ResultTab = mode === "registry" ? "registry" : "clauses";
   const [tab, setTab] = useState<ResultTab>(initialTab);
-  const [selectedId, setSelectedId] = useState(clauseReviews[0].id);
+  const [selectedId, setSelectedId] = useState(demoClauseReviews[0].id);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const liveResult = useSyncExternalStore(
     () => () => undefined,
     loadContractReviewResult,
     () => null,
   );
+  const clauseReviews = useMemo(
+    () => liveResult ? liveClauseReviews(liveResult) : demoClauseReviews,
+    [liveResult],
+  );
+  const registryReviews = useMemo(
+    () => liveResult ? liveRegistryReviews(liveResult) : demoRegistryReviews,
+    [liveResult],
+  );
   const selectedClause = useMemo(
     () => clauseReviews.find((clause) => clause.id === selectedId) ?? clauseReviews[0],
-    [selectedId],
+    [clauseReviews, selectedId],
   );
   const safeClauseCount = clauseReviews.filter((item) => item.status === "safe").length;
   const checkClauseCount = clauseReviews.length - safeClauseCount;
   const safeRegistryCount = registryReviews.filter((item) => item.status === "safe").length;
   const checkRegistryCount = registryReviews.length - safeRegistryCount;
-
-  if (liveResult) return <LiveReviewResult result={liveResult} />;
 
   return (
     <>
@@ -145,7 +206,7 @@ export function ResultDemo() {
                   <article className={styles.evidenceCard} key={`${statute.law}-${statute.article}`}>
                     <div className={styles.evidenceHeading}>
                       <strong>{statute.law} {statute.article}</strong>
-                      <a href={statute.url} target="_blank" rel="noreferrer">원문 <ExternalLink size={14} /></a>
+                      {statute.url && <a href={statute.url} target="_blank" rel="noreferrer">원문 <ExternalLink size={14} /></a>}
                     </div>
                     <p className={styles.evidenceExcerpt}>{statute.excerpt}</p>
                     <p>{statute.explanation}</p>

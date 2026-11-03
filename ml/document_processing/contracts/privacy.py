@@ -20,6 +20,17 @@ RESIDENT_NUMBER_PATTERN = re.compile(
     r"(?<!\d)(\d{6})\s*-?\s*([1-8]\d{6})(?!\d)"
 )
 MASKED_RESIDENT_NUMBER = "[주민등록번호 마스킹]"
+MASKED_PHONE_NUMBER = "[전화번호 마스킹]"
+MASKED_ACCOUNT_NUMBER = "[계좌번호 마스킹]"
+
+PHONE_NUMBER_PATTERN = re.compile(
+    r"(?<!\d)(?:0(?:2|[3-6]\d|10))\s*-?\s*\d{3,4}\s*-?\s*\d{4}(?!\d)"
+)
+ACCOUNT_NUMBER_PATTERN = re.compile(
+    r"(?P<label>(?:입금\s*)?계좌(?:번호)?|은행|국민|신한|우리|하나|농협|기업|"
+    r"카카오(?:뱅크)?|토스(?:뱅크)?|새마을금고|우체국)\s*[:：]?\s*"
+    r"(?P<number>\d{2,4}(?:\s*-?\s*\d{2,6}){2,4})(?!\d)"
+)
 
 
 def mask_resident_registration_numbers(text: str) -> str:
@@ -30,6 +41,16 @@ def mask_resident_registration_numbers(text: str) -> str:
 def contains_resident_registration_number(text: str) -> bool:
     """원문에 완전한 주민등록번호 형태가 남아 있는지 확인한다."""
     return RESIDENT_NUMBER_PATTERN.search(text) is not None
+
+
+def mask_sensitive_contract_text(text: str) -> str:
+    """계약 분석에 불필요한 식별·연락·계좌 정보를 고정 문구로 치환한다."""
+
+    text = mask_resident_registration_numbers(text)
+    text = PHONE_NUMBER_PATTERN.sub(MASKED_PHONE_NUMBER, text)
+    return ACCOUNT_NUMBER_PATTERN.sub(
+        lambda match: f"{match['label']} {MASKED_ACCOUNT_NUMBER}", text
+    )
 
 
 def redact_resident_number_rows(
@@ -59,7 +80,7 @@ def redact_resident_number_rows(
         item["text"] = (
             MASKED_RESIDENT_NUMBER
             if same_sensitive_row and sensitive_fragment
-            else mask_resident_registration_numbers(text)
+            else mask_sensitive_contract_text(text)
         )
         redacted.append(item)
     return redacted

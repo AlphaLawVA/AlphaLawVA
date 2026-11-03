@@ -102,6 +102,9 @@ class ContractReviewService:
                     ContractReviewAnalysisItem(
                         item_id=item.item_id,
                         summary=item.summary,
+                        review_status=item.review_status,
+                        revision=item.revision,
+                        negotiation=item.negotiation,
                         evidence_source_ids=item.evidence_source_ids,
                     )
                     for item in precheck_result.analyses

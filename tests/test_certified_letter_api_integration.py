@@ -10,7 +10,9 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from api.main import create_app
+from api.services.certified_letter_results import InMemoryCertifiedLetterResultStore
 from api.services.certified_letter_service import CertifiedLetterService
+from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
 
 
 DRAFT_ID = UUID("12345678-1234-5678-1234-567812345678")
@@ -157,7 +159,13 @@ class CertifiedLetterApiIntegrationTests(unittest.TestCase):
             ),
             patch.dict(os.environ, {}, clear=True),
         ):
-            client = TestClient(create_app(precedent_search_service=object()))
+            client = TestClient(
+                create_app(
+                    precedent_search_service=object(),
+                    confirmed_snapshot_store=ConfirmedSnapshotStore(),
+                    certified_letter_result_store=InMemoryCertifiedLetterResultStore(),
+                )
+            )
 
         response = client.post(
             "/api/v1/certified-letter-drafts",

@@ -66,6 +66,9 @@ class FakeAnalyzer:
             ContractReviewAnalysis(
                 item_id=queries[0].item_id,
                 summary="확인 필요: 검색 근거와 원문을 비교해 주세요.",
+                review_status="check",
+                revision="적용 범위와 위반 시 처리 방법을 합의해 기재한다.",
+                negotiation="적용 종료 시점과 책임 범위를 상대방과 확인하세요.",
                 evidence_source_ids=[evidence[0].source_id],
             )
         ]
@@ -94,6 +97,9 @@ class FakeSpecialClauseGenerator:
                 item_id=queries[0].item_id,
                 status="needs_input",
                 draft_text=None,
+                title="추가 정보 확인",
+                reason=None,
+                strategy=None,
                 needs_input=["적용 기간을 알려주세요."],
                 evidence_source_ids=[evidence[0].source_id],
             )

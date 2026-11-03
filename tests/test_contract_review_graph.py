@@ -98,6 +98,9 @@ class FakeAnalyzer:
             ContractReviewAnalysis(
                 item_id=queries[0].item_id,
                 summary="확인 필요: 원문 계약서와 검색 근거의 적용 범위를 비교해 주세요.",
+                review_status="check",
+                revision="적용 범위와 위반 시 처리 방법을 합의해 기재한다.",
+                negotiation="적용 종료 시점과 책임 범위를 상대방과 확인하세요.",
                 evidence_source_ids=[evidence[0].source_id],
             )
         ]

@@ -32,11 +32,11 @@ from precedents.precedent_config import load_env_file
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT_SECONDS = 30.0
-DEFAULT_MAX_OUTPUT_TOKENS = 1000
+DEFAULT_MAX_OUTPUT_TOKENS = 1600
 DEFAULT_MAX_QUERIES = 10
 DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_draft_v0.1"
+PROMPT_VERSION = "special_clause_result_v0.2"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -62,6 +62,9 @@ OUTPUT_SCHEMA = {
                     "item_id": {"type": "string"},
                     "status": {"type": "string", "enum": ["draft_ready", "needs_input"]},
                     "draft_text": {"type": "string"},
+                    "title": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "strategy": {"type": "string"},
                     "needs_input": {
                         "type": "array",
                         "maxItems": 5,
@@ -78,6 +81,9 @@ OUTPUT_SCHEMA = {
                     "item_id",
                     "status",
                     "draft_text",
+                    "title",
+                    "reason",
+                    "strategy",
                     "needs_input",
                     "evidence_source_ids",
                 ],
@@ -95,12 +101,14 @@ SYSTEM_PROMPT = """당신은 부동산 계약 특약의 사용자 확인용 초�
 
 규칙:
 1. 각 항목은 제공된 item_id를 그대로 사용합니다.
-2. 필요한 사실관계가 충분하면 status는 draft_ready로 하고, draft_text에는
-   한 개의 간결한 특약 초안만 작성합니다.
+2. 필요한 사실관계가 충분하면 status는 draft_ready로 하고, title에는
+   특약의 짧은 제목, draft_text에는 한 개의 간결한 특약 초안을 작성합니다.
+   reason에는 이 문구가 필요한 이유를, strategy에는 상대방과 추가로 합의할
+   범위·기한·비용·책임 사항을 작성합니다.
 3. 계약 유형, 적용 목적물·당사자 범위, 기한, 금액, 조건, 비용·부담 주체,
    위반 시 처리 중 초안에 필요한 내용이 부족하면 status는 needs_input으로
-   하고, draft_text는 빈 문자열로 두며 needs_input에 구체적인 확인 질문을
-   넣습니다.
+   하고, draft_text·reason·strategy는 빈 문자열로 두며 title은 '추가 정보
+   확인', needs_input에는 구체적인 확인 질문을 넣습니다.
 4. 법적 결론, 승소 가능성, 계약 체결·해제 권고, 사실 추정은 하지 않습니다.
 5. 제공 근거에 없는 법률, 조문, 판례, 금액, 당사자 정보는 만들지 않습니다.
 6. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
@@ -242,6 +250,9 @@ class GeminiSpecialClauseGenerator:
             item_id = item.get("item_id")
             status = item.get("status")
             draft_text = self._normalize_text(item.get("draft_text"))
+            title = self._normalize_text(item.get("title"))
+            reason = self._normalize_text(item.get("reason"))
+            strategy = self._normalize_text(item.get("strategy"))
             needs_input = self._normalize_list(item.get("needs_input"), limit=5)
             source_ids = item.get("evidence_source_ids")
             if (
@@ -253,6 +264,15 @@ class GeminiSpecialClauseGenerator:
                 raise ValueError("Gemini가 알 수 없는 특약 생성 항목을 반환했습니다.")
             if status == "draft_ready" and len(draft_text) < 2:
                 raise ValueError("Gemini 특약 초안이 비어 있습니다.")
+            if len(title) < 2 or len(title) > 100:
+                raise ValueError("Gemini 특약 제목 형식이 올바르지 않습니다.")
+            if status == "draft_ready" and (
+                len(reason) < 2
+                or len(reason) > 700
+                or len(strategy) < 2
+                or len(strategy) > 700
+            ):
+                raise ValueError("Gemini 특약 설명 형식이 올바르지 않습니다.")
             if status == "needs_input" and not needs_input:
                 raise ValueError("Gemini 추가 입력 요청이 비어 있습니다.")
             if not isinstance(source_ids, list) or not source_ids:
@@ -266,11 +286,16 @@ class GeminiSpecialClauseGenerator:
             # it correctly asks for missing facts. Never expose that as a clause.
             if status == "needs_input":
                 draft_text = ""
+                reason = ""
+                strategy = ""
             generations.append(
                 SpecialClauseGeneration(
                     item_id=item_id,
                     status=status,
                     draft_text=draft_text or None,
+                    title=title,
+                    reason=reason or None,
+                    strategy=strategy or None,
                     needs_input=needs_input,
                     evidence_source_ids=normalized_ids,
                 )
