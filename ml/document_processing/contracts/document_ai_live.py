@@ -85,7 +85,10 @@ def prepare(pdf, project, location, processor, version):
     return raw, config, key, url
 
 
-def request_document(resource, location, raw, timeout, *, credentials=None):
+def request_document(
+    resource, location, raw, timeout, *, credentials=None, expected_pages=3
+):
+    """expected_pages가 None이면 페이지 수를 검사하지 않는다(등기부처럼 쪽수가 가변인 문서)."""
     from google.api_core.client_options import ClientOptions
     from google.api_core.exceptions import GoogleAPICallError
     from google.cloud import documentai_v1 as documentai
@@ -123,7 +126,7 @@ def request_document(resource, location, raw, timeout, *, credentials=None):
     if (
         not isinstance(document.get("text"), str)
         or not isinstance(document.get("pages"), list)
-        or len(document["pages"]) != 3
+        or (expected_pages is not None and len(document["pages"]) != expected_pages)
     ):
         raise LiveOCRError("Google OCR returned an unexpected document structure")
     return document, perf_counter() - started

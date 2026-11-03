@@ -23,6 +23,7 @@ from api.models.contracts import (
     SpecialClauseDraftResponse,
 )
 from api.models.contract_ocr import ContractOcrDraftResponse
+from api.models.registry_ocr import RegistryOcrDraftResponse
 from api.models.contract_snapshots import ContractType
 from api.models.contract_snapshots import ConfirmedContractSnapshot
 from api.models.errors import ApiErrorResponse
@@ -31,6 +32,7 @@ from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.contract_review_service import ContractReviewService
 from api.services.special_clause_service import SpecialClauseService
 from api.services.contract_ocr_service import MAX_UPLOAD_BYTES, ContractOcrService
+from api.services.registry_ocr_service import RegistryOcrService
 
 
 router = APIRouter(prefix="/api/v1", tags=["contracts"])
@@ -72,6 +74,13 @@ def get_contract_ocr_service(request: Request) -> ContractOcrService:
     return service
 
 
+def get_registry_ocr_service(request: Request) -> RegistryOcrService:
+    service = getattr(request.app.state, "registry_ocr_service", None)
+    if service is None:
+        raise RuntimeError("등기사항증명서 OCR 서비스가 초기화되지 않았습니다.")
+    return service
+
+
 ContractReviewServiceDependency = Annotated[
     ContractReviewService,
     Depends(get_contract_review_service),
@@ -87,6 +96,10 @@ SpecialClauseServiceDependency = Annotated[
 ContractOcrServiceDependency = Annotated[
     ContractOcrService,
     Depends(get_contract_ocr_service),
+]
+RegistryOcrServiceDependency = Annotated[
+    RegistryOcrService,
+    Depends(get_registry_ocr_service),
 ]
 
 
@@ -110,6 +123,28 @@ async def create_contract_ocr_draft(
             filename=file.filename,
             content=content,
             contract_type=contract_type,
+            provider_consent=provider_consent,
+        )
+    finally:
+        await file.close()
+
+
+@router.post(
+    "/registry-ocr-drafts",
+    response_model=RegistryOcrDraftResponse,
+    responses={400: {"model": ApiErrorResponse}, 503: {"model": ApiErrorResponse}},
+    summary="사용자 확인 전 등기사항증명서 OCR 초안 생성",
+)
+async def create_registry_ocr_draft(
+    file: Annotated[UploadFile, File(description="등기사항증명서 PDF")],
+    provider_consent: Annotated[bool, Form()],
+    service: RegistryOcrServiceDependency,
+) -> RegistryOcrDraftResponse:
+    try:
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
+        return service.create_draft(
+            filename=file.filename,
+            content=content,
             provider_consent=provider_consent,
         )
     finally:
