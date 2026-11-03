@@ -1,8 +1,15 @@
 # Google Document AI 실시간 실험
 
 합성 표준계약서 PDF 3페이지(전세/월세/매매) 전용 로컬 CLI다. 실제 지인 문서는
-전송하지 않는다. 다른 양식, 개인정보 비식별화, 암호화 저장, UI/API는 이번 작업
-범위가 아니다. 기존 lease_pipeline의 저장 JSON 재실행은 유지한다.
+전송하지 않는다. 기존 lease_pipeline의 저장 JSON 재실행은 유지한다.
+
+프런트 계약서 단독 검토 경로에는 별도의 임시 업로드 API가 있다. 이 API는
+`DOCUMENT_AI_OCR_ENABLED=true`와 사용자의 외부 전송 동의가 모두 있을 때만
+3페이지 표준 계약서 PDF를 Document AI에 전송한다. 업로드 원본과 Document AI
+원문 JSON은 응답 생성 뒤 저장하지 않고, 추출 초안만 사용자 확인 화면으로 넘긴다.
+사용자가 확인한 뒤 저장하는 구조화 계약정보는 MySQL을 사용할 때
+`SNAPSHOT_ENCRYPTION_KEY`의 AES-256-GCM 암호문으로 저장한다. 원본 PDF와
+Document AI 원문 JSON은 이 저장소에 넣지 않는다.
 
 ## 준비와 비용 승인
 

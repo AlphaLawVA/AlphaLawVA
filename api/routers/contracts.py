@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 
 from api.models.contracts import (
     ContractReviewRequest,
@@ -22,12 +22,15 @@ from api.models.contracts import (
     SpecialClauseDraftRequest,
     SpecialClauseDraftResponse,
 )
+from api.models.contract_ocr import ContractOcrDraftResponse
+from api.models.contract_snapshots import ContractType
 from api.models.contract_snapshots import ConfirmedContractSnapshot
 from api.models.errors import ApiErrorResponse
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.contract_review_service import ContractReviewService
 from api.services.special_clause_service import SpecialClauseService
+from api.services.contract_ocr_service import ContractOcrService
 
 
 router = APIRouter(prefix="/api/v1", tags=["contracts"])
@@ -62,6 +65,13 @@ def get_special_clause_service(request: Request) -> SpecialClauseService:
     return service
 
 
+def get_contract_ocr_service(request: Request) -> ContractOcrService:
+    service = getattr(request.app.state, "contract_ocr_service", None)
+    if service is None:
+        raise RuntimeError("계약서 OCR 서비스가 초기화되지 않았습니다.")
+    return service
+
+
 ContractReviewServiceDependency = Annotated[
     ContractReviewService,
     Depends(get_contract_review_service),
@@ -74,6 +84,34 @@ SpecialClauseServiceDependency = Annotated[
     SpecialClauseService,
     Depends(get_special_clause_service),
 ]
+ContractOcrServiceDependency = Annotated[
+    ContractOcrService,
+    Depends(get_contract_ocr_service),
+]
+
+
+@router.post(
+    "/contract-ocr-drafts",
+    response_model=ContractOcrDraftResponse,
+    responses={400: {"model": ApiErrorResponse}, 503: {"model": ApiErrorResponse}},
+    summary="사용자 확인 전 계약서 OCR 초안 생성",
+)
+async def create_contract_ocr_draft(
+    file: Annotated[UploadFile, File(description="3페이지 표준 계약서 PDF")],
+    contract_type: Annotated[ContractType, Form()],
+    provider_consent: Annotated[bool, Form()],
+    service: ContractOcrServiceDependency,
+) -> ContractOcrDraftResponse:
+    try:
+        content = await file.read()
+        return service.create_draft(
+            filename=file.filename,
+            content=content,
+            contract_type=contract_type,
+            provider_consent=provider_consent,
+        )
+    finally:
+        await file.close()
 
 
 @router.post(

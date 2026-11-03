@@ -54,6 +54,7 @@ class ApiMainTests(unittest.TestCase):
         self.assertIs(app.state.precedent_search_service, service)
         self.assertIn("/health", paths)
         self.assertIn("/api/v1/contract-snapshots", paths)
+        self.assertIn("/api/v1/contract-ocr-drafts", paths)
         self.assertIn("/api/v1/registry-snapshots", paths)
         self.assertIn("/api/v1/contract-reviews", paths)
         self.assertIn("/api/v1/special-clause-drafts", paths)
@@ -145,6 +146,19 @@ class ApiMainTests(unittest.TestCase):
         self.assertIn(
             "idempotency-key",
             response.headers["access-control-allow-headers"].lower(),
+        )
+
+    def test_contract_ocr_is_disabled_without_explicit_configuration(self):
+        response = TestClient(create_app(object())).post(
+            "/api/v1/contract-ocr-drafts",
+            data={"contract_type": "jeonse", "provider_consent": "true"},
+            files={"file": ("contract.pdf", b"%PDF-test", "application/pdf")},
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["error"]["code"],
+            "contract_ocr_unavailable",
         )
 
 
