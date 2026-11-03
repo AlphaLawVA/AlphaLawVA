@@ -61,6 +61,9 @@ class ContractReviewAnalysis:
 
     item_id: str
     summary: str
+    review_status: str
+    revision: str
+    negotiation: str
     evidence_source_ids: list[str]
 
 
