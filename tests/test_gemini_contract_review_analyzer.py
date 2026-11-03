@@ -80,6 +80,54 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
         self.assertEqual(result[0].review_status, "check")
         self.assertEqual(result[0].evidence_source_ids, ["law:001248:article:0003"])
 
+    def test_drops_only_the_item_that_cites_unprovided_evidence(self):
+        self.queries.append(
+            ContractReviewRetrievalQuery(
+                item_id="term-2",
+                category="special_term",
+                query="jeonse 계약 특약 검토: 수리 책임",
+            )
+        )
+        self.evidence.append(
+            ContractReviewEvidence(
+                item_id="term-2",
+                source_type="statute",
+                source_id="law:001248:article:0006",
+                title="주택임대차보호법 제6조",
+                text="법령 원문",
+                rank=1,
+                similarity=0.8,
+                metadata={},
+            )
+        )
+        response = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": (
+                                    '{"items":['
+                                    '{"item_id":"term-1","summary":"확인 필요: 범위를 비교해 주세요.",'
+                                    '"review_status":"check","revision":"범위를 합의해 기재한다.",'
+                                    '"negotiation":"책임 범위를 확인하세요.",'
+                                    '"evidence_source_ids":["law:001248:article:0006"]},'
+                                    '{"item_id":"term-2","summary":"확인 필요: 책임을 비교해 주세요.",'
+                                    '"review_status":"check","revision":"책임을 합의해 기재한다.",'
+                                    '"negotiation":"비용 부담을 확인하세요.",'
+                                    '"evidence_source_ids":["law:001248:article:0006"]}]}'
+                                )
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=response):
+            result = self.analyzer.analyze(self.queries, self.evidence)
+
+        self.assertEqual([item.item_id for item in result], ["term-2"])
+
     def test_rejects_unprovided_evidence_id(self):
         response = {
             "candidates": [

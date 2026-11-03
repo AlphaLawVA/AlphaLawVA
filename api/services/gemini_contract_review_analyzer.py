@@ -246,48 +246,64 @@ class GeminiContractReviewAnalyzer:
         }
         analyses: list[ContractReviewAnalysis] = []
         seen_item_ids: set[str] = set()
+        first_error: ValueError | None = None
+        # 한 항목이 규칙을 어겨도 나머지 항목은 살린다. 어긋난 항목은 결과에서 제외하며
+        # 제공되지 않은 근거를 인용한 내용은 어떤 경우에도 화면에 보내지 않는다.
         for item in content["items"]:
-            if not isinstance(item, dict):
-                raise ValueError("Gemini 계약서 검토 항목 형식이 올바르지 않습니다.")
-            item_id = item.get("item_id")
-            summary = self._normalize_text(item.get("summary"))
-            review_status = item.get("review_status")
-            revision = self._normalize_text(item.get("revision"))
-            negotiation = self._normalize_text(item.get("negotiation"))
-            source_ids = item.get("evidence_source_ids")
-            if (
-                not isinstance(item_id, str)
-                or item_id not in allowed_sources
-                or item_id in seen_item_ids
-            ):
-                raise ValueError("Gemini가 알 수 없는 검토 항목을 반환했습니다.")
-            if len(summary) < 2 or len(summary) > 500:
-                raise ValueError("Gemini 검토 요약 형식이 올바르지 않습니다.")
-            if review_status not in {"safe", "check"}:
-                raise ValueError("Gemini 검토 상태 형식이 올바르지 않습니다.")
-            if len(revision) < 2 or len(revision) > 1000:
-                raise ValueError("Gemini 수정 초안 형식이 올바르지 않습니다.")
-            if len(negotiation) < 2 or len(negotiation) > 700:
-                raise ValueError("Gemini 협상 안내 형식이 올바르지 않습니다.")
-            if not isinstance(source_ids, list) or not source_ids:
-                raise ValueError("Gemini 검토 근거가 비어 있습니다.")
-            normalized_ids = [value for value in source_ids if isinstance(value, str)]
-            if len(normalized_ids) != len(source_ids) or any(
-                value not in allowed_sources[item_id] for value in normalized_ids
-            ):
-                raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
-            analyses.append(
-                ContractReviewAnalysis(
-                    item_id=item_id,
-                    summary=summary,
-                    review_status=review_status,
-                    revision=revision,
-                    negotiation=negotiation,
-                    evidence_source_ids=normalized_ids,
-                )
-            )
-            seen_item_ids.add(item_id)
+            try:
+                analysis = self._validate_item(item, allowed_sources, seen_item_ids)
+            except ValueError as error:
+                first_error = first_error or error
+                continue
+            analyses.append(analysis)
+            seen_item_ids.add(analysis.item_id)
+        if not analyses and first_error is not None:
+            raise first_error
         return analyses
+
+    def _validate_item(
+        self,
+        item: Any,
+        allowed_sources: dict[str, set[str]],
+        seen_item_ids: set[str],
+    ) -> ContractReviewAnalysis:
+        if not isinstance(item, dict):
+            raise ValueError("Gemini 계약서 검토 항목 형식이 올바르지 않습니다.")
+        item_id = item.get("item_id")
+        summary = self._normalize_text(item.get("summary"))
+        review_status = item.get("review_status")
+        revision = self._normalize_text(item.get("revision"))
+        negotiation = self._normalize_text(item.get("negotiation"))
+        source_ids = item.get("evidence_source_ids")
+        if (
+            not isinstance(item_id, str)
+            or item_id not in allowed_sources
+            or item_id in seen_item_ids
+        ):
+            raise ValueError("Gemini가 알 수 없는 검토 항목을 반환했습니다.")
+        if len(summary) < 2 or len(summary) > 500:
+            raise ValueError("Gemini 검토 요약 형식이 올바르지 않습니다.")
+        if review_status not in {"safe", "check"}:
+            raise ValueError("Gemini 검토 상태 형식이 올바르지 않습니다.")
+        if len(revision) < 2 or len(revision) > 1000:
+            raise ValueError("Gemini 수정 초안 형식이 올바르지 않습니다.")
+        if len(negotiation) < 2 or len(negotiation) > 700:
+            raise ValueError("Gemini 협상 안내 형식이 올바르지 않습니다.")
+        if not isinstance(source_ids, list) or not source_ids:
+            raise ValueError("Gemini 검토 근거가 비어 있습니다.")
+        normalized_ids = [value for value in source_ids if isinstance(value, str)]
+        if len(normalized_ids) != len(source_ids) or any(
+            value not in allowed_sources[item_id] for value in normalized_ids
+        ):
+            raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
+        return ContractReviewAnalysis(
+            item_id=item_id,
+            summary=summary,
+            review_status=review_status,
+            revision=revision,
+            negotiation=negotiation,
+            evidence_source_ids=normalized_ids,
+        )
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         endpoint = (
