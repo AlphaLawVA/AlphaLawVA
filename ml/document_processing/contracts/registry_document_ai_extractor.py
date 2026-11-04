@@ -182,7 +182,8 @@ def _split_tables(lines_tokens: list[Line]) -> dict[str, list[tuple[str, list[Li
 
 
 def _parse_date(tokens: list[Line]):
-    match = _DATE.search(" ".join(token.text for token in tokens))
+    # OCR 조각 순서가 아니라 화면 위치(줄, 좌우) 순서로 읽어 날짜 조각이 섞이지 않게 한다.
+    match = _DATE.search(" ".join(_rows(tokens)))
     if match is None:
         return field(None, [])
     try:

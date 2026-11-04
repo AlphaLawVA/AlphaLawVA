@@ -133,6 +133,19 @@ class RegistryExtractorLayoutTests(unittest.TestCase):
         self.assertTrue(description.startswith("1\n\n"))
         self.assertIn("철근콘크리트구조\n단독주택(다가구주택),", description)
 
+    def test_reads_date_pieces_in_screen_order_not_ocr_order(self):
+        page = [
+            item for item in first_page() if item[0] != "2020년1월2일"
+        ] + [
+            ("1월2일", 0.375, 0.519, 0.43),
+            ("2020년", 0.32, 0.519, 0.37),
+        ]
+        result = extract_registry_document_ai(document_ai_json([page, second_page()]))
+
+        self.assertEqual(
+            result.owners[0].registration_date.value.isoformat(), "2020-01-02"
+        )
+
     def test_warns_when_main_entry_has_amendment_notes(self):
         self.assertTrue(
             any(
