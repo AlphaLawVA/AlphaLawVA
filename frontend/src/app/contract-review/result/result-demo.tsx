@@ -55,12 +55,22 @@ function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
 }
 
 function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
-  return result.registry_items.map((item) => {
+  // 등본 확인 필요 항목, 계약서 교차 안내, 특약 제안은 등본 검토 탭에 함께 보여준다.
+  const attentionCategories = new Set([
+    "registry_attention",
+    "contract_registry_crosscheck",
+    "special_term_suggestion",
+  ]);
+  const attentionItems = (result.precheck_items ?? []).filter((item) =>
+    attentionCategories.has(item.category),
+  );
+  return [...result.registry_items, ...attentionItems].map((item) => {
     const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
     return {
       id: item.item_id,
       title: item.label,
-      value: item.original_text ?? "확인된 원문 없음",
+      // 등본 원문이 없는 안내 항목(특약 제안 등)은 원문 줄을 비워 둔다.
+      value: item.original_text ?? (item.category === "registry_field" ? "확인된 원문 없음" : ""),
       status: analysis?.review_status ?? "check",
       summary: analysis?.summary ?? item.message,
       action: analysis?.negotiation,
@@ -228,13 +238,13 @@ export function ResultDemo() {
         </div>
       ) : (
         <div className={styles.registryGrid}>
-          {registryReviews.map((item) => (
-            <article className={styles.registryItem} key={item.id}>
+          {registryReviews.map((item, index) => (
+            <article className={styles.registryItem} key={`${item.id}-${index}`}>
               <span className={item.status === "safe" ? styles.safeBadge : styles.checkBadge}>
                 {item.status === "safe" ? "문제없음" : "확인 필요"}
               </span>
               <h3>{item.title}</h3>
-              <p className={styles.registryValue}>{item.value}</p>
+              {item.value && <p className={styles.registryValue}>{item.value}</p>}
               <p className={styles.registrySummary}>{item.summary}</p>
               {item.action && <p className={styles.registryAction}>{item.action}</p>}
             </article>

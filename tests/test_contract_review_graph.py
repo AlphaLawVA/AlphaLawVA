@@ -210,6 +210,10 @@ class ContractReviewGraphTests(unittest.TestCase):
                 "registered_owner_match",
                 "payment_total_match",
                 "registry_checked_disclosure",
+                # 등본 확인 필요 항목과 임대차 안내(근저당 4순위, 권리변동 금지 특약 있음).
+                "attention_mortgage_4",
+                "suggest_guarantee_insurance",
+                "tax_arrears_check",
             },
         )
         queries = {item.item_id: item.query for item in result.retrieval_queries}
