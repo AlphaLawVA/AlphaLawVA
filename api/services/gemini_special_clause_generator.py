@@ -284,6 +284,10 @@ class GeminiSpecialClauseGenerator:
                 raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
             # A model can include an explanatory sentence in draft_text even when
             # it correctly asks for missing facts. Never expose that as a clause.
+            # 초안이라고 해 놓고 확인 질문이 남아 있으면 사실관계가 덜 찬 것이므로
+            # 질문 단계로 되돌리고 초안은 노출하지 않는다.
+            if status == "draft_ready" and needs_input:
+                status = "needs_input"
             if status == "needs_input":
                 draft_text = ""
                 reason = ""
