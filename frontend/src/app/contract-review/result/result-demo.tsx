@@ -8,7 +8,7 @@ import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
 import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
-import type { ContractEvidence, ContractReviewResult } from "@/lib/contract-api";
+import type { ContractEvidence, ContractReviewItem, ContractReviewResult } from "@/lib/contract-api";
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
@@ -64,8 +64,27 @@ function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
   const attentionItems = (result.precheck_items ?? []).filter((item) =>
     attentionCategories.has(item.category),
   );
-  return [...result.registry_items, ...attentionItems].map((item) => {
-    const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
+  // 안내 항목이 같은 등기 원문을 이미 다루면 등기 카드는 따로 보여주지 않고 합친다.
+  const coveredBy = (registryItem: ContractReviewItem) =>
+    attentionItems.find((attention) =>
+      registryItem.original_text
+      && attention.original_text?.split("\n").includes(registryItem.original_text),
+    );
+  const standaloneRegistryItems = result.registry_items.filter((item) => !coveredBy(item));
+  const reviews: RegistryReview[] = [...standaloneRegistryItems, ...attentionItems].map((item) => {
+    const merged = result.registry_items.filter((entry) => coveredBy(entry)?.item_id === item.item_id);
+    const analysis = result.analysis.find((entry) => entry.item_id === item.item_id)
+      ?? result.analysis.find((entry) => merged.some((registryItem) => registryItem.item_id === entry.item_id));
+    if (merged.length > 0) {
+      return {
+        id: item.item_id,
+        title: item.label,
+        value: item.original_text ?? "",
+        status: analysis?.review_status ?? "check",
+        summary: item.message,
+        action: analysis ? `${analysis.summary} ${analysis.negotiation}` : undefined,
+      };
+    }
     return {
       id: item.item_id,
       title: item.label,
@@ -76,6 +95,7 @@ function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
       action: analysis?.negotiation,
     };
   });
+  return reviews;
 }
 
 function readMode(value: string | null): DocumentMode {
