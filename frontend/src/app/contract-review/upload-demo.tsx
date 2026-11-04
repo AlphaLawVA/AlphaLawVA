@@ -165,14 +165,13 @@ export function UploadDemo() {
           <div className={styles.dropzone}>
             <span className={styles.dropIcon}><Upload size={23} aria-hidden="true" /></span>
             <strong>PDF 또는 이미지 파일을 올려주세요</strong>
-            <p>계약서 실시간 OCR은 3페이지 PDF를 지원합니다. 문서별 최대 20MB</p>
+            <p>{mode === "both" ? "계약서를 먼저, 그다음 등본을 한 개씩 선택해주세요. " : ""}계약서 실시간 OCR은 3페이지 PDF를 지원합니다. 문서별 최대 20MB</p>
             <label className={styles.sampleButton}>
               <Upload size={17} aria-hidden="true" />
-              {mode === "both" && selectedFiles.length === 1 ? "등본 파일 추가" : "내 파일 선택"}
+              {mode === "both" ? (selectedFiles.length === 1 ? "② 등본 파일 선택" : "① 계약서 파일 선택") : "내 파일 선택"}
               <input
                 className={styles.fileInput}
                 type="file"
-                multiple={mode === "both"}
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={(event) => {
                   selectFiles(event.target.files);
@@ -187,11 +186,11 @@ export function UploadDemo() {
 
           {selectedFiles.length > 0 && (
             <div className={styles.fileList} aria-live="polite">
-              {selectedFiles.map((file) => (
+              {selectedFiles.map((file, index) => (
                 <div className={styles.fileItem} key={file}>
                   <div className={styles.fileName}>
                     <FileText size={17} aria-hidden="true" />
-                    <span>{file}</span>
+                    <span>{mode === "both" ? `${index === 0 ? "[계약서]" : "[등본]"} ` : ""}{file}</span>
                   </div>
                   <CheckCircle2 className={styles.completeMark} size={18} aria-label="업로드 완료" />
                 </div>
