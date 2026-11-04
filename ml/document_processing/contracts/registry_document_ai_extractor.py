@@ -49,6 +49,7 @@ _WATERMARK = {"열람용", "열", "람", "용", "여"}
 _RIGHTS_COLUMNS = (0.145, 0.305, 0.436, 0.575)
 # 일반 건물 표제부: 표시번호 | 접수 | 소재지번 | 건물내역 | 등기원인 및 기타사항
 _TITLE_COLUMNS = (0.143, 0.285, 0.515, 0.74)
+_AMENDMENT_PURPOSE = re.compile(r"변경|말소|소멸|경정|이전")
 _OWNERSHIP_EXCLUDED = re.compile(r"압류|가처분|가등기|경매|예고|환매")
 _HOLDER_LABEL = re.compile(
     r"^(근저당권자|전세권자|임차권자|질권자|채권자|가압류권자|가등기권자|지상권자|권리자)\s*(.*)$"
@@ -267,7 +268,12 @@ def _detail_address(blocks: list[tuple[str, list[Line]]]):
 def _property_descriptions(blocks: list[tuple[str, list[Line]]]):
     result = []
     for order, (_, block) in enumerate(blocks, 1):
-        text = "\n".join(_rows(block)).strip()
+        # 열 경계를 넘어 한 줄로 이어 붙지 않도록 열 단위로 위에서 아래로 읽는다.
+        columns = (
+            "\n".join(_rows(_column(block, _TITLE_COLUMNS, index)))
+            for index in range(len(_TITLE_COLUMNS) + 1)
+        )
+        text = "\n\n".join(column for column in columns if column.strip()).strip()
         if text:
             result.append(
                 {
@@ -368,6 +374,23 @@ def extract_registry_document_ai(document: dict) -> RegistryExtraction:
             encumbrances.append(_encumbrance("gapgu", number, block))
     for number, block in tables["eulgu"]:
         encumbrances.append(_encumbrance("eulgu", number, block))
+    amended = {
+        item["rank_number"]["value"].split("-")[0]
+        for item in encumbrances
+        if "-" in (item["rank_number"]["value"] or "")
+        and _AMENDMENT_PURPOSE.search(item["registration_purpose"]["value"] or "")
+    }
+    if amended:
+        ranks = ", ".join(sorted(amended, key=int))
+        warnings.append(
+            f"registry_amendment_requires_review: {ranks}번 권리에 변경·말소 부기가 있어 "
+            "본 등기의 최고액·채무자 등이 달라졌을 수 있음"
+        )
+    if "현재유효사항" not in compact(" ".join(line.text for line in lines)):
+        warnings.append(
+            "registry_scope_not_current: 제목에서 '현재 유효사항'을 읽지 못해 "
+            "소유권·권리 상태를 확정할 수 없음"
+        )
     if not owners:
         warnings.append("registry_owner_missing: 갑구 소유자 확인 필요")
     if not encumbrances:

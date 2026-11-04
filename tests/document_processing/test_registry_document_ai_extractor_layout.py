@@ -126,6 +126,38 @@ class RegistryExtractorLayoutTests(unittest.TestCase):
         self.assertIn("철근콘크리트구조", description)
         self.assertIn("종근생(사무소)", description)
 
+    def test_title_description_reads_columns_top_to_bottom(self):
+        description = self.result.property_description[0].original_text
+
+        # 표시번호 열과 건물내역 열이 한 줄로 이어 붙지 않고 빈 줄로 구분된다.
+        self.assertTrue(description.startswith("1\n\n"))
+        self.assertIn("철근콘크리트구조\n단독주택(다가구주택),", description)
+
+    def test_warns_when_main_entry_has_amendment_notes(self):
+        self.assertTrue(
+            any(
+                item.startswith("registry_amendment_requires_review: 4번")
+                for item in self.result.warnings
+            )
+        )
+
+    def test_warns_when_current_validity_scope_is_not_read_from_title(self):
+        self.assertTrue(
+            any(
+                item.startswith("registry_scope_not_current")
+                for item in self.result.warnings
+            )
+        )
+
+    def test_no_scope_warning_for_current_validity_certificate(self):
+        page = first_page()
+        page.append(("등기사항전부증명서(현재 유효사항)", 0.30, 0.10, 0.70))
+        result = extract_registry_document_ai(document_ai_json([page, second_page()]))
+
+        self.assertFalse(
+            any(item.startswith("registry_scope_not_current") for item in result.warnings)
+        )
+
     def test_assigns_owner_columns_and_status_stays_unknown(self):
         owner = self.result.owners[0]
 

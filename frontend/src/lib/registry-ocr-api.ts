@@ -131,18 +131,22 @@ export function mapRegistryOcrDraftToSnapshot(draft: RegistryOcrDraft): Confirme
       ].filter(Boolean).join(" · ")
     : "";
   const ownerSource = { page: owner?.name.source?.page_number ?? 1, label: "갑구 소유권" };
+  // 추출기는 표제부의 [도로명주소] 값을 그대로 주므로, 동·호·층이 있을 때만 상세주소로 쓴다.
+  const detailValue = text(extraction.detail_address);
+  const detailAddress = /\d+\s*(동|호|층)/.test(detailValue) ? detailValue : "";
   const titleText = extraction.property_description.map((item) => item.original_text).join("\n");
 
   const fields = [
     seedField({ id: "registry-issued-at", label: "발급일시", value: issuedAtText(extraction.issued_at.value), group: "발급·부동산 정보", source: { page: extraction.issued_at.source?.page_number ?? 1, label: "발급 정보" }, review: false }),
     seedField({ id: "registry-address", label: "소재지", value: text(extraction.address), group: "발급·부동산 정보", required: true, source: { page: extraction.address.source?.page_number ?? 1, label: "표제부 소재지" } }),
-    seedField({ id: "registry-detail", label: "상세주소", value: text(extraction.detail_address), group: "발급·부동산 정보", required: true, source: { page: extraction.detail_address.source?.page_number ?? 1, label: "건물내역" } }),
+    seedField({ id: "registry-detail", label: "상세주소", value: detailAddress, group: "발급·부동산 정보", required: true, source: { page: extraction.detail_address.source?.page_number ?? 1, label: "건물내역" } }),
     seedField({ id: "registry-building-original", label: "표제부 건물 표시 원문", value: titleText, group: "발급·부동산 정보", multiline: true, source: { page: extraction.property_description[0]?.source.page_number ?? 1, label: "표제부" } }),
     seedField({ id: "owner-name", label: "현재 소유자 성명", value: ownerNames, group: "현재 소유자", required: true, source: ownerSource }),
     seedField({ id: "owner-share", label: "소유권 지분", value: owner?.ownership_share?.value ?? "", group: "현재 소유자", source: ownerSource }),
     seedField({ id: "owner-cause", label: "등기원인·접수일", value: ownerCause, group: "현재 소유자", source: ownerSource }),
     // 말소 여부는 실선으로만 표시되어 OCR로 알 수 없으므로 사용자가 원문에서 확인한다.
-    seedField({ id: "owner-status", label: "소유권 상태", value: owner ? "유효" : "", group: "현재 소유자", source: ownerSource }),
+    // 제목에서 '현재 유효사항'을 읽은 등본에서만 현재 소유자로 미리 채운다. 그 외에는 사용자가 정한다.
+    seedField({ id: "owner-status", label: "소유권 상태", value: owner && !draft.warnings.some((item) => item.startsWith("registry_scope_not_current")) ? "유효" : "", group: "현재 소유자", source: ownerSource }),
   ].filter((field) => field.required || field.value.trim());
 
   return { fields, rights: extraction.encumbrances.map(rightFor) };
