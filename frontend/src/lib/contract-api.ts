@@ -68,7 +68,7 @@ export type ContractReviewResult = {
 export type SpecialClauseDraftItem = {
   request_index: number;
   request_text: string;
-  status: "draft_ready" | "needs_input" | "pending_generation";
+  status: "draft_ready" | "needs_information" | "out_of_scope" | "pending_generation";
   draft_text: string | null;
   title: string | null;
   reason: string | null;

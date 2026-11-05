@@ -302,7 +302,7 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.evidence_status, "retrieved")
         self.assertEqual(response.generation_status, "generated")
-        self.assertEqual(response.items[0].status, "needs_input")
+        self.assertEqual(response.items[0].status, "needs_information")
         self.assertEqual(
             response.items[0].evidence_source_ids,
             ["law:001248:article:0003"],

@@ -23,6 +23,17 @@ from api.models.contracts import (
 )
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
 from ml.agent.special_clause_graph import SpecialClauseGenerator, SpecialClauseGraph
+from ml.agent.special_clause_scope import (
+    OUT_OF_SCOPE_MESSAGE,
+    TOO_SHORT_QUESTION,
+    ScopeDecision,
+)
+
+
+def _api_status(generation_status: str) -> str:
+    """생성기 내부 상태를 API 상태 이름으로 바꾼다(정보 부족은 needs_information으로 통일)."""
+
+    return "needs_information" if generation_status == "needs_input" else generation_status
 
 
 class SpecialClauseService:
@@ -72,12 +83,37 @@ class SpecialClauseService:
         }
         items = []
         for index, request_text in enumerate(payload.requests, start=1):
+            decision = result.scope_decisions.get(f"request-{index}")
+            if decision == ScopeDecision.OUT_OF_SCOPE.value:
+                items.append(
+                    SpecialClauseDraftItem(
+                        request_index=index,
+                        request_text=request_text,
+                        status="out_of_scope",
+                        reason=OUT_OF_SCOPE_MESSAGE,
+                    )
+                )
+                continue
+            if decision == ScopeDecision.NEEDS_INFORMATION.value:
+                items.append(
+                    SpecialClauseDraftItem(
+                        request_index=index,
+                        request_text=request_text,
+                        status="needs_information",
+                        needs_input=[TOO_SHORT_QUESTION],
+                    )
+                )
+                continue
             generation = generations.get(f"request-{index}")
             items.append(
                 SpecialClauseDraftItem(
                     request_index=index,
                     request_text=request_text,
-                    status=(generation.status if generation else "pending_generation"),
+                    status=(
+                        _api_status(generation.status)
+                        if generation
+                        else "pending_generation"
+                    ),
                     draft_text=generation.draft_text if generation else None,
                     title=generation.title if generation else None,
                     reason=generation.reason if generation else None,
@@ -88,11 +124,12 @@ class SpecialClauseService:
                     ),
                 )
             )
+        all_terminal = all(item.status != "pending_generation" for item in items)
         return SpecialClauseDraftResponse(
             draft_id=uuid4(),
             status=(
                 "completed"
-                if generation_status == GenerationStatus.GENERATED
+                if generation_status == GenerationStatus.GENERATED or all_terminal
                 else "pending_generation"
             ),
             items=items,
@@ -111,7 +148,11 @@ class SpecialClauseService:
             ],
             evidence_status=evidence_status,
             generation_status=generation_status,
-            message=self._message(evidence_status, generation_status),
+            message=(
+                "부동산 계약 특약과 관련된 요청이 아니어서 초안을 만들지 않았습니다."
+                if items and all(item.status == "out_of_scope" for item in items)
+                else self._message(evidence_status, generation_status)
+            ),
             disclaimer=(
                 "이 결과는 법률 자문이나 최종 계약서가 아닙니다. 특약 초안과 "
                 "사실관계·근거 원문을 당사자가 직접 확인해야 합니다."

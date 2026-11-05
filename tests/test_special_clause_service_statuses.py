@@ -18,6 +18,7 @@ from api.models.contracts import (
 )
 from api.services.special_clause_service import SpecialClauseService
 from ml.agent.contract_review_graph import ContractReviewEvidence
+from ml.agent.special_clause_scope import OUT_OF_SCOPE_MESSAGE, TOO_SHORT_QUESTION
 from ml.agent.special_clause_graph import SpecialClauseGeneration
 
 
@@ -121,10 +122,45 @@ class SpecialClauseServiceStatusTests(unittest.TestCase):
         response = service.create_draft(REQUEST)
 
         self.assertEqual(
-            [item.status for item in response.items], ["needs_input", "draft_ready"]
+            [item.status for item in response.items], ["needs_information", "draft_ready"]
         )
         self.assertIsNone(response.items[0].draft_text)
         self.assertEqual(response.items[0].needs_input, ["기간을 알려주세요."])
+
+
+class ScopeStatusTests(unittest.TestCase):
+    def test_out_of_scope_item_has_fixed_message_and_no_draft(self) -> None:
+        service = SpecialClauseService(
+            evidence_retriever=FakeRetriever(),
+            generator=FakeGenerator([_generation("request-2", "draft_ready")]),
+        )
+
+        response = service.create_draft(
+            SpecialClauseDraftRequest(requests=["치킨 레시피 알려줘", "추가 담보 설정 금지"])
+        )
+
+        self.assertEqual(
+            [item.status for item in response.items], ["out_of_scope", "draft_ready"]
+        )
+        self.assertEqual(response.items[0].reason, OUT_OF_SCOPE_MESSAGE)
+        self.assertIsNone(response.items[0].draft_text)
+        self.assertEqual(response.items[0].needs_input, [])
+
+    def test_too_short_request_asks_one_fixed_question(self) -> None:
+        response = SpecialClauseService().create_draft(
+            SpecialClauseDraftRequest(requests=["특약"])
+        )
+
+        self.assertEqual(response.items[0].status, "needs_information")
+        self.assertEqual(response.items[0].needs_input, [TOO_SHORT_QUESTION])
+
+    def test_all_terminal_statuses_complete_the_response(self) -> None:
+        response = SpecialClauseService().create_draft(
+            SpecialClauseDraftRequest(requests=["치킨 레시피 알려줘"])
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("관련", response.message)
 
 
 if __name__ == "__main__":

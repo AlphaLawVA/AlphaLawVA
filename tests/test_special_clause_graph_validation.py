@@ -127,5 +127,56 @@ class SpecialClauseValidationTests(unittest.TestCase):
         self.assertFalse(result.generation_unavailable)
 
 
+class RecordingRetriever(FakeRetriever):
+    def __init__(self):
+        self.queries = []
+
+    def retrieve(self, queries):
+        self.queries.append([q.item_id for q in queries])
+        return super().retrieve(queries)
+
+
+class SpecialClauseScopeTests(unittest.TestCase):
+    def test_out_of_scope_request_skips_retrieval_and_generation(self) -> None:
+        retriever = RecordingRetriever()
+        generator = ScriptedGenerator()
+
+        result = SpecialClauseGraph().prepare(
+            ["치킨 레시피 알려줘"], evidence_retriever=retriever, generator=generator
+        )
+
+        self.assertEqual(retriever.queries, [])
+        self.assertEqual(generator.calls, [])
+        self.assertEqual(result.scope_decisions, {"request-1": "out_of_scope"})
+        self.assertEqual(result.generations, [])
+
+    def test_mixed_requests_keep_original_item_ids(self) -> None:
+        retriever = RecordingRetriever()
+        generator = ScriptedGenerator([_generation("request-2")])
+
+        result = SpecialClauseGraph().prepare(
+            ["치킨 레시피 알려줘", "권리 변동을 막는 특약"],
+            evidence_retriever=retriever,
+            generator=generator,
+        )
+
+        self.assertEqual(retriever.queries, [["request-2"]])
+        self.assertEqual(
+            result.scope_decisions,
+            {"request-1": "out_of_scope", "request-2": "in_scope"},
+        )
+        self.assertEqual([g.item_id for g in result.generations], ["request-2"])
+
+    def test_too_short_request_is_not_generated(self) -> None:
+        generator = ScriptedGenerator()
+
+        result = SpecialClauseGraph().prepare(
+            ["특약"], evidence_retriever=FakeRetriever(), generator=generator
+        )
+
+        self.assertEqual(generator.calls, [])
+        self.assertEqual(result.scope_decisions, {"request-1": "needs_information"})
+
+
 if __name__ == "__main__":
     unittest.main()

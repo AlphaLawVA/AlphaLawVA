@@ -18,6 +18,7 @@ from typing import Protocol, TypedDict
 from langgraph.graph import END, StateGraph
 
 from ml.agent.output_validation import find_output_issues
+from ml.agent.special_clause_scope import ScopeDecision, classify_request_scope
 from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewEvidenceRetriever,
@@ -59,12 +60,14 @@ class SpecialClauseGraphResult:
     generations: list[SpecialClauseGeneration]
     generation_unavailable: bool
     validation_dropped_item_ids: list[str] = field(default_factory=list)
+    scope_decisions: dict[str, str] = field(default_factory=dict)
 
 
 class SpecialClauseGraphState(TypedDict):
     """특약 생성 LangGraph 노드 간 전달 상태다."""
 
     requests: list[str]
+    scope_decisions: dict[str, str]
     retrieval_queries: list[ContractReviewRetrievalQuery]
     evidence_retriever: ContractReviewEvidenceRetriever | None
     evidence: list[ContractReviewEvidence]
@@ -81,13 +84,19 @@ class SpecialClauseGraph:
 
     def __init__(self) -> None:
         builder = StateGraph(SpecialClauseGraphState)
+        builder.add_node("check_scope", self._check_scope)
         builder.add_node("build_retrieval_queries", self._build_retrieval_queries)
         builder.add_node("retrieve_evidence", self._retrieve_evidence)
         builder.add_node("generate_drafts", self._generate_drafts)
         builder.add_node("validate_generations", self._validate_generations)
         builder.add_node("repair_generations", self._repair_generations)
         builder.add_node("drop_invalid_generations", self._drop_invalid_generations)
-        builder.set_entry_point("build_retrieval_queries")
+        builder.set_entry_point("check_scope")
+        builder.add_conditional_edges(
+            "check_scope",
+            self._route_after_scope,
+            {"continue": "build_retrieval_queries", "finish": END},
+        )
         builder.add_edge("build_retrieval_queries", "retrieve_evidence")
         builder.add_edge("retrieve_evidence", "generate_drafts")
         builder.add_edge("generate_drafts", "validate_generations")
@@ -116,6 +125,7 @@ class SpecialClauseGraph:
         result = self._graph.invoke(
             {
                 "requests": requests,
+                "scope_decisions": {},
                 "retrieval_queries": [],
                 "evidence_retriever": evidence_retriever,
                 "evidence": [],
@@ -133,6 +143,27 @@ class SpecialClauseGraph:
             generations=result["generations"],
             generation_unavailable=result["generation_unavailable"],
             validation_dropped_item_ids=result["validation_dropped_item_ids"],
+            scope_decisions=result["scope_decisions"],
+        )
+
+    @staticmethod
+    def _check_scope(state: SpecialClauseGraphState) -> dict[str, dict[str, str]]:
+        """요청마다 범위 안·정보 부족·범위 밖을 분류한다."""
+
+        return {
+            "scope_decisions": {
+                f"request-{index}": classify_request_scope(request).value
+                for index, request in enumerate(state["requests"], start=1)
+            }
+        }
+
+    @staticmethod
+    def _route_after_scope(state: SpecialClauseGraphState) -> str:
+        in_scope = ScopeDecision.IN_SCOPE.value
+        return (
+            "continue"
+            if any(value == in_scope for value in state["scope_decisions"].values())
+            else "finish"
         )
 
     @staticmethod
@@ -150,6 +181,8 @@ class SpecialClauseGraph:
                     ),
                 )
                 for index, request in enumerate(state["requests"], start=1)
+                if state["scope_decisions"].get(f"request-{index}")
+                == ScopeDecision.IN_SCOPE.value
             ]
         }
 
