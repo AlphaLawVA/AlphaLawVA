@@ -394,3 +394,43 @@ export function createSpecialClauseDraft(requests: string[]) {
     body: JSON.stringify({ requests }),
   });
 }
+
+export type GenerationResultKind = "contract_review" | "special_clause";
+
+export type SavedGenerationSummary = {
+  result_id: string;
+  kind: GenerationResultKind;
+  source_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SavedGenerationDetail = SavedGenerationSummary & {
+  payload: ContractReviewResult | SpecialClauseDraftResult;
+};
+
+export function saveGenerationResult(
+  kind: GenerationResultKind,
+  sourceId: string,
+  accessToken: string,
+) {
+  return requestApi<SavedGenerationDetail>("/api/v1/generation-results", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ kind, source_id: sourceId }),
+  });
+}
+
+export function listGenerationResults(accessToken: string) {
+  return requestApi<{ items: SavedGenerationSummary[] }>("/api/v1/generation-results", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function getGenerationResult(resultId: string, accessToken: string) {
+  return requestApi<SavedGenerationDetail>(
+    `/api/v1/generation-results/${encodeURIComponent(resultId)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+}

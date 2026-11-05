@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
+import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
@@ -304,6 +305,7 @@ export default function ClauseGeneratorPage() {
         {stage === "review" && <button className={styles.secondaryButton} type="button" onClick={() => setStage("input")}>이전</button>}
         {stage === "input" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={reviewRequests}>입력 내용 확인<ArrowRight size={17} aria-hidden="true" /></button>}
         {stage === "review" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={generateClauses}>특약 생성<ArrowRight size={17} aria-hidden="true" /></button>}
+        {stage === "result" && draftResult && <SaveGenerationResultButton className={styles.secondaryButton} kind="special_clause" sourceId={draftResult.draft_id} loginNext="/clause-generator" />}
         {stage === "result" && <button className={styles.primaryButton} type="button" onClick={startNewRequest}><Plus size={17} aria-hidden="true" />새 요청 작성</button>}
       </div>
       {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
