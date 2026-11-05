@@ -98,6 +98,9 @@ from api.services.precedent_search_sessions import (
     SearchSessionNotFoundError,
     SimilarityExplanationInProgressError,
 )
+from api.services.precedent_search_eligibility import (
+    create_precedent_search_retriever_from_env,
+)
 from api.services.generation_results import (
     GenerationResultNotFoundError,
     GenerationResultNotReadyError,
@@ -454,6 +457,7 @@ def create_app(
         if precedent_search_service is not None
         else PrecedentSearchService(
             favorites=create_precedent_favorite_store_from_env(),
+            retriever=create_precedent_search_retriever_from_env(),
             scope_guard=create_gemini_query_scope_guard_from_env(),
             similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )

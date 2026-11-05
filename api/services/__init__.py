@@ -49,6 +49,11 @@ from api.services.precedent_search_service import (
     SimilarityExplainer,
     SimilarityExplanationUnavailableError,
 )
+from api.services.precedent_search_eligibility import (
+    EligibilityFilteredPrecedentRetriever,
+    create_precedent_search_retriever_from_env,
+    load_eligible_precedent_ids,
+)
 from api.services.precedent_search_sessions import (
     PrecedentSearchSession,
     PrecedentSearchSessionStore,
@@ -69,6 +74,7 @@ __all__ = [
     "InvalidPrecedentIdError",
     "GeminiSimilarityExplainer",
     "GeminiQueryScopeGuard",
+    "EligibilityFilteredPrecedentRetriever",
     "PrecedentFavorite",
     "PrecedentFavoriteNotFoundError",
     "PrecedentFavoriteStore",
@@ -96,4 +102,6 @@ __all__ = [
     "create_gemini_similarity_explainer_from_env",
     "create_certified_letter_service_from_env",
     "create_gemini_query_scope_guard_from_env",
+    "create_precedent_search_retriever_from_env",
+    "load_eligible_precedent_ids",
 ]
