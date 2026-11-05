@@ -76,6 +76,9 @@ from api.services.gemini_contract_review_analyzer import (
 from api.services.gemini_special_clause_generator import (
     create_gemini_special_clause_generator_from_env,
 )
+from api.services.gemini_query_scope_guard import (
+    create_gemini_query_scope_guard_from_env,
+)
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
     PrecedentCaseDataError,
@@ -451,6 +454,7 @@ def create_app(
         if precedent_search_service is not None
         else PrecedentSearchService(
             favorites=create_precedent_favorite_store_from_env(),
+            scope_guard=create_gemini_query_scope_guard_from_env(),
             similarity_explainer=create_gemini_similarity_explainer_from_env(),
         )
     )

@@ -32,6 +32,10 @@ from api.services.gemini_similarity_explainer import (
     GeminiSimilarityExplainer,
     create_gemini_similarity_explainer_from_env,
 )
+from api.services.gemini_query_scope_guard import (
+    GeminiQueryScopeGuard,
+    create_gemini_query_scope_guard_from_env,
+)
 from api.services.precedent_favorites import (
     PrecedentFavorite,
     PrecedentFavoriteNotFoundError,
@@ -64,6 +68,7 @@ __all__ = [
     "ConfirmedSnapshotStore",
     "InvalidPrecedentIdError",
     "GeminiSimilarityExplainer",
+    "GeminiQueryScopeGuard",
     "PrecedentFavorite",
     "PrecedentFavoriteNotFoundError",
     "PrecedentFavoriteStore",
@@ -90,4 +95,5 @@ __all__ = [
     "MySqlConfirmedSnapshotStore",
     "create_gemini_similarity_explainer_from_env",
     "create_certified_letter_service_from_env",
+    "create_gemini_query_scope_guard_from_env",
 ]
