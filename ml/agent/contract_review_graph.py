@@ -13,7 +13,7 @@ After:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -21,6 +21,7 @@ from langgraph.graph import END, StateGraph
 from api.models.contracts import ContractReviewItem, ReviewItemStatus
 from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot, RegistryEntryStatus
+from ml.agent.output_validation import find_output_issues
 from ml.agent.registry_attention import build_registry_attention_items
 
 
@@ -75,6 +76,7 @@ class ContractReviewAnalyzer(Protocol):
         self,
         queries: list[ContractReviewRetrievalQuery],
         evidence: list[ContractReviewEvidence],
+        feedback: dict[str, list[str]] | None = None,
     ) -> list[ContractReviewAnalysis]: ...
 
 
@@ -87,6 +89,7 @@ class ContractReviewPrecheckResult:
     evidence: list[ContractReviewEvidence]
     analyses: list[ContractReviewAnalysis]
     analysis_unavailable: bool
+    validation_dropped_item_ids: list[str] = field(default_factory=list)
 
 
 class ContractReviewGraphState(TypedDict):
@@ -101,6 +104,9 @@ class ContractReviewGraphState(TypedDict):
     analyzer: ContractReviewAnalyzer | None
     analyses: list[ContractReviewAnalysis]
     analysis_unavailable: bool
+    analysis_issues: dict[str, list[str]]
+    analysis_repair_attempts: int
+    validation_dropped_item_ids: list[str]
 
 
 class ContractReviewGraph:
@@ -112,11 +118,21 @@ class ContractReviewGraph:
         builder.add_node("build_retrieval_queries", self._build_retrieval_queries)
         builder.add_node("retrieve_evidence", self._retrieve_evidence)
         builder.add_node("analyze_evidence", self._analyze_evidence)
+        builder.add_node("validate_analysis", self._validate_analysis)
+        builder.add_node("repair_analysis", self._repair_analysis)
+        builder.add_node("drop_invalid_analyses", self._drop_invalid_analyses)
         builder.set_entry_point("run_prechecks")
         builder.add_edge("run_prechecks", "build_retrieval_queries")
         builder.add_edge("build_retrieval_queries", "retrieve_evidence")
         builder.add_edge("retrieve_evidence", "analyze_evidence")
-        builder.add_edge("analyze_evidence", END)
+        builder.add_edge("analyze_evidence", "validate_analysis")
+        builder.add_conditional_edges(
+            "validate_analysis",
+            self._route_after_validation,
+            {"finish": END, "repair": "repair_analysis", "drop": "drop_invalid_analyses"},
+        )
+        builder.add_edge("repair_analysis", "validate_analysis")
+        builder.add_edge("drop_invalid_analyses", END)
         self._graph = builder.compile()
 
     def prepare(
@@ -140,6 +156,9 @@ class ContractReviewGraph:
                 "analyzer": analyzer,
                 "analyses": [],
                 "analysis_unavailable": False,
+                "analysis_issues": {},
+                "analysis_repair_attempts": 0,
+                "validation_dropped_item_ids": [],
             }
         )
         return ContractReviewPrecheckResult(
@@ -148,6 +167,7 @@ class ContractReviewGraph:
             evidence=result["evidence"],
             analyses=result["analyses"],
             analysis_unavailable=result["analysis_unavailable"],
+            validation_dropped_item_ids=result["validation_dropped_item_ids"],
         )
 
     @staticmethod
@@ -263,6 +283,83 @@ class ContractReviewGraph:
         except (RuntimeError, ValueError):
             return {"analyses": [], "analysis_unavailable": True}
         return {"analyses": analyses, "analysis_unavailable": False}
+
+    @staticmethod
+    def _validate_analysis(
+        state: ContractReviewGraphState,
+    ) -> dict[str, dict[str, list[str]]]:
+        """생성된 분석에서 차단 대상 문제(법적 단정, 근거 없는 수치 등)를 찾는다."""
+
+        queries = {query.item_id: query for query in state["retrieval_queries"]}
+        evidence: dict[str, dict[str, str]] = {}
+        for entry in state["evidence"]:
+            evidence.setdefault(entry.item_id, {})[entry.source_id] = (
+                entry.title + "\n" + entry.text
+            )
+        issues: dict[str, list[str]] = {}
+        for analysis in state["analyses"]:
+            query = queries.get(analysis.item_id)
+            if query is None:
+                continue
+            found = find_output_issues(
+                kind="review",
+                item_id=analysis.item_id,
+                query=query.query,
+                category=query.category,
+                evidence=evidence.get(analysis.item_id, {}),
+                item={
+                    "summary": analysis.summary,
+                    "review_status": analysis.review_status,
+                    "revision": analysis.revision,
+                    "negotiation": analysis.negotiation,
+                    "evidence_source_ids": analysis.evidence_source_ids,
+                },
+            )
+            if found:
+                issues[analysis.item_id] = [issue.message for issue in found]
+        return {"analysis_issues": issues}
+
+    @staticmethod
+    def _route_after_validation(
+        state: ContractReviewGraphState,
+    ) -> str:
+        if not state["analysis_issues"]:
+            return "finish"
+        if state["analyzer"] is not None and state["analysis_repair_attempts"] == 0:
+            return "repair"
+        return "drop"
+
+    @staticmethod
+    def _repair_analysis(
+        state: ContractReviewGraphState,
+    ) -> dict[str, list[ContractReviewAnalysis] | int]:
+        """문제가 있는 항목만 안내 문구와 함께 모델에게 한 번 다시 쓰게 한다."""
+
+        issues = state["analysis_issues"]
+        analyzer = state["analyzer"]
+        attempts = state["analysis_repair_attempts"] + 1
+        queries = [q for q in state["retrieval_queries"] if q.item_id in issues]
+        evidence = [e for e in state["evidence"] if e.item_id in issues]
+        try:
+            repaired = analyzer.analyze(queries, evidence, feedback=issues)
+        except (RuntimeError, ValueError):
+            repaired = []
+        replacements = {item.item_id: item for item in repaired if item.item_id in issues}
+        merged = [
+            replacements.get(analysis.item_id, analysis) for analysis in state["analyses"]
+        ]
+        return {"analyses": merged, "analysis_repair_attempts": attempts}
+
+    @staticmethod
+    def _drop_invalid_analyses(
+        state: ContractReviewGraphState,
+    ) -> dict[str, list[ContractReviewAnalysis] | list[str]]:
+        """재작성 후에도 문제가 남은 항목은 사용자에게 보내지 않고 제외한다."""
+
+        issues = state["analysis_issues"]
+        kept = [a for a in state["analyses"] if a.item_id not in issues]
+        dropped = [a.item_id for a in state["analyses"] if a.item_id in issues]
+        return {"analyses": kept, "validation_dropped_item_ids": dropped}
 
     @staticmethod
     def _append_address_check(contract, registry, items: list[ContractReviewItem]) -> None:

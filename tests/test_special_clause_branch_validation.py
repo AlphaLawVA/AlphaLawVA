@@ -113,9 +113,21 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "알 수 없는"):
             self._generate([_item(item_id="request-9")])
 
-    def test_duplicate_item_id_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "알 수 없는"):
-            self._generate([_item(), _item()])
+    def test_duplicate_item_id_keeps_first_and_ignores_rest(self) -> None:
+        result = self._generate([_item(), _item(title="두 번째 제목입니다")])
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].title, "추가 담보권 설정 금지")
+
+    def test_invalid_item_is_dropped_but_valid_ones_survive(self) -> None:
+        result = self._generate(
+            [
+                _item(draft_text=""),
+                _item(item_id="request-2", title="두 번째 특약"),
+            ]
+        )
+
+        self.assertEqual([item.item_id for item in result], ["request-2"])
 
     def test_missing_evidence_ids_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "근거가 비어"):

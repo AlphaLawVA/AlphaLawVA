@@ -36,7 +36,7 @@ DEFAULT_MAX_OUTPUT_TOKENS = 1600
 DEFAULT_MAX_QUERIES = 10
 DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v0.5"
+PROMPT_VERSION = "special_clause_result_v0.5.1"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -135,7 +135,10 @@ title, text)입니다. 제공된 요청과 검색 근거만 사용하세요. 입
 7. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
 8. 근거 전체가 요청과 무관할 때만 그 항목을 출력하지 않습니다. 근거 일부라도
    관련되면 그 부분만 근거로 삼아 초안 또는 확인 질문을 작성합니다.
-9. 지정된 JSON 스키마만 출력합니다.
+9. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
+    항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
+    인용하지 않습니다.
+10. 지정된 JSON 스키마만 출력합니다.
 """
 
 _MANIFEST_LOCK = Lock()
@@ -173,10 +176,14 @@ class GeminiSpecialClauseGenerator:
         self,
         queries: list[ContractReviewRetrievalQuery],
         evidence: list[ContractReviewEvidence],
+        feedback: dict[str, list[str]] | None = None,
     ) -> list[SpecialClauseGeneration]:
-        """근거가 있는 요청만 특약 초안 또는 보완 질문으로 생성한다."""
+        """근거가 있는 요청만 특약 초안 또는 보완 질문으로 생성한다.
 
-        payload = self._build_payload(queries, evidence)
+        feedback이 있으면 해당 항목의 이전 문제(previous_issues)를 알려 다시 쓰게 한다.
+        """
+
+        payload = self._build_payload(queries, evidence, feedback)
         if not payload["items"]:
             return []
         request_payload = {
@@ -213,6 +220,7 @@ class GeminiSpecialClauseGenerator:
         self,
         queries: list[ContractReviewRetrievalQuery],
         evidence: list[ContractReviewEvidence],
+        feedback: dict[str, list[str]] | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         evidence_by_item: dict[str, list[ContractReviewEvidence]] = {}
         for item in evidence:
@@ -222,21 +230,22 @@ class GeminiSpecialClauseGenerator:
             matches = evidence_by_item.get(query.item_id, [])
             if not matches:
                 continue
-            items.append(
-                {
-                    "item_id": query.item_id,
-                    "request": query.query,
-                    "evidence": [
-                        {
-                            "source_id": match.source_id,
-                            "source_type": match.source_type,
-                            "title": match.title,
-                            "text": self._compact(match.text, DEFAULT_MAX_EVIDENCE_CHARS),
-                        }
-                        for match in self._select_evidence(matches)
-                    ],
-                }
-            )
+            item = {
+                "item_id": query.item_id,
+                "request": query.query,
+                "evidence": [
+                    {
+                        "source_id": match.source_id,
+                        "source_type": match.source_type,
+                        "title": match.title,
+                        "text": self._compact(match.text, DEFAULT_MAX_EVIDENCE_CHARS),
+                    }
+                    for match in self._select_evidence(matches)
+                ],
+            }
+            if feedback and query.item_id in feedback:
+                item["previous_issues"] = list(feedback[query.item_id])
+            items.append(item)
         return {"items": items}
 
     @staticmethod
@@ -266,68 +275,84 @@ class GeminiSpecialClauseGenerator:
         }
         generations: list[SpecialClauseGeneration] = []
         seen_item_ids: set[str] = set()
+        first_error: ValueError | None = None
+        # 한 항목이 규칙을 어겨도 나머지 항목은 살린다. 어긋난 항목은 결과에서 제외하며
+        # 제공되지 않은 근거를 인용한 내용은 어떤 경우에도 화면에 보내지 않는다.
         for item in content["items"]:
-            if not isinstance(item, dict):
-                raise ValueError("Gemini 특약 생성 항목 형식이 올바르지 않습니다.")
-            item_id = item.get("item_id")
-            status = item.get("status")
-            draft_text = self._normalize_text(item.get("draft_text"))
-            title = self._normalize_text(item.get("title"))
-            reason = self._normalize_text(item.get("reason"))
-            strategy = self._normalize_text(item.get("strategy"))
-            needs_input = self._normalize_list(item.get("needs_input"), limit=5)
-            source_ids = item.get("evidence_source_ids")
-            if (
-                not isinstance(item_id, str)
-                or item_id not in allowed_sources
-                or item_id in seen_item_ids
-                or status not in {"draft_ready", "needs_input"}
-            ):
-                raise ValueError("Gemini가 알 수 없는 특약 생성 항목을 반환했습니다.")
-            if status == "draft_ready" and len(draft_text) < 2:
-                raise ValueError("Gemini 특약 초안이 비어 있습니다.")
-            if len(title) < 2 or len(title) > 100:
-                raise ValueError("Gemini 특약 제목 형식이 올바르지 않습니다.")
-            if status == "draft_ready" and (
-                len(reason) < 2
-                or len(reason) > 700
-                or len(strategy) < 2
-                or len(strategy) > 700
-            ):
-                raise ValueError("Gemini 특약 설명 형식이 올바르지 않습니다.")
-            if status == "needs_input" and not needs_input:
-                raise ValueError("Gemini 추가 입력 요청이 비어 있습니다.")
-            if not isinstance(source_ids, list) or not source_ids:
-                raise ValueError("Gemini 특약 생성 근거가 비어 있습니다.")
-            normalized_ids = [value for value in source_ids if isinstance(value, str)]
-            if len(normalized_ids) != len(source_ids) or any(
-                value not in allowed_sources[item_id] for value in normalized_ids
-            ):
-                raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
-            # A model can include an explanatory sentence in draft_text even when
-            # it correctly asks for missing facts. Never expose that as a clause.
-            # 초안이라고 해 놓고 확인 질문이 남아 있으면 사실관계가 덜 찬 것이므로
-            # 질문 단계로 되돌리고 초안은 노출하지 않는다.
-            if status == "draft_ready" and needs_input:
-                status = "needs_input"
-            if status == "needs_input":
-                draft_text = ""
-                reason = ""
-                strategy = ""
-            generations.append(
-                SpecialClauseGeneration(
-                    item_id=item_id,
-                    status=status,
-                    draft_text=draft_text or None,
-                    title=title,
-                    reason=reason or None,
-                    strategy=strategy or None,
-                    needs_input=needs_input,
-                    evidence_source_ids=normalized_ids,
-                )
-            )
-            seen_item_ids.add(item_id)
+            try:
+                generation = self._validate_item(item, allowed_sources, seen_item_ids)
+            except ValueError as error:
+                first_error = first_error or error
+                continue
+            generations.append(generation)
+            seen_item_ids.add(generation.item_id)
+        if not generations and first_error is not None:
+            raise first_error
         return generations
+
+    def _validate_item(
+        self,
+        item: Any,
+        allowed_sources: dict[str, set[str]],
+        seen_item_ids: set[str],
+    ) -> SpecialClauseGeneration:
+        if not isinstance(item, dict):
+            raise ValueError("Gemini 특약 생성 항목 형식이 올바르지 않습니다.")
+        item_id = item.get("item_id")
+        status = item.get("status")
+        draft_text = self._normalize_text(item.get("draft_text"))
+        title = self._normalize_text(item.get("title"))
+        reason = self._normalize_text(item.get("reason"))
+        strategy = self._normalize_text(item.get("strategy"))
+        needs_input = self._normalize_list(item.get("needs_input"), limit=5)
+        source_ids = item.get("evidence_source_ids")
+        if (
+            not isinstance(item_id, str)
+            or item_id not in allowed_sources
+            or item_id in seen_item_ids
+            or status not in {"draft_ready", "needs_input"}
+        ):
+            raise ValueError("Gemini가 알 수 없는 특약 생성 항목을 반환했습니다.")
+        if status == "draft_ready" and len(draft_text) < 2:
+            raise ValueError("Gemini 특약 초안이 비어 있습니다.")
+        if len(title) < 2 or len(title) > 100:
+            raise ValueError("Gemini 특약 제목 형식이 올바르지 않습니다.")
+        if status == "draft_ready" and (
+            len(reason) < 2
+            or len(reason) > 700
+            or len(strategy) < 2
+            or len(strategy) > 700
+        ):
+            raise ValueError("Gemini 특약 설명 형식이 올바르지 않습니다.")
+        if status == "needs_input" and not needs_input:
+            raise ValueError("Gemini 추가 입력 요청이 비어 있습니다.")
+        if not isinstance(source_ids, list) or not source_ids:
+            raise ValueError("Gemini 특약 생성 근거가 비어 있습니다.")
+        normalized_ids = [value for value in source_ids if isinstance(value, str)]
+        if len(normalized_ids) != len(source_ids) or any(
+            value not in allowed_sources[item_id] for value in normalized_ids
+        ):
+            raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
+        # A model can include an explanatory sentence in draft_text even when
+        # it correctly asks for missing facts. Never expose that as a clause.
+        # 초안이라고 해 놓고 확인 질문이 남아 있으면 사실관계가 덜 찬 것이므로
+        # 질문 단계로 되돌리고 초안은 노출하지 않는다.
+        if status == "draft_ready" and needs_input:
+            status = "needs_input"
+        if status == "needs_input":
+            draft_text = ""
+            reason = ""
+            strategy = ""
+        return SpecialClauseGeneration(
+            item_id=item_id,
+            status=status,
+            draft_text=draft_text or None,
+            title=title,
+            reason=reason or None,
+            strategy=strategy or None,
+            needs_input=needs_input,
+            evidence_source_ids=normalized_ids,
+        )
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         endpoint = (

@@ -12,11 +12,12 @@ After:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, TypedDict
 
 from langgraph.graph import END, StateGraph
 
+from ml.agent.output_validation import find_output_issues
 from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewEvidenceRetriever,
@@ -45,6 +46,7 @@ class SpecialClauseGenerator(Protocol):
         self,
         queries: list[ContractReviewRetrievalQuery],
         evidence: list[ContractReviewEvidence],
+        feedback: dict[str, list[str]] | None = None,
     ) -> list[SpecialClauseGeneration]: ...
 
 
@@ -56,6 +58,7 @@ class SpecialClauseGraphResult:
     evidence: list[ContractReviewEvidence]
     generations: list[SpecialClauseGeneration]
     generation_unavailable: bool
+    validation_dropped_item_ids: list[str] = field(default_factory=list)
 
 
 class SpecialClauseGraphState(TypedDict):
@@ -68,6 +71,9 @@ class SpecialClauseGraphState(TypedDict):
     generator: SpecialClauseGenerator | None
     generations: list[SpecialClauseGeneration]
     generation_unavailable: bool
+    generation_issues: dict[str, list[str]]
+    generation_repair_attempts: int
+    validation_dropped_item_ids: list[str]
 
 
 class SpecialClauseGraph:
@@ -78,10 +84,24 @@ class SpecialClauseGraph:
         builder.add_node("build_retrieval_queries", self._build_retrieval_queries)
         builder.add_node("retrieve_evidence", self._retrieve_evidence)
         builder.add_node("generate_drafts", self._generate_drafts)
+        builder.add_node("validate_generations", self._validate_generations)
+        builder.add_node("repair_generations", self._repair_generations)
+        builder.add_node("drop_invalid_generations", self._drop_invalid_generations)
         builder.set_entry_point("build_retrieval_queries")
         builder.add_edge("build_retrieval_queries", "retrieve_evidence")
         builder.add_edge("retrieve_evidence", "generate_drafts")
-        builder.add_edge("generate_drafts", END)
+        builder.add_edge("generate_drafts", "validate_generations")
+        builder.add_conditional_edges(
+            "validate_generations",
+            self._route_after_validation,
+            {
+                "finish": END,
+                "repair": "repair_generations",
+                "drop": "drop_invalid_generations",
+            },
+        )
+        builder.add_edge("repair_generations", "validate_generations")
+        builder.add_edge("drop_invalid_generations", END)
         self._graph = builder.compile()
 
     def prepare(
@@ -102,6 +122,9 @@ class SpecialClauseGraph:
                 "generator": generator,
                 "generations": [],
                 "generation_unavailable": False,
+                "generation_issues": {},
+                "generation_repair_attempts": 0,
+                "validation_dropped_item_ids": [],
             }
         )
         return SpecialClauseGraphResult(
@@ -109,6 +132,7 @@ class SpecialClauseGraph:
             evidence=result["evidence"],
             generations=result["generations"],
             generation_unavailable=result["generation_unavailable"],
+            validation_dropped_item_ids=result["validation_dropped_item_ids"],
         )
 
     @staticmethod
@@ -153,6 +177,86 @@ class SpecialClauseGraph:
         except (RuntimeError, ValueError):
             return {"generations": [], "generation_unavailable": True}
         return {"generations": generations, "generation_unavailable": False}
+
+    @staticmethod
+    def _validate_generations(
+        state: SpecialClauseGraphState,
+    ) -> dict[str, dict[str, list[str]]]:
+        """생성된 초안과 질문에서 차단 대상 문제(법적 단정, 빈칸, 근거 없는 수치)를 찾는다."""
+
+        queries = {query.item_id: query for query in state["retrieval_queries"]}
+        evidence: dict[str, dict[str, str]] = {}
+        for entry in state["evidence"]:
+            evidence.setdefault(entry.item_id, {})[entry.source_id] = (
+                entry.title + "\n" + entry.text
+            )
+        issues: dict[str, list[str]] = {}
+        for generation in state["generations"]:
+            query = queries.get(generation.item_id)
+            if query is None:
+                continue
+            found = find_output_issues(
+                kind="clause",
+                item_id=generation.item_id,
+                query=query.query,
+                category=query.category,
+                evidence=evidence.get(generation.item_id, {}),
+                item={
+                    "status": generation.status,
+                    "draft_text": generation.draft_text or "",
+                    "title": generation.title or "",
+                    "reason": generation.reason or "",
+                    "strategy": generation.strategy or "",
+                    "needs_input": generation.needs_input,
+                    "evidence_source_ids": generation.evidence_source_ids,
+                },
+            )
+            if found:
+                issues[generation.item_id] = [issue.message for issue in found]
+        return {"generation_issues": issues}
+
+    @staticmethod
+    def _route_after_validation(state: SpecialClauseGraphState) -> str:
+        if not state["generation_issues"]:
+            return "finish"
+        if state["generator"] is not None and state["generation_repair_attempts"] == 0:
+            return "repair"
+        return "drop"
+
+    @staticmethod
+    def _repair_generations(
+        state: SpecialClauseGraphState,
+    ) -> dict[str, list[SpecialClauseGeneration] | int]:
+        """문제가 있는 항목만 안내 문구와 함께 모델에게 한 번 다시 쓰게 한다."""
+
+        issues = state["generation_issues"]
+        generator = state["generator"]
+        queries = [q for q in state["retrieval_queries"] if q.item_id in issues]
+        evidence = [e for e in state["evidence"] if e.item_id in issues]
+        try:
+            repaired = generator.generate(queries, evidence, feedback=issues)
+        except (RuntimeError, ValueError):
+            repaired = []
+        replacements = {item.item_id: item for item in repaired if item.item_id in issues}
+        merged = [
+            replacements.get(generation.item_id, generation)
+            for generation in state["generations"]
+        ]
+        return {
+            "generations": merged,
+            "generation_repair_attempts": state["generation_repair_attempts"] + 1,
+        }
+
+    @staticmethod
+    def _drop_invalid_generations(
+        state: SpecialClauseGraphState,
+    ) -> dict[str, list[SpecialClauseGeneration] | list[str]]:
+        """재작성 후에도 문제가 남은 항목은 사용자에게 보내지 않고 제외한다."""
+
+        issues = state["generation_issues"]
+        kept = [g for g in state["generations"] if g.item_id not in issues]
+        dropped = [g.item_id for g in state["generations"] if g.item_id in issues]
+        return {"generations": kept, "validation_dropped_item_ids": dropped}
 
     @staticmethod
     def _redact_request(request: str) -> str:

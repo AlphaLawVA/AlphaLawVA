@@ -37,7 +37,7 @@ DEFAULT_MAX_OUTPUT_TOKENS = 1800
 DEFAULT_MAX_QUERIES = 12
 DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "contract_review_result_v0.5"
+PROMPT_VERSION = "contract_review_result_v0.5.1"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -125,7 +125,10 @@ title, text)입니다. 제공된 질의와 근거만 사용하세요. 입력에 
    마세요. 의견이나 제안은 그렇다고 밝혀 쓰세요.
 8. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
 9. 근거 전체가 질의와 무관한 항목만 출력하지 않습니다.
-10. 지정된 JSON 스키마만 출력합니다.
+10. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
+    항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
+    인용하지 않습니다.
+11. 지정된 JSON 스키마만 출력합니다.
 """
 
 _MANIFEST_LOCK = Lock()
@@ -163,10 +166,14 @@ class GeminiContractReviewAnalyzer:
         self,
         queries: list[ContractReviewRetrievalQuery],
         evidence: list[ContractReviewEvidence],
+        feedback: dict[str, list[str]] | None = None,
     ) -> list[ContractReviewAnalysis]:
-        """근거가 있는 비식별 질의만 분석하고 근거 연결을 검증한다."""
+        """근거가 있는 비식별 질의만 분석하고 근거 연결을 검증한다.
 
-        payload = self._build_payload(queries, evidence)
+        feedback이 있으면 해당 항목의 이전 문제(previous_issues)를 알려 다시 쓰게 한다.
+        """
+
+        payload = self._build_payload(queries, evidence, feedback)
         if not payload["items"]:
             return []
         request_payload = {
@@ -208,6 +215,7 @@ class GeminiContractReviewAnalyzer:
         self,
         queries: list[ContractReviewRetrievalQuery],
         evidence: list[ContractReviewEvidence],
+        feedback: dict[str, list[str]] | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         evidence_by_item: dict[str, list[ContractReviewEvidence]] = {}
         for item in evidence:
@@ -217,22 +225,23 @@ class GeminiContractReviewAnalyzer:
             matches = evidence_by_item.get(query.item_id, [])
             if not matches:
                 continue
-            items.append(
-                {
-                    "item_id": query.item_id,
-                    "category": query.category,
-                    "query": query.query,
-                    "evidence": [
-                        {
-                            "source_id": match.source_id,
-                            "source_type": match.source_type,
-                            "title": match.title,
-                            "text": self._compact(match.text, DEFAULT_MAX_EVIDENCE_CHARS),
-                        }
-                        for match in self._select_evidence(matches)
-                    ],
-                }
-            )
+            item = {
+                "item_id": query.item_id,
+                "category": query.category,
+                "query": query.query,
+                "evidence": [
+                    {
+                        "source_id": match.source_id,
+                        "source_type": match.source_type,
+                        "title": match.title,
+                        "text": self._compact(match.text, DEFAULT_MAX_EVIDENCE_CHARS),
+                    }
+                    for match in self._select_evidence(matches)
+                ],
+            }
+            if feedback and query.item_id in feedback:
+                item["previous_issues"] = list(feedback[query.item_id])
+            items.append(item)
         return {"items": items}
 
     @staticmethod
