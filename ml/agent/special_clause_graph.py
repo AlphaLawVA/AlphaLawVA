@@ -51,6 +51,12 @@ class SpecialClauseGenerator(Protocol):
     ) -> list[SpecialClauseGeneration]: ...
 
 
+class SpecialClauseScopeClassifier(Protocol):
+    """특약 요청 목록을 범위 안·정보 부족·범위 밖으로 판정하는 경계다."""
+
+    def classify(self, requests: list[str]) -> list[str]: ...
+
+
 @dataclass(frozen=True)
 class SpecialClauseGraphResult:
     """특약 생성 그래프의 검색 및 생성 결과다."""
@@ -67,6 +73,7 @@ class SpecialClauseGraphState(TypedDict):
     """특약 생성 LangGraph 노드 간 전달 상태다."""
 
     requests: list[str]
+    scope_classifier: SpecialClauseScopeClassifier | None
     scope_decisions: dict[str, str]
     retrieval_queries: list[ContractReviewRetrievalQuery]
     evidence_retriever: ContractReviewEvidenceRetriever | None
@@ -119,12 +126,14 @@ class SpecialClauseGraph:
         *,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         generator: SpecialClauseGenerator | None = None,
+        scope_classifier: SpecialClauseScopeClassifier | None = None,
     ) -> SpecialClauseGraphResult:
         """요청 검증 후 검색·생성 결과를 사용자 확인용으로 구성한다."""
 
         result = self._graph.invoke(
             {
                 "requests": requests,
+                "scope_classifier": scope_classifier,
                 "scope_decisions": {},
                 "retrieval_queries": [],
                 "evidence_retriever": evidence_retriever,
@@ -148,14 +157,41 @@ class SpecialClauseGraph:
 
     @staticmethod
     def _check_scope(state: SpecialClauseGraphState) -> dict[str, dict[str, str]]:
-        """요청마다 범위 안·정보 부족·범위 밖을 분류한다."""
+        """요청마다 범위 안·정보 부족·범위 밖을 분류한다.
 
-        return {
-            "scope_decisions": {
-                f"request-{index}": classify_request_scope(request).value
-                for index, request in enumerate(state["requests"], start=1)
-            }
+        너무 짧은 요청은 모델을 부르지 않고 정보 부족으로 본다. 나머지는 모델이 판정하고,
+        모델을 쓸 수 없거나 응답 형식이 어긋나면 키워드 규칙으로 대신 판정한다.
+        """
+
+        requests = state["requests"]
+        decisions = {
+            f"request-{index}": classify_request_scope(request)
+            for index, request in enumerate(requests, start=1)
         }
+        keyword_decisions = {key: value.value for key, value in decisions.items()}
+        classifier = state["scope_classifier"]
+        if classifier is None:
+            return {"scope_decisions": keyword_decisions}
+
+        pending = [
+            (index, request)
+            for index, request in enumerate(requests, start=1)
+            if decisions[f"request-{index}"] != ScopeDecision.NEEDS_INFORMATION
+        ]
+        if not pending:
+            return {"scope_decisions": keyword_decisions}
+        try:
+            answers = classifier.classify(
+                [SpecialClauseGraph._redact_request(request) for _, request in pending]
+            )
+        except (RuntimeError, ValueError):
+            return {"scope_decisions": keyword_decisions}
+        if len(answers) != len(pending):
+            return {"scope_decisions": keyword_decisions}
+        merged = dict(keyword_decisions)
+        for (index, _), answer in zip(pending, answers):
+            merged[f"request-{index}"] = ScopeDecision(answer).value
+        return {"scope_decisions": merged}
 
     @staticmethod
     def _route_after_scope(state: SpecialClauseGraphState) -> str:

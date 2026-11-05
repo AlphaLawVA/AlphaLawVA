@@ -24,7 +24,11 @@ from api.models.contracts import (
     SpecialClauseDraftResponse,
 )
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
-from ml.agent.special_clause_graph import SpecialClauseGenerator, SpecialClauseGraph
+from ml.agent.special_clause_graph import (
+    SpecialClauseGenerator,
+    SpecialClauseGraph,
+    SpecialClauseScopeClassifier,
+)
 from ml.agent.special_clause_scope import (
     OUT_OF_SCOPE_MESSAGE,
     TOO_SHORT_QUESTION,
@@ -47,10 +51,12 @@ class SpecialClauseService:
         graph: SpecialClauseGraph | None = None,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         generator: SpecialClauseGenerator | None = None,
+        scope_classifier: SpecialClauseScopeClassifier | None = None,
     ) -> None:
         self._graph = graph or SpecialClauseGraph()
         self._evidence_retriever = evidence_retriever
         self._generator = generator
+        self._scope_classifier = scope_classifier
         self._result_recorder: Callable[..., None] | None = None
 
     def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
@@ -69,9 +75,12 @@ class SpecialClauseService:
                 payload.requests,
                 evidence_retriever=self._evidence_retriever,
                 generator=self._generator,
+                scope_classifier=self._scope_classifier,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
-            result = self._graph.prepare(payload.requests)
+            result = self._graph.prepare(
+                payload.requests, scope_classifier=self._scope_classifier
+            )
             if self._evidence_retriever is not None:
                 evidence_status = EvidenceStatus.UNAVAILABLE
             if self._generator is not None:

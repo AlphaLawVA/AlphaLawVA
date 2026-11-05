@@ -136,6 +136,77 @@ class RecordingRetriever(FakeRetriever):
         return super().retrieve(queries)
 
 
+class FakeScopeClassifier:
+    def __init__(self, decisions=None, error=None):
+        self._decisions = decisions
+        self._error = error
+        self.calls = []
+
+    def classify(self, requests):
+        self.calls.append(list(requests))
+        if self._error is not None:
+            raise self._error
+        return list(self._decisions)
+
+
+class SpecialClauseLlmScopeTests(unittest.TestCase):
+    def _prepare(self, classifier, requests):
+        return SpecialClauseGraph().prepare(
+            requests,
+            evidence_retriever=FakeRetriever(),
+            generator=ScriptedGenerator([_generation("request-1")]),
+            scope_classifier=classifier,
+        )
+
+    def test_model_decision_overrides_keywords(self) -> None:
+        # 키워드는 있지만 모델이 범위 밖으로 판정하면 따른다.
+        classifier = FakeScopeClassifier(["out_of_scope"])
+
+        result = self._prepare(classifier, ["집 근처 맛집 추천해줘 계약 말고"])
+
+        self.assertEqual(result.scope_decisions, {"request-1": "out_of_scope"})
+        self.assertEqual(result.generations, [])
+
+    def test_requests_are_redacted_before_classification(self) -> None:
+        classifier = FakeScopeClassifier(["in_scope"])
+
+        self._prepare(classifier, ["임대인 900101-1234567 연락처 010-1234-5678 특약"])
+
+        sent = classifier.calls[0][0]
+        self.assertNotIn("900101-1234567", sent)
+        self.assertNotIn("010-1234-5678", sent)
+
+    def test_trivially_short_request_skips_the_model(self) -> None:
+        classifier = FakeScopeClassifier(["in_scope"])
+
+        result = SpecialClauseGraph().prepare(
+            ["특약", "권리 변동을 막는 특약"],
+            evidence_retriever=FakeRetriever(),
+            generator=ScriptedGenerator([_generation("request-2")]),
+            scope_classifier=classifier,
+        )
+
+        self.assertEqual(classifier.calls, [["권리 변동을 막는 특약"]])
+        self.assertEqual(
+            result.scope_decisions,
+            {"request-1": "needs_information", "request-2": "in_scope"},
+        )
+
+    def test_model_failure_falls_back_to_keyword_rules(self) -> None:
+        classifier = FakeScopeClassifier(error=RuntimeError("모델 호출 실패"))
+
+        result = self._prepare(classifier, ["치킨 레시피 알려줘"])
+
+        self.assertEqual(result.scope_decisions, {"request-1": "out_of_scope"})
+
+    def test_invalid_model_answer_falls_back_to_keyword_rules(self) -> None:
+        classifier = FakeScopeClassifier(error=ValueError("형식 오류"))
+
+        result = self._prepare(classifier, ["권리 변동을 막는 특약"])
+
+        self.assertEqual(result.scope_decisions, {"request-1": "in_scope"})
+
+
 class SpecialClauseScopeTests(unittest.TestCase):
     def test_out_of_scope_request_skips_retrieval_and_generation(self) -> None:
         retriever = RecordingRetriever()

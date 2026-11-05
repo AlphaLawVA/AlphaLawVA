@@ -103,6 +103,9 @@ from api.services.generation_results import (
     GenerationResultSourceNotFoundError,
     create_generation_result_store_from_env,
 )
+from api.services.gemini_special_clause_scope import (
+    create_gemini_special_clause_scope_classifier_from_env,
+)
 from api.services.special_clause_service import SpecialClauseService
 from ml.rag.contract_review_retriever import (
     create_contract_review_rag_retriever_from_env,
@@ -480,6 +483,7 @@ def create_app(
         else SpecialClauseService(
             evidence_retriever=create_special_clause_rag_retriever_from_env(),
             generator=create_gemini_special_clause_generator_from_env(),
+            scope_classifier=create_gemini_special_clause_scope_classifier_from_env(),
         )
     )
     app.state.generation_result_service = GenerationResultService(
