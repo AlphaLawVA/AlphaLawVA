@@ -122,7 +122,9 @@ class ContractOcrService:
         )
 
 
-def create_contract_ocr_service_from_env() -> ContractOcrService:
+def load_document_ai_settings_from_env() -> DocumentAiOcrSettings | None:
+    """계약서·등기부 OCR이 함께 쓰는 Document AI 설정을 환경 변수에서 읽는다."""
+
     enabled = os.environ.get("DOCUMENT_AI_OCR_ENABLED", "false").lower() == "true"
     required = {
         "project": os.environ.get("DOCUMENT_AI_PROJECT_ID", "").strip(),
@@ -130,19 +132,21 @@ def create_contract_ocr_service_from_env() -> ContractOcrService:
         "version": os.environ.get("DOCUMENT_AI_PROCESSOR_VERSION", "").strip(),
     }
     if not enabled or not all(required.values()):
-        return ContractOcrService(None)
+        return None
     try:
         timeout_seconds = int(os.environ.get("DOCUMENT_AI_OCR_TIMEOUT_SECONDS", "120"))
     except ValueError:
-        return ContractOcrService(None)
+        return None
     if not math.isfinite(timeout_seconds) or not 1 <= timeout_seconds <= 300:
-        return ContractOcrService(None)
-    return ContractOcrService(
-        DocumentAiOcrSettings(
-            project=required["project"],
-            location=os.environ.get("DOCUMENT_AI_LOCATION", "us").strip(),
-            processor=required["processor"],
-            version=required["version"],
-            timeout_seconds=timeout_seconds,
-        )
+        return None
+    return DocumentAiOcrSettings(
+        project=required["project"],
+        location=os.environ.get("DOCUMENT_AI_LOCATION", "us").strip(),
+        processor=required["processor"],
+        version=required["version"],
+        timeout_seconds=timeout_seconds,
     )
+
+
+def create_contract_ocr_service_from_env() -> ContractOcrService:
+    return ContractOcrService(load_document_ai_settings_from_env())

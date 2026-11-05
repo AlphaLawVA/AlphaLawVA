@@ -25,6 +25,7 @@ export function UploadDemo() {
   const [loaded, setLoaded] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [contractFile, setContractFile] = useState<File | null>(null);
+  const [registryFile, setRegistryFile] = useState<File | null>(null);
   const [contractType, setContractType] = useState<"jeonse" | "monthly_rent" | "sale">("jeonse");
   const [providerConsent, setProviderConsent] = useState(false);
   const [isOcrSubmitting, setIsOcrSubmitting] = useState(false);
@@ -44,6 +45,7 @@ export function UploadDemo() {
     setLoaded(false);
     setSelectedFiles([]);
     setContractFile(null);
+    setRegistryFile(null);
     setContractType("jeonse");
     setProviderConsent(false);
     setIsOcrSubmitting(false);
@@ -55,6 +57,7 @@ export function UploadDemo() {
     setLoaded(false);
     setSelectedFiles([]);
     setContractFile(null);
+    setRegistryFile(null);
     setProviderConsent(false);
     setIsOcrSubmitting(false);
     setFileError("");
@@ -92,10 +95,18 @@ export function UploadDemo() {
       return;
     }
 
+    if (nextFiles.some((file) => file.name.split(".").pop()?.toLowerCase() !== "pdf")) {
+      setFileError("현재 실시간 OCR은 PDF 파일만 지원합니다. 계약서는 3페이지 표준 계약서, 등본은 등기사항증명서 PDF를 올려주세요.");
+      return;
+    }
     const documentKinds: Array<"contract" | "registry"> = ["contract", "registry"];
     const nextSelectedFiles = [...selectedFiles, ...nextFiles.map((file) => file.name)];
     nextFiles.forEach((file, index) => {
-      setDocumentPreview(documentKinds[selectedFiles.length + index], file);
+      const kind = documentKinds[selectedFiles.length + index];
+      setDocumentPreview(kind, file);
+      // 첫 번째 파일은 계약서, 두 번째 파일은 등기사항증명서로 실시간 OCR에 사용한다.
+      if (kind === "contract") setContractFile(file);
+      else setRegistryFile(file);
     });
     setSelectedFiles(nextSelectedFiles);
     setFileError("");
@@ -114,8 +125,8 @@ export function UploadDemo() {
       router.push(`/contract-review/analyzing?documents=${mode}`);
       return;
     }
-    if (mode !== "contract") {
-      setFileError("현재 실시간 OCR은 계약서 단독 검토에서 먼저 지원합니다. 등본 OCR은 다음 단계에서 연결합니다.");
+    if (mode === "both" && !registryFile) {
+      setFileError("등기사항증명서 PDF도 함께 선택해주세요.");
       return;
     }
     if (!providerConsent) {
@@ -125,8 +136,11 @@ export function UploadDemo() {
     setFileError("");
     setIsOcrSubmitting(true);
     clearContractOcrDraft();
-    setPendingContractOcrRequest({ file: contractFile, contractType });
-    router.push("/contract-review/analyzing?documents=contract&source=ocr");
+    setPendingContractOcrRequest({
+      contract: { file: contractFile, contractType },
+      registryFile: mode === "both" ? registryFile ?? undefined : undefined,
+    });
+    router.push(`/contract-review/analyzing?documents=${mode}&source=ocr`);
   }
 
   return (
@@ -151,14 +165,13 @@ export function UploadDemo() {
           <div className={styles.dropzone}>
             <span className={styles.dropIcon}><Upload size={23} aria-hidden="true" /></span>
             <strong>PDF 또는 이미지 파일을 올려주세요</strong>
-            <p>계약서 실시간 OCR은 3페이지 PDF를 지원합니다. 문서별 최대 20MB</p>
+            <p>{mode === "both" ? "계약서를 먼저, 그다음 등본을 한 개씩 선택해주세요. " : ""}계약서 실시간 OCR은 3페이지 PDF를 지원합니다. 문서별 최대 20MB</p>
             <label className={styles.sampleButton}>
               <Upload size={17} aria-hidden="true" />
-              {mode === "both" && selectedFiles.length === 1 ? "등본 파일 추가" : "내 파일 선택"}
+              {mode === "both" ? (selectedFiles.length === 1 ? "② 등본 파일 선택" : "① 계약서 파일 선택") : "내 파일 선택"}
               <input
                 className={styles.fileInput}
                 type="file"
-                multiple={mode === "both"}
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={(event) => {
                   selectFiles(event.target.files);
@@ -173,18 +186,18 @@ export function UploadDemo() {
 
           {selectedFiles.length > 0 && (
             <div className={styles.fileList} aria-live="polite">
-              {selectedFiles.map((file) => (
+              {selectedFiles.map((file, index) => (
                 <div className={styles.fileItem} key={file}>
                   <div className={styles.fileName}>
                     <FileText size={17} aria-hidden="true" />
-                    <span>{file}</span>
+                    <span>{mode === "both" ? `${index === 0 ? "[계약서]" : "[등본]"} ` : ""}{file}</span>
                   </div>
                   <CheckCircle2 className={styles.completeMark} size={18} aria-label="업로드 완료" />
                 </div>
               ))}
             </div>
           )}
-          {contractFile && mode === "contract" && (
+          {contractFile && mode !== "registry" && (
             <>
               <div className={styles.field}>
                 <label htmlFor="contract-type">계약 유형</label>
@@ -198,7 +211,7 @@ export function UploadDemo() {
                 <input checked={providerConsent} type="checkbox" onChange={(event) => setProviderConsent(event.target.checked)} />
                 <span className={styles.consentCopy}>
                   <strong>Google Document AI 전송에 동의합니다</strong>
-                  <span>OCR을 위해 선택한 계약서 PDF가 Google LLC의 미국 us 리전으로 전송됩니다.</span>
+                  <span>OCR을 위해 선택한 {mode === "both" ? "계약서와 등기사항증명서 PDF가" : "계약서 PDF가"} Google LLC의 미국 us 리전으로 전송됩니다.</span>
                   <small>서버는 원본 파일과 OCR 원문을 처리 후 저장하지 않습니다. 동의하지 않으면 실시간 OCR을 사용할 수 없습니다.</small>
                 </span>
               </label>

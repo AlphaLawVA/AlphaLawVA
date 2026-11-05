@@ -11,6 +11,7 @@ import {
   clearContractOcrDraft,
   getContractOcrDraftVersion,
   loadContractOcrDraft,
+  loadRegistryOcrDraft,
   subscribeContractOcrDraft,
 } from "@/lib/contract-ocr-session";
 import { clearDocumentPreviews } from "@/lib/document-preview-store";
@@ -66,7 +67,9 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
   const isOcrSource = searchParams.get("source") === "ocr";
   const [tab, setTab] = useState<VerifyTab>(mode === "registry" ? "registry" : "contract");
   const [missingOcrDraft] = useState(() => (
-    isOcrSource && !initialContractSnapshot && !loadContractOcrDraft()
+    isOcrSource
+    && !initialContractSnapshot
+    && (!loadContractOcrDraft() || (mode === "both" && !loadRegistryOcrDraft()))
   ));
   const [contractSnapshot, setContractSnapshot] = useState(() => {
     const ocrDraft = isOcrSource ? loadContractOcrDraft() : null;
@@ -75,7 +78,15 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
       ? { ...initial, fields: initial.fields.map((field) => ({ ...field, source: { ...field.source } })) }
       : copyContractSnapshot();
   });
-  const [registrySnapshot, setRegistrySnapshot] = useState(copyRegistrySnapshot);
+  const [registrySnapshot, setRegistrySnapshot] = useState(() => {
+    const ocrDraft = isOcrSource && mode === "both" ? loadRegistryOcrDraft() : null;
+    return ocrDraft
+      ? {
+          fields: ocrDraft.fields.map((field) => ({ ...field, source: { ...field.source } })),
+          rights: ocrDraft.rights.map((right) => ({ ...right, source: { ...right.source } })),
+        }
+      : copyRegistrySnapshot();
+  });
   const [contractConfirmed, setContractConfirmed] = useState(false);
   const [registryConfirmed, setRegistryConfirmed] = useState(false);
   const [confirmedRightIds, setConfirmedRightIds] = useState<string[]>([]);
@@ -216,7 +227,7 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
       <section className={styles.formPanel}>
         <div className={styles.formHeading}><span>{tab === "contract" ? "ConfirmedContractSnapshot" : "ConfirmedRegistrySnapshot"}</span><h2>확인할 정보부터 원문과 대조하세요</h2><p>{tab === "contract" ? "주소·당사자·금액·날짜·특약은 확인된 값만 계약서 검토에 사용합니다." : "현재 소유자와 유효한 권리부담을 먼저 확인하고, 말소 이력은 보조 정보로 확인합니다."}</p>{tab === "contract" && <div className={styles.contractTypeSwitch} role="group" aria-label="계약 유형"><span>계약 유형</span>{(isOcrSource ? [contractSnapshot.contractType] : allowedContractTypes ?? ["전세", "월세", "매매"]).map((contractType) => <button className={contractSnapshot.contractType === contractType ? styles.contractTypeActive : ""} disabled={isOcrSource} key={contractType} type="button" onClick={() => changeContractType(contractType)}>{contractType}</button>)}</div>}</div>
         <div className={styles.confirmationSummary}><div><strong>확인 필요 {pendingFields.length + pendingRights.length}건</strong><span>원문과 비교한 뒤 개별 항목을 확인 처리해주세요.</span></div><MapPin size={20} aria-hidden="true" /></div>
-        {mode === "both" && <ComparisonSummary />}
+        {mode === "both" && <ComparisonSummary contract={contractSnapshot} registry={registrySnapshot} />}
         <div className={styles.snapshotGroups}>
           {Object.entries(groupedPriorityFields).map(([group, groupFields]) => <section className={styles.snapshotGroup} key={group}><h3>{group}</h3><div className={styles.snapshotFieldList}>{groupFields.map((field) => <SnapshotFieldRow active={activeAnchor === field.id} field={field} key={field.id} onConfirm={confirmField} onFocus={setActiveAnchor} onUpdate={updateField} />)}</div></section>)}
           {tab === "registry" && <RegistryRights confirmedIds={confirmedRightIds} onConfirm={toggleRight} rights={registrySnapshot.rights} />}
@@ -246,9 +257,57 @@ function SnapshotFieldRow({ active, field, onConfirm, onFocus, onUpdate }: { act
 }
 
 function RegistryRights({ confirmedIds, onConfirm, rights }: { confirmedIds: string[]; onConfirm: (id: string) => void; rights: ConfirmedRegistrySnapshot["rights"]; }) {
-  return <section className={styles.snapshotGroup}><h3>권리부담 목록</h3><div className={styles.rightsSections}>{(["갑구", "을구"] as const).map((section) => <div key={section}><h4>{section} · {section === "갑구" ? "소유권에 관한 사항" : "소유권 이외의 권리"}</h4>{rights.filter((right) => right.section === section).map((right) => { const pending = right.status !== "cancelled" && !confirmedIds.includes(right.id); return <article className={`${styles.rightCard} ${right.status === "cancelled" ? styles.rightCancelled : right.status === "active" ? styles.rightActive : styles.rightUnclear}`} key={right.id}><div className={styles.rightCardHeader}><strong>{right.rank}순위 · {right.purpose}</strong><span>{right.status === "active" ? "유효" : right.status === "cancelled" ? "말소" : "불명"}</span></div><dl><div><dt>접수일</dt><dd>{right.receivedDate}</dd></div><div><dt>권리자</dt><dd>{right.holder}</dd></div>{right.debtor && <div><dt>채무자</dt><dd>{right.debtor}</dd></div>}{right.maximumAmount && <div><dt>채권최고액</dt><dd>{right.maximumAmount}</dd></div>}</dl><div className={styles.rightActions}>{pending && <button className={styles.confirmFieldButton} type="button" onClick={() => onConfirm(right.id)}>권리부담 확인</button>}{!pending && right.status !== "cancelled" && <span className={styles.rightConfirmed}><CheckCircle2 size={15} />확인됨</span>}</div></article>; })}</div>)}</div></section>;
+  return <section className={styles.snapshotGroup}><h3>권리부담 목록</h3><div className={styles.rightsSections}>{(["갑구", "을구"] as const).map((section) => <div key={section}><h4>{section} · {section === "갑구" ? "소유권에 관한 사항" : "소유권 이외의 권리"}</h4>{rights.filter((right) => right.section === section).map((right) => { const pending = right.status !== "cancelled" && !confirmedIds.includes(right.id); return <article className={`${styles.rightCard} ${right.status === "cancelled" ? styles.rightCancelled : right.status === "active" ? styles.rightActive : styles.rightUnclear}`} key={right.id}><div className={styles.rightCardHeader}><strong>{right.rank}순위{right.rank.includes("-") ? "(부기)" : ""} · {right.purpose}</strong><span>{right.status === "active" ? "유효" : right.status === "cancelled" ? "말소" : "불명"}</span></div><dl>{right.receivedDate && <div><dt>접수일</dt><dd>{right.receivedDate}</dd></div>}{right.holder && <div><dt>권리자</dt><dd>{right.holder}</dd></div>}{right.debtor && <div><dt>채무자</dt><dd>{right.debtor}</dd></div>}{right.maximumAmount && <div><dt>채권최고액</dt><dd>{right.maximumAmount}</dd></div>}</dl><div className={styles.rightActions}>{pending && <button className={styles.confirmFieldButton} type="button" onClick={() => onConfirm(right.id)}>권리부담 확인</button>}{!pending && right.status !== "cancelled" && <span className={styles.rightConfirmed}><CheckCircle2 size={15} />확인됨</span>}</div></article>; })}</div>)}</div></section>;
 }
 
-function ComparisonSummary() {
-  return <section className={styles.comparisonSummary}><div><ShieldCheck size={18} /><strong>문서 간 비교</strong></div><ul><li><CheckCircle2 size={15} />계약서 주소와 등본 주소가 일치합니다.</li><li><CheckCircle2 size={15} />계약서 임대인과 현재 소유자가 일치합니다.</li><li><AlertTriangle size={15} />유효한 근저당권 1건이 확인됩니다.</li><li><CheckCircle2 size={15} />권리 설정 제한 특약 문구가 확인됩니다.</li></ul></section>;
+type ComparisonLine = { ok: boolean; text: string };
+
+function fieldText(snapshot: { fields: SnapshotField[] }, id: string) {
+  return snapshot.fields.find((field) => field.id === id)?.value.trim() ?? "";
+}
+
+function normalizeForComparison(value: string) {
+  return value.replace(/\s+/g, "").replace(/[()·,.\-]/g, "");
+}
+
+// 화면에 입력된 값으로 계산한 비교 결과. 최종 판단은 검토 결과 단계에서 다시 이루어진다.
+function compareDocuments(contract: ConfirmedContractSnapshot, registry: ConfirmedRegistrySnapshot): ComparisonLine[] {
+  const contractAddress = normalizeForComparison(fieldText(contract, "property-address"));
+  const registryAddress = normalizeForComparison(fieldText(registry, "registry-address"));
+  const addressLine: ComparisonLine = !contractAddress || !registryAddress
+    ? { ok: false, text: "계약서 주소와 등본 주소를 비교하려면 두 주소를 모두 입력해주세요." }
+    : contractAddress.includes(registryAddress) || registryAddress.includes(contractAddress)
+      ? { ok: true, text: "계약서 주소와 등본 주소가 일치합니다." }
+      : { ok: false, text: "계약서 주소와 등본 주소가 달라 보입니다. 표기 차이인지 원문을 확인해주세요." };
+
+  const lessor = fieldText(contract, "lessor");
+  const owner = fieldText(registry, "owner-name");
+  const ownerLine: ComparisonLine = !lessor || !owner || /[*]/.test(owner)
+    ? { ok: false, text: "임대인과 현재 소유자를 비교할 수 없습니다. 이름이 가려졌거나 비어 있습니다." }
+    : normalizeForComparison(owner).includes(normalizeForComparison(lessor))
+      ? { ok: true, text: "계약서 임대인과 현재 소유자가 일치합니다." }
+      : { ok: false, text: "계약서 임대인과 현재 소유자가 다릅니다. 대리인 계약이면 위임 관계를 확인해주세요." };
+
+  const activeRights = registry.rights.filter((right) => right.status !== "cancelled");
+  // 4-1처럼 하이픈이 있는 순위번호는 본 등기의 변경·말소 부기이므로 따로 센다.
+  const mainRights = activeRights.filter((right) => !right.rank.includes("-"));
+  const noteRights = activeRights.length - mainRights.length;
+  const rightsLine: ComparisonLine = activeRights.length === 0
+    ? { ok: true, text: "등본에서 확인된 권리 설정이 없습니다." }
+    : {
+        ok: false,
+        text: `등본에서 권리 설정 ${mainRights.length}건${noteRights ? `(변경·말소 부기 ${noteRights}건 별도)` : ""}이 확인됩니다. 말소 여부를 원문에서 확인해주세요.`,
+      };
+
+  const hasRestriction = /근저당|저당|담보|권리|설정/.test(fieldText(contract, "special-terms"));
+  const termsLine: ComparisonLine = hasRestriction
+    ? { ok: true, text: "권리 설정 제한 특약 문구가 확인됩니다." }
+    : { ok: false, text: "권리 설정을 제한하는 특약 문구가 확인되지 않습니다." };
+
+  return [addressLine, ownerLine, rightsLine, termsLine];
+}
+
+function ComparisonSummary({ contract, registry }: { contract: ConfirmedContractSnapshot; registry: ConfirmedRegistrySnapshot }) {
+  const lines = compareDocuments(contract, registry);
+  return <section className={styles.comparisonSummary}><div><ShieldCheck size={18} /><strong>문서 간 비교</strong></div><ul>{lines.map((line) => <li key={line.text}>{line.ok ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}{line.text}</li>)}</ul></section>;
 }

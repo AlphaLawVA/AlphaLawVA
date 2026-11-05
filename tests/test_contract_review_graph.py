@@ -147,7 +147,7 @@ class ContractReviewGraphTests(unittest.TestCase):
             }
         )
 
-    def _registry_snapshot(self) -> ConfirmedRegistrySnapshot:
+    def _registry_snapshot(self, encumbrances=None) -> ConfirmedRegistrySnapshot:
         return ConfirmedRegistrySnapshot.model_validate(
             {
                 "snapshot_id": str(uuid4()),
@@ -160,7 +160,8 @@ class ContractReviewGraphTests(unittest.TestCase):
                 "issued_at": "2026-10-25T12:00:00+09:00",
                 "address": "서울특별시 다른구 다른로 2",
                 "owners": [{"name": "다른소유자", "status": "active"}],
-                "encumbrances": [
+                "encumbrances": encumbrances
+                or [
                     {
                         "section": "eulgu",
                         "rank_number": "4",
@@ -172,6 +173,29 @@ class ContractReviewGraphTests(unittest.TestCase):
                 ],
             }
         )
+
+    def test_unconfirmed_status_encumbrances_are_not_reported_as_absent(self):
+        def entry(rank, status):
+            return {
+                "section": "eulgu",
+                "rank_number": rank,
+                "registration_purpose": "근저당권설정",
+                "raw_text": f"{rank}번 근저당",
+                "source": {"page_number": 1},
+                "status": status,
+            }
+
+        result = ContractReviewGraph().prepare(
+            self._contract_snapshot(),
+            self._registry_snapshot(
+                [entry("4", "unknown"), entry("4-1", "unknown"), entry("5", "cancelled")]
+            ),
+        )
+
+        queries = {item.item_id for item in result.retrieval_queries}
+        self.assertIn("registry_4", queries)
+        self.assertNotIn("registry_4-1", queries)
+        self.assertNotIn("registry_5", queries)
 
     def test_builds_crosscheck_items_and_redacted_queries(self):
         result = ContractReviewGraph().prepare(
@@ -186,6 +210,10 @@ class ContractReviewGraphTests(unittest.TestCase):
                 "registered_owner_match",
                 "payment_total_match",
                 "registry_checked_disclosure",
+                # 등본 확인 필요 항목과 임대차 안내(근저당 4순위, 권리변동 금지 특약 있음).
+                "attention_mortgage_4",
+                "suggest_guarantee_insurance",
+                "tax_arrears_check",
             },
         )
         queries = {item.item_id: item.query for item in result.retrieval_queries}

@@ -8,7 +8,7 @@ import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
 import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
-import type { ContractEvidence, ContractReviewResult } from "@/lib/contract-api";
+import type { ContractEvidence, ContractReviewItem, ContractReviewResult } from "@/lib/contract-api";
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
@@ -55,17 +55,47 @@ function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
 }
 
 function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
-  return result.registry_items.map((item) => {
-    const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
+  // 등본 확인 필요 항목, 계약서 교차 안내, 특약 제안은 등본 검토 탭에 함께 보여준다.
+  const attentionCategories = new Set([
+    "registry_attention",
+    "contract_registry_crosscheck",
+    "special_term_suggestion",
+  ]);
+  const attentionItems = (result.precheck_items ?? []).filter((item) =>
+    attentionCategories.has(item.category),
+  );
+  // 안내 항목이 같은 등기 원문을 이미 다루면 등기 카드는 따로 보여주지 않고 합친다.
+  const coveredBy = (registryItem: ContractReviewItem) =>
+    attentionItems.find((attention) =>
+      registryItem.original_text
+      && attention.original_text?.split("\n").includes(registryItem.original_text),
+    );
+  const standaloneRegistryItems = result.registry_items.filter((item) => !coveredBy(item));
+  const reviews: RegistryReview[] = [...standaloneRegistryItems, ...attentionItems].map((item) => {
+    const merged = result.registry_items.filter((entry) => coveredBy(entry)?.item_id === item.item_id);
+    const analysis = result.analysis.find((entry) => entry.item_id === item.item_id)
+      ?? result.analysis.find((entry) => merged.some((registryItem) => registryItem.item_id === entry.item_id));
+    if (merged.length > 0) {
+      return {
+        id: item.item_id,
+        title: item.label,
+        value: item.original_text ?? "",
+        status: analysis?.review_status ?? "check",
+        summary: item.message,
+        action: analysis ? `${analysis.summary} ${analysis.negotiation}` : undefined,
+      };
+    }
     return {
       id: item.item_id,
       title: item.label,
-      value: item.original_text ?? "확인된 원문 없음",
+      // 등본 원문이 없는 안내 항목(특약 제안 등)은 원문 줄을 비워 둔다.
+      value: item.original_text ?? (item.category === "registry_field" ? "확인된 원문 없음" : ""),
       status: analysis?.review_status ?? "check",
       summary: analysis?.summary ?? item.message,
       action: analysis?.negotiation,
     };
   });
+  return reviews;
 }
 
 function readMode(value: string | null): DocumentMode {
@@ -228,13 +258,13 @@ export function ResultDemo() {
         </div>
       ) : (
         <div className={styles.registryGrid}>
-          {registryReviews.map((item) => (
-            <article className={styles.registryItem} key={item.id}>
+          {registryReviews.map((item, index) => (
+            <article className={styles.registryItem} key={`${item.id}-${index}`}>
               <span className={item.status === "safe" ? styles.safeBadge : styles.checkBadge}>
                 {item.status === "safe" ? "문제없음" : "확인 필요"}
               </span>
               <h3>{item.title}</h3>
-              <p className={styles.registryValue}>{item.value}</p>
+              {item.value && <p className={styles.registryValue}>{item.value}</p>}
               <p className={styles.registrySummary}>{item.summary}</p>
               {item.action && <p className={styles.registryAction}>{item.action}</p>}
             </article>

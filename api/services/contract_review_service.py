@@ -223,10 +223,13 @@ class ContractReviewService:
         if registry is None:
             return []
 
+        # OCR은 말소선을 구분하지 못해 상태가 unknown인 권리가 많다. 말소로 확정되지 않은
+        # 본 등기(4-1 같은 변경·말소 부기는 제외)는 모두 확인 대상으로 남긴다.
         active_encumbrances = [
             encumbrance
             for encumbrance in registry.encumbrances
-            if encumbrance.status.value == "active"
+            if encumbrance.status.value != "cancelled"
+            and "-" not in encumbrance.rank_number
         ]
         if not active_encumbrances:
             return [
@@ -253,7 +256,12 @@ class ContractReviewService:
                 message=(
                     "법령·판례 근거를 연결했습니다. 원문과 함께 확인해 주세요."
                     if f"registry_{encumbrance.rank_number}" in evidence_item_ids
-                    else "법령·판례 근거 검색 전 검토 대기 항목입니다."
+                    else (
+                        "말소 여부가 확정되지 않은 권리입니다. 원문에서 말소 여부와 "
+                        "변경 내역을 확인해 주세요."
+                        if encumbrance.status.value == "unknown"
+                        else "법령·판례 근거 검색 전 검토 대기 항목입니다."
+                    )
                 ),
             )
             for encumbrance in active_encumbrances

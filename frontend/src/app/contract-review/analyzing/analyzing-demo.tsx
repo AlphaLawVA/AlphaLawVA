@@ -12,6 +12,10 @@ import {
   clearPendingContractOcrRequest,
   takePendingContractOcrRequest,
 } from "@/lib/contract-ocr-request";
+import {
+  createRegistryOcrDraft,
+  mapRegistryOcrDraftToSnapshot,
+} from "@/lib/registry-ocr-api";
 import { saveContractOcrDraft } from "@/lib/contract-ocr-session";
 import styles from "../contract-review.module.css";
 
@@ -68,14 +72,22 @@ export function AnalyzingDemo() {
         }
         try {
           setProgress(40);
-          const draft = await createContractOcrDraft(request.file, request.contractType);
+          // 계약서와 등본 OCR을 동시에 요청하고, 둘 다 끝나면 한 번에 저장한다.
+          const [draft, registryDraft] = await Promise.all([
+            createContractOcrDraft(request.contract.file, request.contract.contractType),
+            request.registryFile ? createRegistryOcrDraft(request.registryFile) : null,
+          ]);
           if (!mounted.current) return;
           setProgress(88);
-          saveContractOcrDraft(mapContractOcrDraftToSnapshot(draft));
+          saveContractOcrDraft(
+            mapContractOcrDraftToSnapshot(draft),
+            registryDraft ? mapRegistryOcrDraftToSnapshot(registryDraft) : null,
+          );
+          const nextDocuments = registryDraft ? "both" : "contract";
           window.setTimeout(() => {
             if (mounted.current) {
               setProgress(100);
-              router.replace("/contract-review/verify?documents=contract&source=ocr");
+              router.replace(`/contract-review/verify?documents=${nextDocuments}&source=ocr`);
             }
           }, 400);
         } catch (requestError) {

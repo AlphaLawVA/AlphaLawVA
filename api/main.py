@@ -55,6 +55,10 @@ from api.services.contract_ocr_service import (
     ContractOcrUnavailableError,
     create_contract_ocr_service_from_env,
 )
+from api.services.registry_ocr_service import (
+    RegistryOcrService,
+    create_registry_ocr_service_from_env,
+)
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
 from api.services.confirmed_snapshot_store import SnapshotNotFoundError
@@ -365,6 +369,7 @@ def create_app(
     special_clause_service: SpecialClauseService | None = None,
     confirmed_snapshot_store: ConfirmedSnapshotRepository | None = None,
     contract_ocr_service: ContractOcrService | None = None,
+    registry_ocr_service: RegistryOcrService | None = None,
     certified_letter_result_store: CertifiedLetterResultRepository | None = None,
     auth_verifier: AuthVerifier | None = None,
 ) -> FastAPI:
@@ -407,6 +412,11 @@ def create_app(
         contract_ocr_service
         if contract_ocr_service is not None
         else create_contract_ocr_service_from_env()
+    )
+    app.state.registry_ocr_service = (
+        registry_ocr_service
+        if registry_ocr_service is not None
+        else create_registry_ocr_service_from_env()
     )
     app.state.contract_review_service = (
         contract_review_service
