@@ -191,6 +191,24 @@ class ContractWorkflowApiTests(unittest.TestCase):
         )
         self.assertEqual(response.evidence, [])
 
+    def test_contract_review_records_result_for_user_save(self):
+        store = ConfirmedSnapshotStore()
+        contract = store.save_contract(self._contract_snapshot())
+        recorded = []
+        service = ContractReviewService(store)
+        service.set_result_recorder(lambda **kwargs: recorded.append(kwargs))
+
+        response = service.review(
+            ContractReviewRequest(contract_snapshot_id=contract.snapshot_id)
+        )
+
+        self.assertEqual(len(recorded), 1)
+        self.assertEqual(recorded[0]["kind"].value, "contract_review")
+        self.assertEqual(recorded[0]["source_id"], response.review_id)
+        self.assertTrue(recorded[0]["saveable"])
+        self.assertTrue(recorded[0]["title"].startswith("계약서 검토"))
+        self.assertEqual(recorded[0]["payload"]["review_id"], str(response.review_id))
+
     def test_contract_review_returns_retrieved_evidence_when_enabled(self):
         store = ConfirmedSnapshotStore()
         contract = store.save_contract(self._contract_snapshot())
@@ -302,7 +320,7 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.evidence_status, "retrieved")
         self.assertEqual(response.generation_status, "generated")
-        self.assertEqual(response.items[0].status, "needs_input")
+        self.assertEqual(response.items[0].status, "needs_information")
         self.assertEqual(
             response.items[0].evidence_source_ids,
             ["law:001248:article:0003"],

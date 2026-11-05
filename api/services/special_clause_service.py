@@ -12,8 +12,10 @@ After:
 
 from __future__ import annotations
 
+from typing import Callable
 from uuid import uuid4
 
+from api.models.generation_results import GenerationResultKind
 from api.models.contracts import (
     EvidenceStatus,
     GenerationStatus,
@@ -22,7 +24,22 @@ from api.models.contracts import (
     SpecialClauseDraftResponse,
 )
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
-from ml.agent.special_clause_graph import SpecialClauseGenerator, SpecialClauseGraph
+from ml.agent.special_clause_graph import (
+    SpecialClauseGenerator,
+    SpecialClauseGraph,
+    SpecialClauseScopeClassifier,
+)
+from ml.agent.special_clause_scope import (
+    OUT_OF_SCOPE_MESSAGE,
+    TOO_SHORT_QUESTION,
+    ScopeDecision,
+)
+
+
+def _api_status(generation_status: str) -> str:
+    """생성기 내부 상태를 API 상태 이름으로 바꾼다(정보 부족은 needs_information으로 통일)."""
+
+    return "needs_information" if generation_status == "needs_input" else generation_status
 
 
 class SpecialClauseService:
@@ -34,10 +51,18 @@ class SpecialClauseService:
         graph: SpecialClauseGraph | None = None,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         generator: SpecialClauseGenerator | None = None,
+        scope_classifier: SpecialClauseScopeClassifier | None = None,
     ) -> None:
         self._graph = graph or SpecialClauseGraph()
         self._evidence_retriever = evidence_retriever
         self._generator = generator
+        self._scope_classifier = scope_classifier
+        self._result_recorder: Callable[..., None] | None = None
+
+    def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
+        """생성 결과를 사용자 저장 요청에 대비해 잠시 보관하는 함수를 연결한다."""
+
+        self._result_recorder = recorder
 
     def create_draft(
         self,
@@ -50,9 +75,12 @@ class SpecialClauseService:
                 payload.requests,
                 evidence_retriever=self._evidence_retriever,
                 generator=self._generator,
+                scope_classifier=self._scope_classifier,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
-            result = self._graph.prepare(payload.requests)
+            result = self._graph.prepare(
+                payload.requests, scope_classifier=self._scope_classifier
+            )
             if self._evidence_retriever is not None:
                 evidence_status = EvidenceStatus.UNAVAILABLE
             if self._generator is not None:
@@ -72,12 +100,37 @@ class SpecialClauseService:
         }
         items = []
         for index, request_text in enumerate(payload.requests, start=1):
+            decision = result.scope_decisions.get(f"request-{index}")
+            if decision == ScopeDecision.OUT_OF_SCOPE.value:
+                items.append(
+                    SpecialClauseDraftItem(
+                        request_index=index,
+                        request_text=request_text,
+                        status="out_of_scope",
+                        reason=OUT_OF_SCOPE_MESSAGE,
+                    )
+                )
+                continue
+            if decision == ScopeDecision.NEEDS_INFORMATION.value:
+                items.append(
+                    SpecialClauseDraftItem(
+                        request_index=index,
+                        request_text=request_text,
+                        status="needs_information",
+                        needs_input=[TOO_SHORT_QUESTION],
+                    )
+                )
+                continue
             generation = generations.get(f"request-{index}")
             items.append(
                 SpecialClauseDraftItem(
                     request_index=index,
                     request_text=request_text,
-                    status=(generation.status if generation else "pending_generation"),
+                    status=(
+                        _api_status(generation.status)
+                        if generation
+                        else "pending_generation"
+                    ),
                     draft_text=generation.draft_text if generation else None,
                     title=generation.title if generation else None,
                     reason=generation.reason if generation else None,
@@ -88,11 +141,12 @@ class SpecialClauseService:
                     ),
                 )
             )
-        return SpecialClauseDraftResponse(
+        all_terminal = all(item.status != "pending_generation" for item in items)
+        response = SpecialClauseDraftResponse(
             draft_id=uuid4(),
             status=(
                 "completed"
-                if generation_status == GenerationStatus.GENERATED
+                if generation_status == GenerationStatus.GENERATED or all_terminal
                 else "pending_generation"
             ),
             items=items,
@@ -111,11 +165,39 @@ class SpecialClauseService:
             ],
             evidence_status=evidence_status,
             generation_status=generation_status,
-            message=self._message(evidence_status, generation_status),
+            message=(
+                "부동산 계약 특약과 관련된 요청이 아니어서 초안을 만들지 않았습니다."
+                if items and all(item.status == "out_of_scope" for item in items)
+                else self._message(evidence_status, generation_status)
+            ),
             disclaimer=(
                 "이 결과는 법률 자문이나 최종 계약서가 아닙니다. 특약 초안과 "
                 "사실관계·근거 원문을 당사자가 직접 확인해야 합니다."
             ),
+        )
+        self._record_result(response)
+        return response
+
+    def _record_result(self, response: SpecialClauseDraftResponse) -> None:
+        if self._result_recorder is None:
+            return
+        savable = any(
+            item.status in {"draft_ready", "needs_information"} for item in response.items
+        )
+        first_request = next(
+            (
+                item.request_text
+                for item in response.items
+                if item.status != "out_of_scope"
+            ),
+            response.items[0].request_text,
+        )
+        self._result_recorder(
+            kind=GenerationResultKind.SPECIAL_CLAUSE,
+            source_id=response.draft_id,
+            title=f"특약 초안 · {first_request[:40]}",
+            payload=response.model_dump(mode="json"),
+            saveable=savable,
         )
 
     @staticmethod

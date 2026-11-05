@@ -13,6 +13,13 @@ import type {
   SavedCertifiedLetterSummary,
 } from "@/lib/certified-letter-api";
 import type { CaseBasis } from "@/lib/demo-types";
+import { getGenerationResult, listGenerationResults } from "@/lib/contract-api";
+import type {
+  ContractReviewResult,
+  SavedGenerationDetail,
+  SavedGenerationSummary,
+  SpecialClauseDraftResult,
+} from "@/lib/contract-api";
 import {
   deletePrecedentFavorite,
   generateFavoriteSimilarityExplanation,
@@ -30,6 +37,7 @@ import styles from "./mypage.module.css";
 type LibraryState = {
   letters: SavedCertifiedLetterSummary[];
   favorites: PrecedentFavoriteResponse[];
+  generations: SavedGenerationSummary[];
 };
 
 type LetterPrecedentModal = {
@@ -38,8 +46,9 @@ type LetterPrecedentModal = {
 };
 
 export function MyPageLibrary() {
-  const [library, setLibrary] = useState<LibraryState>({ letters: [], favorites: [] });
+  const [library, setLibrary] = useState<LibraryState>({ letters: [], favorites: [], generations: [] });
   const [selectedLetter, setSelectedLetter] = useState<SavedCertifiedLetterDetail | null>(null);
+  const [selectedGeneration, setSelectedGeneration] = useState<SavedGenerationDetail | null>(null);
   const [selectedLetterPrecedent, setSelectedLetterPrecedent] = useState<LetterPrecedentModal | null>(null);
   const [selectedFavorite, setSelectedFavorite] = useState<PrecedentFavoriteResponse | null>(null);
   const [selectedFavoriteCase, setSelectedFavoriteCase] = useState<CaseBasis | null>(null);
@@ -63,13 +72,15 @@ export function MyPageLibrary() {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) throw new Error("로그인 정보를 확인할 수 없습니다.");
-        const [letters, favorites] = await Promise.all([
+        const [letters, favorites, generations] = await Promise.all([
           listCertifiedLetterResults(session.access_token),
           listPrecedentFavorites(session.access_token),
+          // 저장 기능이 없는 서버에서도 보관함이 열리도록 실패하면 빈 목록으로 둔다.
+          listGenerationResults(session.access_token).catch(() => ({ items: [] as SavedGenerationSummary[] })),
         ]);
         if (!active) return;
         setAccessToken(session.access_token);
-        setLibrary({ letters: letters.items, favorites: favorites.favorites });
+        setLibrary({ letters: letters.items, favorites: favorites.favorites, generations: generations.items });
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "보관함을 불러오지 못했습니다.");
       } finally {
@@ -89,6 +100,19 @@ export function MyPageLibrary() {
       setSelectedLetter(await getSavedCertifiedLetterResult(resultId, accessToken));
     } catch (detailError) {
       setError(detailError instanceof Error ? detailError.message : "내용증명을 불러오지 못했습니다.");
+    } finally {
+      setDetailLoadingId(null);
+    }
+  }
+
+  async function openGeneration(resultId: string) {
+    if (!accessToken || detailLoadingId) return;
+    setError("");
+    setDetailLoadingId(resultId);
+    try {
+      setSelectedGeneration(await getGenerationResult(resultId, accessToken));
+    } catch (detailError) {
+      setError(detailError instanceof Error ? detailError.message : "저장한 결과를 불러오지 못했습니다.");
     } finally {
       setDetailLoadingId(null);
     }
@@ -185,10 +209,22 @@ export function MyPageLibrary() {
     <>
       {error && <p className={styles.error} role="alert">{error}</p>}
 
-      <section className={styles.pendingGrid} aria-label="추후 연결할 결과 분류">
-        <article className={styles.card}><h2>계약서 검토 결과</h2><p>검토한 계약서의 위험 조항과 수정 제안을 모아볼 수 있어요.</p><span className={styles.status}>친구 기능 연결 후 저장 예정</span></article>
-        <article className={styles.card}><h2>특약 생성 결과</h2><p>생성한 특약과 협상 전략을 모아볼 수 있어요.</p><span className={styles.status}>친구 기능 연결 후 저장 예정</span></article>
-      </section>
+      {([
+        ["contract_review", "계약서 검토 결과", "아직 보관한 계약서 검토 결과가 없습니다."],
+        ["special_clause", "특약 생성 결과", "아직 보관한 특약 생성 결과가 없습니다."],
+      ] as const).map(([kind, heading, emptyText]) => {
+        const items = library.generations.filter((item) => item.kind === kind);
+        return (
+          <section className={styles.librarySection} aria-labelledby={`${kind}-results-title`} key={kind}>
+            <div className={styles.sectionHeading}><div><FileText size={20} /><h2 id={`${kind}-results-title`}>{heading}</h2></div><span>{items.length}건</span></div>
+            {items.length === 0 ? <p className={styles.empty}>{emptyText}</p> : (
+              <div className={styles.resultList}>{items.map((item) => (
+                <button className={styles.resultItem} key={item.result_id} type="button" onClick={() => void openGeneration(item.result_id)}><span><strong>{item.title}</strong><small>{formatDate(item.created_at)}</small></span><b>{detailLoadingId === item.result_id ? "불러오는 중" : "상세 보기"}</b></button>
+              ))}</div>
+            )}
+          </section>
+        );
+      })}
 
       <section className={styles.librarySection} aria-labelledby="letter-results-title">
         <div className={styles.sectionHeading}><div><FileText size={20} /><h2 id="letter-results-title">내용증명 생성 결과</h2></div><span>{library.letters.length}건</span></div>
@@ -222,6 +258,17 @@ export function MyPageLibrary() {
           ))}</div>
         )}
       </section>
+
+      {selectedGeneration && (
+        <div className={styles.modalBackdrop} role="presentation" onMouseDown={() => setSelectedGeneration(null)}>
+          <article className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="saved-generation-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className={styles.modalClose} type="button" aria-label="닫기" onClick={() => setSelectedGeneration(null)}><X size={20} /></button>
+            <p className={styles.modalEyebrow}>{selectedGeneration.kind === "contract_review" ? "저장한 계약서 검토" : "저장한 특약 생성"}</p>
+            <h2 id="saved-generation-title">{selectedGeneration.title}</h2>
+            <GenerationDetailBody detail={selectedGeneration} />
+          </article>
+        </div>
+      )}
 
       {selectedLetter && (
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={() => setSelectedLetter(null)}>
@@ -261,4 +308,47 @@ function formatDate(value: string) {
 
 function formatAddress(party: { address: string; detail_address: string | null }) {
   return [party.address, party.detail_address].filter(Boolean).join(" ");
+}
+
+function GenerationDetailBody({ detail }: { detail: SavedGenerationDetail }) {
+  if (detail.kind === "special_clause") {
+    const draft = detail.payload as SpecialClauseDraftResult;
+    return (
+      <>
+        {draft.items.map((item) => (
+          <section className={styles.modalSection} key={item.request_index}>
+            <h3>{item.title ?? `요청 ${item.request_index}`}</h3>
+            <p>요청: {item.request_text}</p>
+            {item.draft_text && <div className={styles.letterBody}>{item.draft_text}</div>}
+            {item.needs_input.length > 0 && <ul>{item.needs_input.map((question) => <li key={question}>{question}</li>)}</ul>}
+            {item.reason && <p>이유: {item.reason}</p>}
+            {item.strategy && <p>협의 안내: {item.strategy}</p>}
+          </section>
+        ))}
+        <p>{draft.disclaimer}</p>
+      </>
+    );
+  }
+  const review = detail.payload as ContractReviewResult;
+  return (
+    <>
+      {review.analysis.length > 0 && (
+        <section className={styles.modalSection}>
+          <h3>검토 의견 {review.analysis.length}건</h3>
+          {review.analysis.map((item) => (
+            <div key={item.item_id}>
+              <p>{item.summary}</p>
+              <p>수정 제안: {item.revision}</p>
+              <p>협의 안내: {item.negotiation}</p>
+            </div>
+          ))}
+        </section>
+      )}
+      <section className={styles.modalSection}>
+        <h3>확인 필요 항목</h3>
+        <ul>{review.precheck_items.map((item) => <li key={item.item_id}><strong>{item.label}</strong> {item.message}</li>)}</ul>
+      </section>
+      <p>{review.disclaimer}</p>
+    </>
+  );
 }

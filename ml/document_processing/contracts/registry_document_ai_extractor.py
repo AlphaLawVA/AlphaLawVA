@@ -304,9 +304,13 @@ def _name_after_label(row: str, labels: str) -> str | None:
         return None
     words = []
     for word in match[1].split():
-        if not re.fullmatch(r"[가-힣A-Za-z]+", word):
+        # OCR이 이름과 주민번호를 붙여 읽을 수 있어 단어 앞의 글자 부분만 이름으로 본다.
+        letters = re.match(r"[가-힣A-Za-z]+", word)
+        if letters is None:
             break
-        words.append(word)
+        words.append(letters[0])
+        if letters[0] != word:
+            break
     return " ".join(words) or None
 
 

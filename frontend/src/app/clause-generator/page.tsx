@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
+import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
@@ -101,6 +102,16 @@ function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
   return result.items.map((item) => {
     const evidence = result.evidence.filter((entry) => item.evidence_source_ids.includes(entry.source_id));
     const needsInput = item.needs_input.join(" ");
+    if (item.status === "out_of_scope") {
+      return {
+        title: "범위 밖 요청",
+        clause: item.reason ?? "부동산 계약 특약과 관련된 요청만 도와드릴 수 있어요.",
+        reason: "이 요청은 부동산 계약 특약과 관련이 없어 초안을 만들지 않았습니다.",
+        strategy: "특약으로 정하고 싶은 내용을 계약 상황과 함께 다시 입력해 주세요.",
+        statutes: [],
+        precedents: [],
+      };
+    }
     return {
       title: item.title ?? `특약 ${item.request_index}`,
       clause: item.draft_text ?? `추가 확인 필요: ${needsInput || "요청 내용을 구체적으로 확인해주세요."}`,
@@ -294,6 +305,7 @@ export default function ClauseGeneratorPage() {
         {stage === "review" && <button className={styles.secondaryButton} type="button" onClick={() => setStage("input")}>이전</button>}
         {stage === "input" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={reviewRequests}>입력 내용 확인<ArrowRight size={17} aria-hidden="true" /></button>}
         {stage === "review" && <button className={styles.primaryButton} type="button" disabled={validRequests.length === 0} onClick={generateClauses}>특약 생성<ArrowRight size={17} aria-hidden="true" /></button>}
+        {stage === "result" && draftResult && <SaveGenerationResultButton className={styles.secondaryButton} kind="special_clause" sourceId={draftResult.draft_id} loginNext="/clause-generator" />}
         {stage === "result" && <button className={styles.primaryButton} type="button" onClick={startNewRequest}><Plus size={17} aria-hidden="true" />새 요청 작성</button>}
       </div>
       {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}

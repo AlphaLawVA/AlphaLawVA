@@ -5,6 +5,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
+import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
 import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
 import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
@@ -273,6 +274,7 @@ export function ResultDemo() {
       )}
 
       <div className={styles.actions}>
+        {liveResult && <SaveGenerationResultButton className={styles.secondaryButton} kind="contract_review" sourceId={liveResult.review_id} loginNext="/contract-review/result" />}
         <Link className={styles.secondaryButton} href="/contract-review">새 문서 검토</Link>
       </div>
       {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
