@@ -12,8 +12,10 @@ After:
 
 from __future__ import annotations
 
+from typing import Callable
 from uuid import uuid4
 
+from api.models.generation_results import GenerationResultKind
 from api.models.contracts import (
     EvidenceStatus,
     GenerationStatus,
@@ -49,6 +51,12 @@ class SpecialClauseService:
         self._graph = graph or SpecialClauseGraph()
         self._evidence_retriever = evidence_retriever
         self._generator = generator
+        self._result_recorder: Callable[..., None] | None = None
+
+    def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
+        """생성 결과를 사용자 저장 요청에 대비해 잠시 보관하는 함수를 연결한다."""
+
+        self._result_recorder = recorder
 
     def create_draft(
         self,
@@ -125,7 +133,7 @@ class SpecialClauseService:
                 )
             )
         all_terminal = all(item.status != "pending_generation" for item in items)
-        return SpecialClauseDraftResponse(
+        response = SpecialClauseDraftResponse(
             draft_id=uuid4(),
             status=(
                 "completed"
@@ -157,6 +165,30 @@ class SpecialClauseService:
                 "이 결과는 법률 자문이나 최종 계약서가 아닙니다. 특약 초안과 "
                 "사실관계·근거 원문을 당사자가 직접 확인해야 합니다."
             ),
+        )
+        self._record_result(response)
+        return response
+
+    def _record_result(self, response: SpecialClauseDraftResponse) -> None:
+        if self._result_recorder is None:
+            return
+        savable = any(
+            item.status in {"draft_ready", "needs_information"} for item in response.items
+        )
+        first_request = next(
+            (
+                item.request_text
+                for item in response.items
+                if item.status != "out_of_scope"
+            ),
+            response.items[0].request_text,
+        )
+        self._result_recorder(
+            kind=GenerationResultKind.SPECIAL_CLAUSE,
+            source_id=response.draft_id,
+            title=f"특약 초안 · {first_request[:40]}",
+            payload=response.model_dump(mode="json"),
+            saveable=savable,
         )
 
     @staticmethod

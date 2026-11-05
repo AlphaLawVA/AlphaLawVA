@@ -29,7 +29,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.models.errors import ApiError, ApiErrorCode, ApiErrorResponse, ApiFieldError
-from api.routers import certified_letters_router, contracts_router, precedents_router
+from api.routers import (
+    certified_letters_router,
+    contracts_router,
+    generation_results_router,
+    precedents_router,
+)
 from api.services.certified_letter_jobs import (
     CertifiedLetterIdempotencyConflictError,
     CertifiedLetterJobNotFoundError,
@@ -89,6 +94,14 @@ from api.services.precedent_search_sessions import (
     SearchResultNotFoundError,
     SearchSessionNotFoundError,
     SimilarityExplanationInProgressError,
+)
+from api.services.generation_results import (
+    GenerationResultNotFoundError,
+    GenerationResultNotReadyError,
+    GenerationResultRepository,
+    GenerationResultService,
+    GenerationResultSourceNotFoundError,
+    create_generation_result_store_from_env,
 )
 from api.services.special_clause_service import SpecialClauseService
 from ml.rag.contract_review_retriever import (
@@ -361,6 +374,39 @@ async def certified_letter_result_not_ready_error_handler(
     )
 
 
+async def generation_result_not_found_error_handler(
+    _request: Request,
+    _error: GenerationResultNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.GENERATION_RESULT_NOT_FOUND,
+        message="저장한 결과를 찾을 수 없습니다.",
+    )
+
+
+async def generation_result_source_not_found_error_handler(
+    _request: Request,
+    _error: GenerationResultSourceNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.GENERATION_RESULT_SOURCE_NOT_FOUND,
+        message="저장할 결과를 찾을 수 없습니다. 결과를 만든 뒤 일정 시간이 지나면 저장할 수 없으니 다시 생성해 주세요.",
+    )
+
+
+async def generation_result_not_ready_error_handler(
+    _request: Request,
+    _error: GenerationResultNotReadyError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=409,
+        code=ApiErrorCode.GENERATION_RESULT_NOT_READY,
+        message="초안이나 확인 질문이 있는 결과만 저장할 수 있습니다.",
+    )
+
+
 def create_app(
     precedent_search_service: PrecedentSearchService | None = None,
     certified_letter_service: CertifiedLetterService | None = None,
@@ -371,6 +417,7 @@ def create_app(
     contract_ocr_service: ContractOcrService | None = None,
     registry_ocr_service: RegistryOcrService | None = None,
     certified_letter_result_store: CertifiedLetterResultRepository | None = None,
+    generation_result_store: GenerationResultRepository | None = None,
     auth_verifier: AuthVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(
@@ -435,11 +482,34 @@ def create_app(
             generator=create_gemini_special_clause_generator_from_env(),
         )
     )
+    app.state.generation_result_service = GenerationResultService(
+        generation_result_store or create_generation_result_store_from_env()
+    )
+    for service in (
+        app.state.contract_review_service,
+        app.state.special_clause_service,
+    ):
+        attach = getattr(service, "set_result_recorder", None)
+        if attach is not None:
+            attach(app.state.generation_result_service.record)
     app.include_router(contracts_router)
+    app.include_router(generation_results_router)
     app.include_router(precedents_router)
     app.add_exception_handler(
         RequestValidationError,
         request_validation_error_handler,
+    )
+    app.add_exception_handler(
+        GenerationResultNotFoundError,
+        generation_result_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        GenerationResultSourceNotFoundError,
+        generation_result_source_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        GenerationResultNotReadyError,
+        generation_result_not_ready_error_handler,
     )
     app.add_exception_handler(
         InvalidPrecedentIdError,

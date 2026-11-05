@@ -12,6 +12,12 @@ After:
 
 from api.routers.contracts import router as contracts_router
 from api.routers.certified_letters import router as certified_letters_router
+from api.routers.generation_results import router as generation_results_router
 from api.routers.precedents import router as precedents_router
 
-__all__ = ["certified_letters_router", "contracts_router", "precedents_router"]
+__all__ = [
+    "certified_letters_router",
+    "contracts_router",
+    "generation_results_router",
+    "precedents_router",
+]

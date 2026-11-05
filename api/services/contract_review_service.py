@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+from typing import Callable
 from uuid import uuid4
 
 from api.models.contracts import (
@@ -26,6 +27,7 @@ from api.models.contracts import (
     ReviewItemStatus,
 )
 from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
+from api.models.generation_results import GenerationResultKind
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from ml.agent.contract_review_graph import ContractReviewGraph
@@ -47,6 +49,12 @@ class ContractReviewService:
         self._review_graph = review_graph or ContractReviewGraph()
         self._evidence_retriever = evidence_retriever
         self._analyzer = analyzer
+        self._result_recorder: Callable[..., None] | None = None
+
+    def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
+        """검토 결과를 사용자 저장 요청에 대비해 잠시 보관하는 함수를 연결한다."""
+
+        self._result_recorder = recorder
 
     def review(self, payload: ContractReviewRequest) -> ContractReviewResponse:
         contract_snapshot = self._snapshot_store.get_contract(
@@ -118,7 +126,7 @@ class ContractReviewService:
             registry_snapshot,
             evidence_item_ids,
         )
-        return ContractReviewResponse(
+        response = ContractReviewResponse(
             review_id=uuid4(),
             status="completed",
             input_summary=ContractInputSummary(
@@ -149,6 +157,15 @@ class ContractReviewService:
                 "근거 검색과 사용자 검토를 거쳐야 합니다."
             ),
         )
+        if self._result_recorder is not None:
+            self._result_recorder(
+                kind=GenerationResultKind.CONTRACT_REVIEW,
+                source_id=response.review_id,
+                title=f"계약서 검토 · {response.input_summary.property_address}",
+                payload=response.model_dump(mode="json"),
+                saveable=True,
+            )
+        return response
 
     @staticmethod
     def _build_contract_items(
