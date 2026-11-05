@@ -187,6 +187,55 @@ def _clause(**overrides):
     return item
 
 
+class KeepOriginalFiguresTests(unittest.TestCase):
+    def _term_context(self, query):
+        return ItemContext(
+            kind="review",
+            item_id="term-1",
+            query=query,
+            evidence={"law:1": "근거"},
+            injection_marker=None,
+            expected_status=None,
+            category="special_term",
+        )
+
+    def test_review_revision_dropping_original_period_warns(self) -> None:
+        context = self._term_context("jeonse 계약 특약 검토: 보증금은 종료 후 3개월 이내에 반환한다.")
+        results = evaluate_item(context, _review(revision="보증금은 종료 즉시 반환한다."))
+        self.assertIn("revision_keeps_original_figures", _warned(results))
+        self.assertNotIn("revision_keeps_original_figures", _failed(results))
+
+    def test_review_revision_keeping_original_period_passes(self) -> None:
+        context = self._term_context("jeonse 계약 특약 검토: 보증금은 종료 후 3개월 이내에 반환한다.")
+        results = evaluate_item(
+            context, _review(revision="보증금은 종료 후 3개월 이내에 임대인이 임차인에게 반환한다.")
+        )
+        self.assertNotIn("revision_keeps_original_figures", _warned(results))
+
+    def test_registry_items_are_not_checked(self) -> None:
+        context = ItemContext(
+            **{**self._term_context("가압류이 있는 부동산 3개월 이내").__dict__, "category": "registry_field"}
+        )
+        results = evaluate_item(context, _review(revision="말소를 요청하는 특약을 제안합니다."))
+        self.assertNotIn("revision_keeps_original_figures", {r.name for r in results})
+
+    def test_clause_draft_dropping_request_date_warns(self) -> None:
+        context = ItemContext(
+            kind="clause",
+            item_id="request-1",
+            query="부동산 계약 특약 작성 요청: 2026년 12월 1일까지 도배를 교체하는 특약",
+            evidence={"law:1": "근거"},
+            injection_marker=None,
+            expected_status="draft_ready",
+        )
+        results = evaluate_item(context, _clause(draft_text="임대인은 입주 전까지 도배를 교체한다."))
+        self.assertIn("revision_keeps_original_figures", _warned(results))
+        results = evaluate_item(
+            context, _clause(draft_text="임대인은 2026년 12월 1일까지 도배를 교체한다.")
+        )
+        self.assertNotIn("revision_keeps_original_figures", _warned(results))
+
+
 class ClauseCheckTests(unittest.TestCase):
     def test_clean_draft_passes(self) -> None:
         results = evaluate_item(CLAUSE_CONTEXT, _clause())

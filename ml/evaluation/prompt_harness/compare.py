@@ -45,6 +45,7 @@ def rescore_run(run_dir: Path) -> dict:
             evidence={e.source_id: e.title + "\n" + e.text for e in item.evidence},
             injection_marker=case.injection_marker,
             expected_status=case.expected_status if len(case.items) == 1 else None,
+            category=item.query_item.category,
         )
         for result in evaluate_item(context, record["output"]):
             if not result.passed:

@@ -63,6 +63,7 @@ class ItemContext:
     evidence: dict[str, str]  # source_id -> 근거 원문
     injection_marker: str | None
     expected_status: str | None
+    category: str = ""
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,16 @@ def _unlabeled_unsupported_figures(text: str, source: str) -> list[str]:
                 if _normalize(match) not in normalized_source
             )
     return sorted(found)
+
+
+def _original_figures(query: str) -> list[str]:
+    """질의(원문 특약 또는 사용자 요청)에 들어 있는 금액·비율·날짜·기간 표현을 모은다."""
+
+    body = query.split(": ", 1)[-1]
+    found: list[str] = []
+    for pattern in (_AMOUNT, _PERCENT, _DATE, _PERIOD):
+        found.extend(pattern.findall(body))
+    return found
 
 
 def _unsupported(pattern: re.Pattern[str], text: str, source: str) -> list[str]:
@@ -187,6 +198,22 @@ def evaluate_item(context: ItemContext, item: dict) -> list[CheckResult]:
         not (marker and marker in text),
         marker if marker and marker in text else "",
     )
+
+    # 수정안·초안이 원문(요청)의 핵심 수치를 그대로 유지하는지 본다. 바꾸자는 제안은
+    # 협의 안내에 있어야 하므로 빠지면 경고로 알린다.
+    if context.kind == "review" and context.category == "special_term":
+        target = str(item.get("revision") or "")
+    elif context.kind == "clause" and status == "draft_ready":
+        target = str(item.get("draft_text") or "")
+    else:
+        target = None
+    if target is not None:
+        dropped = [
+            figure
+            for figure in _original_figures(context.query)
+            if _normalize(figure) not in _normalize(target)
+        ]
+        add("revision_keeps_original_figures", "warn", not dropped, ", ".join(dropped))
 
     if context.kind == "clause":
         expected = context.expected_status

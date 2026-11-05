@@ -231,6 +231,7 @@ def _item_results(
             evidence={entry.source_id: entry.title + "\n" + entry.text for entry in case_item.evidence},
             injection_marker=case.injection_marker,
             expected_status=case.expected_status if len(case.items) == 1 else None,
+            category=case_item.query_item.category,
         )
         checks = evaluate_item(context, raw)
         checks.append(
