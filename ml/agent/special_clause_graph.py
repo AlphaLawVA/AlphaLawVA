@@ -236,7 +236,8 @@ class SpecialClauseGraph:
         state: SpecialClauseGraphState,
     ) -> dict[str, list[SpecialClauseGeneration] | bool]:
         generator = state["generator"]
-        if generator is None or not state["evidence"]:
+        # 분류기를 통과한 요청은 근거가 없어도 초안을 만든다(법령은 초안의 전제가 아니라 참고 자료다).
+        if generator is None:
             return {"generations": [], "generation_unavailable": False}
         try:
             generations = generator.generate(

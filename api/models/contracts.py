@@ -123,7 +123,7 @@ class SpecialClauseDraftItem(ContractApiModel):
     reason: str | None = Field(default=None, min_length=2, max_length=700)
     strategy: str | None = Field(default=None, min_length=2, max_length=700)
     needs_input: list[str] = Field(default_factory=list, max_length=5)
-    evidence_source_ids: list[str] = Field(default_factory=list, max_length=3)
+    evidence_source_ids: list[str] = Field(default_factory=list, max_length=5)
 
 
 class SpecialClauseDraftResponse(ContractApiModel):

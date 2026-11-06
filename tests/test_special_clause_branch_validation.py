@@ -130,9 +130,24 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
 
         self.assertEqual([item.item_id for item in result], ["request-2"])
 
-    def test_missing_evidence_ids_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "근거가 비어"):
-            self._generate([_item(evidence_source_ids=[])])
+    def test_empty_evidence_ids_are_allowed_for_agreement_only_clause(self) -> None:
+        # 법령 근거가 없어도 합의 사항 특약은 초안을 만든다.
+        result = self._generate([_item(evidence_source_ids=[])])
+        self.assertEqual(result[0].status, "draft_ready")
+        self.assertEqual(result[0].evidence_source_ids, [])
+
+    def test_non_list_evidence_ids_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "근거 형식"):
+            self._generate([_item(evidence_source_ids="not-a-list")])
+
+    def test_unprovided_evidence_ids_are_still_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "제공되지 않은 근거"):
+            self._generate([_item(evidence_source_ids=["invented"])])
+
+    def test_item_without_any_evidence_is_still_sent_to_model(self) -> None:
+        payload = self.generator._build_payload(self.queries, [])
+        self.assertEqual(len(payload["items"]), len(self.queries))
+        self.assertEqual(payload["items"][0]["evidence"], [])
 
     def test_too_many_questions_are_rejected(self) -> None:
         questions = [f"질문 {index}번 내용" for index in range(6)]

@@ -167,9 +167,11 @@ def evaluate_item(context: ItemContext, item: dict) -> list[CheckResult]:
     add("no_invented_period", "warn", not periods, ", ".join(periods))
 
     source_ids = item.get("evidence_source_ids")
+    # 특약은 근거 없이도 초안을 만들 수 있어 빈 목록을 허용한다(검토는 근거가 필수).
+    allow_empty = context.kind == "clause"
     valid_ids = (
         isinstance(source_ids, list)
-        and bool(source_ids)
+        and (bool(source_ids) or allow_empty)
         and all(value in context.evidence for value in source_ids)
     )
     add("evidence_ids_valid", "fail", valid_ids, "" if valid_ids else str(source_ids))

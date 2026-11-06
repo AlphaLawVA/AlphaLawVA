@@ -503,7 +503,9 @@ def run_generation_eval(
         if generation_transport is not None:  # OpenAI 모델: 요청을 변환해 보내고 응답을 되돌린다.
             instance._post_json = generation_transport._post_json
         hook = _fake_hook(case) if mode == "fake" else None
-        case_records = _run_case(case, instance, method, hook) if any(i.evidence for i in case.items) else []
+        # 특약은 근거가 없어도 초안을 만들므로 근거가 비어 있어도 모델을 호출한다(검토는 근거가 필수).
+        run_it = case.kind == "clause" or any(i.evidence for i in case.items)
+        case_records = _run_case(case, instance, method, hook) if run_it else []
         records.extend(case_records)
         _dump_partial(output_dir, records, judged)  # 생성 직후 저장: 판정이 실패해도 출력은 남는다.
         if judge_call is not None and case_records:

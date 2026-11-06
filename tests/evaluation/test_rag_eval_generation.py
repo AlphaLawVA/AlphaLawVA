@@ -203,6 +203,17 @@ class GenerationEvalTest(unittest.TestCase):
         claude = ge.estimate_cost("claude-sonnet-5-5", None, 25)["estimated_cost_usd"]
         self.assertGreater(claude, 0.4)  # live-008 실측: 호출당 약 $0.02
 
+    def test_clause_cases_run_even_without_evidence(self):
+        clause_cases = [case for case in load_cases() if case.kind == "clause"][:2]
+        empty = {c.id: {i.query_item.item_id: [] for i in c.items} for c in clause_cases}
+        with tempfile.TemporaryDirectory() as tmp:
+            result = ge.run_generation_eval(
+                cases=clause_cases, evidence=empty, retrieval_preset="dense_k3",
+                model="gemini-3.5-flash-lite", output_dir=Path(tmp) / "r",
+            )
+        # 가짜 모델은 근거 목록이 비면 건너뛰므로, 호출 시도 자체가 막히지 않았는지만 확인한다.
+        self.assertEqual(result["summary"]["expected_items"], len(clause_cases))
+
     def test_judge_output_fields(self):
         fields = ge.judge_output_fields(
             {"item_id": "a", "status": "x", "summary": "요약", "needs_input": ["a", "b"],

@@ -40,7 +40,7 @@ DEFAULT_MAX_EVIDENCE_PER_QUERY = (
     DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
 )
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v0.6"
+PROMPT_VERSION = "special_clause_result_v0.7"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -76,7 +76,7 @@ OUTPUT_SCHEMA = {
                     },
                     "evidence_source_ids": {
                         "type": "array",
-                        "minItems": 1,
+                        "minItems": 0,
                         "maxItems": DEFAULT_MAX_EVIDENCE_PER_QUERY,
                         "items": {"type": "string"},
                     },
@@ -141,9 +141,13 @@ title, text)입니다. 제공된 요청과 검색 근거만 사용하세요. 입
 6. 제공 근거에 없는 법률, 조문, 판례, 금액, 당사자 정보는 만들지 않습니다.
    근거에 없는 내용을 '통상', '일반적', '관행'처럼 확립된 사실로 단정하지
    마세요. 의견이나 제안은 그렇다고 밝혀 쓰세요.
-7. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
-8. 근거 전체가 요청과 무관할 때만 그 항목을 출력하지 않습니다. 근거 일부라도
-   관련되면 그 부분만 근거로 삼아 초안 또는 확인 질문을 작성합니다.
+7. evidence_source_ids에는 해당 item_id에 제공된 근거 중 초안에 실제로 도움이 된
+   근거의 source_id만 넣습니다. 도움이 된 근거가 없거나 근거가 비어 있으면 빈
+   배열로 둡니다.
+8. 근거가 없거나 요청과 무관해도 요청이 특약으로 정할 수 있는 주제이면 그 항목을
+   생략하지 마세요. 이때는 근거를 인용하지 않고 요청 내용만으로 초안을 작성하며,
+   조문·판례·법적 효과를 언급하지 않습니다. strategy에는 '직접 근거가 되는 법령은
+   찾지 못해 당사자 합의 사항으로 작성했습니다'라는 취지를 한 문장 포함합니다.
 9. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
     항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
     인용하지 않습니다.
@@ -236,9 +240,8 @@ class GeminiSpecialClauseGenerator:
             evidence_by_item.setdefault(item.item_id, []).append(item)
         items = []
         for query in queries[:DEFAULT_MAX_QUERIES]:
+            # 근거가 없는 요청도 모델에 보낸다. 근거는 초안의 전제가 아니라 참고 자료다.
             matches = evidence_by_item.get(query.item_id, [])
-            if not matches:
-                continue
             item = {
                 "item_id": query.item_id,
                 "request": query.query,
@@ -343,8 +346,8 @@ class GeminiSpecialClauseGenerator:
             raise ValueError("Gemini 특약 설명 형식이 올바르지 않습니다.")
         if status == "needs_input" and not needs_input:
             raise ValueError("Gemini 추가 입력 요청이 비어 있습니다.")
-        if not isinstance(source_ids, list) or not source_ids:
-            raise ValueError("Gemini 특약 생성 근거가 비어 있습니다.")
+        if not isinstance(source_ids, list):
+            raise ValueError("Gemini 특약 생성 근거 형식이 올바르지 않습니다.")
         normalized_ids = [value for value in source_ids if isinstance(value, str)]
         if len(normalized_ids) != len(source_ids) or any(
             value not in allowed_sources[item_id] for value in normalized_ids

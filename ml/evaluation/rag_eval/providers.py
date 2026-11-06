@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import http.client
 import json
 import time
 from typing import Any, Callable, Mapping
@@ -201,8 +202,9 @@ class OpenAIChatTransport:
             if error.code in RETRYABLE_STATUS:
                 raise _RetryableHttpError(message) from error
             raise RuntimeError(message) from error
-        except (URLError, TimeoutError) as error:
-            raise RuntimeError("OpenAI 모델을 호출할 수 없습니다.") from error
+        except (URLError, TimeoutError, ConnectionError, http.client.HTTPException) as error:
+            # 와이파이·핫스팟 전환 등으로 연결이 끊긴 경우: 응답을 받지 못했으므로 재시도한다.
+            raise _RetryableHttpError("OpenAI 모델을 호출할 수 없습니다(연결 끊김).") from error
         return to_gemini_response(payload)
 
     def _thinking_config(self) -> dict[str, Any]:
@@ -271,8 +273,8 @@ class AnthropicMessagesTransport:
             if error.code in {429, 500, 502, 503, 529}:
                 raise _RetryableHttpError(message) from error
             raise RuntimeError(message) from error
-        except (URLError, TimeoutError) as error:
-            raise RuntimeError("Anthropic 모델을 호출할 수 없습니다.") from error
+        except (URLError, TimeoutError, ConnectionError, http.client.HTTPException) as error:
+            raise _RetryableHttpError("Anthropic 모델을 호출할 수 없습니다(연결 끊김).") from error
         return anthropic_to_gemini_response(payload)
 
     def _thinking_config(self) -> dict[str, Any]:

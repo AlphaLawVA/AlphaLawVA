@@ -93,6 +93,36 @@ class ProviderTest(unittest.TestCase):
         self.assertEqual(transport._extract_text(transport._post_json(REQUEST)), "{}")
         self.assertEqual(calls["n"], 3)
 
+    def test_retries_connection_drop_then_succeeds(self):
+        calls = {"n": 0}
+
+        def flaky(request, timeout):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise ConnectionResetError("Remote end closed connection without response")
+            return FakeResponse(json.dumps({"choices": [{"message": {"content": "{}"}}], "usage": {}}).encode())
+
+        transport = providers.OpenAIChatTransport(
+            api_key="k", model="m", opener=flaky, sleep=lambda seconds: None
+        )
+        self.assertEqual(transport._extract_text(transport._post_json(REQUEST)), "{}")
+        self.assertEqual(calls["n"], 3)
+
+    def test_anthropic_retries_connection_drop(self):
+        calls = {"n": 0}
+
+        def flaky(request, timeout):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise ConnectionResetError("closed")
+            return FakeResponse(json.dumps({"content": [{"type": "text", "text": "{}"}], "usage": {}}).encode())
+
+        transport = providers.AnthropicMessagesTransport(
+            api_key="k", model="m", opener=flaky, sleep=lambda seconds: None
+        )
+        self.assertEqual(transport._extract_text(transport._post_json(REQUEST)), "{}")
+        self.assertEqual(calls["n"], 2)
+
     def test_gives_up_after_max_attempts(self):
         calls = {"n": 0}
 
