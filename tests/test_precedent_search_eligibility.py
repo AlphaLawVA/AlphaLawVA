@@ -196,7 +196,65 @@ class PrecedentSearchEligibilityTests(unittest.TestCase):
             self.assertTrue(is_distribution_case(cases["200"]))
             self.assertFalse(is_distribution_case(cases["300"]))
 
-    def test_versioned_manifest_contains_reviewed_678_case_allowlist(self):
+    def test_adds_manually_reviewed_residential_sale_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases_dir = root / "cases"
+            cases_dir.mkdir()
+            cases = {
+                "100": {
+                    "판례일련번호": "100",
+                    "사건번호": "2026가단100",
+                    "사건명": "임대차보증금",
+                    "생성요약": "주택 임차인의 보증금 반환 사건이다.",
+                    "쉬운요약": "세입자가 보증금을 돌려받지 못한 사건이다.",
+                },
+                "200": {
+                    "판례일련번호": "200",
+                    "사건번호": "2026가단200",
+                    "사건명": "소유권이전등기",
+                    "생성요약": "아파트 매수인의 소유권이전등기 사건이다.",
+                    "쉬운요약": "집을 산 사람이 명의를 넘겨 달라고 한 사건이다.",
+                },
+            }
+            for precedent_id, case in cases.items():
+                (cases_dir / f"{precedent_id}.json").write_text(
+                    json.dumps(case, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            reviewed_ids_path = root / "eligible.json"
+            reviewed_ids_path.write_text(json.dumps(["100"]), encoding="utf-8")
+            additions_path = root / "sale_additions.json"
+            additions_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": (
+                            "precedent_search_residential_sale_additions.v1"
+                        ),
+                        "added_case_count": 1,
+                        "added_precedents": [
+                            {
+                                "precedent_id": "200",
+                                "case_number": "2026가단200",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            manifest, _ = build_reviewed_manifest(
+                cases_dir,
+                reviewed_ids_path,
+                additions_path,
+            )
+
+            self.assertEqual(manifest["eligible_precedent_ids"], ["100", "200"])
+            self.assertEqual(manifest["residential_lease_eligible_case_count"], 1)
+            self.assertEqual(manifest["residential_sale_added_case_count"], 1)
+
+    def test_versioned_manifest_contains_reviewed_691_case_allowlist(self):
         root = Path(__file__).resolve().parents[1]
         manifest_path = (
             root
@@ -208,14 +266,21 @@ class PrecedentSearchEligibilityTests(unittest.TestCase):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         eligible_ids = manifest["eligible_precedent_ids"]
 
-        self.assertEqual(manifest["policy_version"], "residential_lease_manual_review_v2")
+        self.assertEqual(
+            manifest["policy_version"],
+            "residential_real_estate_manual_review_v3",
+        )
         self.assertEqual(manifest["base_reviewed_eligible_case_count"], 750)
         self.assertEqual(manifest["distribution_excluded_case_count"], 72)
-        self.assertEqual(manifest["eligible_case_count"], 678)
-        self.assertEqual(len(eligible_ids), 678)
+        self.assertEqual(manifest["residential_lease_eligible_case_count"], 678)
+        self.assertEqual(manifest["residential_sale_added_case_count"], 13)
+        self.assertEqual(manifest["eligible_case_count"], 691)
+        self.assertEqual(len(eligible_ids), 691)
         self.assertEqual(len(eligible_ids), len(set(eligible_ids)))
         self.assertIn("607217", eligible_ids)
         self.assertIn("606789", eligible_ids)
+        self.assertIn("170892", eligible_ids)
+        self.assertIn("205340", eligible_ids)
         self.assertNotIn("186226", eligible_ids)
         self.assertNotIn("167949", eligible_ids)
         self.assertNotIn("169234", eligible_ids)

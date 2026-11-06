@@ -1,13 +1,13 @@
 # build_search_eligibility_manifest.py
 """
-Description: 수동 검토로 확정한 주택 임대차 판례 목록에서
-분양 중심 판례를 제외해 판례 검색 API용 manifest를 생성한다.
+Description: 수동 검토로 확정한 주택 임대차 판례에서 분양 중심 판례를 제외하고
+별도 검토한 주거용 매매 판례를 합쳐 판례 검색 API용 manifest를 생성한다.
 Author: choeminju
 Date: 2026-11-06
 Before:
-    - final_cases와 수동 검토로 확정한 주택 임대차 판례 ID 목록이 준비됨.
+    - final_cases와 수동 검토한 주택 임대차·주거용 매매 판례 목록이 준비됨.
 After:
-    - 분양 중심 판례 제외 기록과 최종 검색 허용 ID가 JSON으로 기록됨.
+    - 주거용 임대차·매매 범위의 최종 검색 허용 ID가 JSON으로 기록됨.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from ml.data_collection.statutes.law_api_common import PROJECT_ROOT
 
 
 SCHEMA_VERSION = "precedent_search_eligibility.v1"
-POLICY_VERSION = "residential_lease_manual_review_v2"
+POLICY_VERSION = "residential_real_estate_manual_review_v3"
 DEFAULT_CASES_DIR = (
     PROJECT_ROOT / "local_data" / "precedents" / "processed" / "final_cases"
 )
@@ -49,6 +49,13 @@ DEFAULT_DISTRIBUTION_EXCLUSIONS_PATH = (
     / "precedents"
     / "metadata"
     / "precedent_search_distribution_exclusions_v01.json"
+)
+DEFAULT_RESIDENTIAL_SALE_ADDITIONS_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "precedents"
+    / "metadata"
+    / "precedent_search_residential_sale_additions_v01.json"
 )
 
 LEGAL_FIELDS = ("판시사항", "판결요지", "참조조문")
@@ -195,6 +202,28 @@ def load_reviewed_eligible_ids(path: Path) -> list[str]:
     return sorted(ids, key=int)
 
 
+def load_residential_sale_additions(path: Path) -> list[dict[str, Any]]:
+    """수동 검토로 확정한 주거용 매매 추가 판례를 검증해 읽는다."""
+    if not path.is_file():
+        raise FileNotFoundError(f"주거용 매매 추가 목록이 없습니다: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != (
+        "precedent_search_residential_sale_additions.v1"
+    ):
+        raise ValueError("주거용 매매 추가 목록 schema_version이 올바르지 않습니다.")
+    records = payload.get("added_precedents")
+    if not isinstance(records, list) or not records:
+        raise ValueError("주거용 매매 추가 목록은 비어 있지 않은 배열이어야 합니다.")
+    ids = [str(record.get("precedent_id") or "").strip() for record in records]
+    if any(not precedent_id.isdigit() for precedent_id in ids):
+        raise ValueError("주거용 매매 추가 판례 ID는 숫자 문자열이어야 합니다.")
+    if len(ids) != len(set(ids)):
+        raise ValueError("주거용 매매 추가 판례 ID가 중복되었습니다.")
+    if payload.get("added_case_count") != len(records):
+        raise ValueError("주거용 매매 추가 판례 건수가 실제 목록과 다릅니다.")
+    return records
+
+
 def is_distribution_case(case: dict[str, Any]) -> bool:
     """사용자 노출 요약에 분양 맥락이 명시된 판례인지 판단한다."""
     return DISTRIBUTION_MARKER in _joined(case, SUMMARY_FIELDS)
@@ -203,8 +232,9 @@ def is_distribution_case(case: dict[str, Any]) -> bool:
 def build_reviewed_manifest(
     cases_dir: Path,
     reviewed_eligible_ids_path: Path,
+    residential_sale_additions_path: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """수동 검토 1차 목록에서 분양 중심 판례를 제외한다."""
+    """임대차 목록에서 분양 사건을 제외하고 주거용 매매 판례를 합친다."""
     if not cases_dir.is_dir():
         raise FileNotFoundError(f"final_cases 디렉터리가 없습니다: {cases_dir}")
     reviewed_ids = load_reviewed_eligible_ids(reviewed_eligible_ids_path)
@@ -230,31 +260,65 @@ def build_reviewed_manifest(
         else:
             eligible_ids.append(precedent_id)
 
+    sale_records = (
+        load_residential_sale_additions(residential_sale_additions_path)
+        if residential_sale_additions_path is not None
+        else []
+    )
+    sale_ids = [str(record["precedent_id"]) for record in sale_records]
+    overlap = sorted(set(eligible_ids) & set(sale_ids), key=int)
+    if overlap:
+        raise ValueError(f"임대차와 주거용 매매 허용 목록이 중복되었습니다: {overlap}")
+    for record in sale_records:
+        precedent_id = str(record["precedent_id"])
+        path = cases_dir / f"{precedent_id}.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"주거용 매매 판례 원본이 없습니다: {path}")
+        case = json.loads(path.read_text(encoding="utf-8"))
+        if str(case.get("사건번호") or "") != str(record.get("case_number") or ""):
+            raise ValueError(f"주거용 매매 판례 사건번호가 다릅니다: {precedent_id}")
+        eligible_ids.append(precedent_id)
+
+    eligible_ids = sorted(eligible_ids, key=int)
+
     source_count = len(list(cases_dir.glob("*.json")))
     source_sha256 = hashlib.sha256(reviewed_eligible_ids_path.read_bytes()).hexdigest()
+    sale_source_sha256 = (
+        hashlib.sha256(residential_sale_additions_path.read_bytes()).hexdigest()
+        if residential_sale_additions_path is not None
+        else None
+    )
+    final_lease_count = len(reviewed_ids) - len(excluded_records)
+    manual_scope_excluded_count = source_count - len(reviewed_ids) - len(sale_ids)
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "policy_version": POLICY_VERSION,
         "policy_summary": (
-            "수동 검토로 확정한 주택 임대차 판례에서 사용자 노출 "
-            "요약이 분양·분양전환·분양권을 주요 맥락으로 다루는 판례를 "
-            "제외한다."
+            "수동 검토한 주택 임대차 판례에서 분양 중심 판례를 제외하고, "
+            "별도 수동 검토한 주거용 매매 판례를 추가한다."
         ),
-        "review_status": "MANUAL_BASE_PLUS_SUMMARY_FILTER",
+        "review_status": "MANUAL_LEASE_BASE_PLUS_RESIDENTIAL_SALE",
         "source_case_count": source_count,
         "base_reviewed_eligible_case_count": len(reviewed_ids),
         "distribution_excluded_case_count": len(excluded_records),
+        "residential_lease_eligible_case_count": final_lease_count,
+        "residential_sale_added_case_count": len(sale_ids),
         "eligible_case_count": len(eligible_ids),
         "excluded_case_count": source_count - len(eligible_ids),
         "reason_counts": {
-            "MANUAL_SCOPE_EXCLUDED": source_count - len(reviewed_ids),
+            "MANUAL_SCOPE_EXCLUDED": manual_scope_excluded_count,
             "DISTRIBUTION_SUMMARY_EXCLUDED": len(excluded_records),
-            "ELIGIBLE": len(eligible_ids),
+            "ELIGIBLE_RESIDENTIAL_LEASE": final_lease_count,
+            "ELIGIBLE_RESIDENTIAL_SALE_ADDITION": len(sale_ids),
         },
         "source_reviewed_ids_sha256": source_sha256,
         "distribution_exclusion_manifest": str(
             DEFAULT_DISTRIBUTION_EXCLUSIONS_PATH.relative_to(PROJECT_ROOT)
         ),
+        "residential_sale_additions_manifest": str(
+            DEFAULT_RESIDENTIAL_SALE_ADDITIONS_PATH.relative_to(PROJECT_ROOT)
+        ),
+        "residential_sale_additions_sha256": sale_source_sha256,
         "eligible_precedent_ids": eligible_ids,
     }
     exclusions = {
@@ -267,7 +331,7 @@ def build_reviewed_manifest(
         ),
         "base_reviewed_eligible_case_count": len(reviewed_ids),
         "excluded_case_count": len(excluded_records),
-        "remaining_eligible_case_count": len(eligible_ids),
+        "remaining_eligible_case_count": final_lease_count,
         "excluded_precedents": excluded_records,
     }
     return manifest, exclusions
@@ -287,6 +351,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_DISTRIBUTION_EXCLUSIONS_PATH,
     )
+    parser.add_argument(
+        "--residential-sale-additions",
+        type=Path,
+        default=DEFAULT_RESIDENTIAL_SALE_ADDITIONS_PATH,
+    )
     return parser.parse_args()
 
 
@@ -295,6 +364,7 @@ def main() -> None:
     manifest, exclusions = build_reviewed_manifest(
         args.cases_dir.expanduser().resolve(),
         args.reviewed_eligible_ids.expanduser().resolve(),
+        args.residential_sale_additions.expanduser().resolve(),
     )
     output_path = args.output.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -312,7 +382,8 @@ def main() -> None:
         f"generated={output_path} "
         f"eligible={manifest['eligible_case_count']} "
         f"excluded={manifest['excluded_case_count']} "
-        f"distribution_excluded={manifest['distribution_excluded_case_count']}"
+        f"distribution_excluded={manifest['distribution_excluded_case_count']} "
+        f"residential_sale_added={manifest['residential_sale_added_case_count']}"
     )
 
 

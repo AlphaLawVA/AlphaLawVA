@@ -1,0 +1,107 @@
+{
+  "schema_version": "precedent_search_residential_sale_additions.v1",
+  "policy_version": "residential_sale_manual_review_v1",
+  "policy_summary": "기존 주택 임대차 허용 목록에서 제외되었던 판례 중 일반 사용자의 주거용 주택 매매 분쟁에 직접 재사용할 수 있는 판례를 수동 검토하여 추가한다.",
+  "review_status": "CODEX_MANUAL_REVIEWED",
+  "source_candidate_count": 222,
+  "added_case_count": 13,
+  "excluded_candidate_count": 209,
+  "external_api_calls": 0,
+  "scope": {
+    "include": "주택 매매의 대금·계약 해제·등기·대리권·중개 책임·권리관계 등 일반 소비자의 매수·매도 분쟁",
+    "exclude": "상가·영업용 건물, 토지·농지·임야, 분양·분양권·입주권, 재개발·재건축·주택조합, 경매, 담보·채권자취소가 주된 사건, 주거용 여부가 불명확한 일반 부동산 매매"
+  },
+  "added_precedents": [
+    {
+      "precedent_id": "86039",
+      "case_number": "1954민상263",
+      "case_name": "부동산소유권이전등기",
+      "category": "RESIDENTIAL_SALE_CONTRACT",
+      "reason": "가옥 매매에서 잔금 지급과 명도·소유권 이전 의무의 동시이행 및 계약 해제를 다룬다."
+    },
+    {
+      "precedent_id": "94264",
+      "case_number": "79다275",
+      "case_name": "소유권이전등기",
+      "category": "RESIDENTIAL_SALE_CONTRACT",
+      "reason": "유일한 생활 근거지인 가옥을 현저히 낮은 가격에 매도한 불공정한 주택 매매를 다룬다."
+    },
+    {
+      "precedent_id": "105855",
+      "case_number": "89다카227",
+      "case_name": "매매대금등",
+      "category": "RESIDENTIAL_SALE_PAYMENT",
+      "reason": "주택담보 융자 잔액을 인수하는 주택 매매에서 매매대금 정산 범위를 다룬다."
+    },
+    {
+      "precedent_id": "143610",
+      "case_number": "2009다61193",
+      "case_name": "소유권이전등기",
+      "category": "RESIDENTIAL_SALE_TITLE",
+      "reason": "등기 주택과 함께 양수한 미등기 주택 및 부지의 점유·처분권을 다룬다."
+    },
+    {
+      "precedent_id": "154104",
+      "case_number": "68다1387",
+      "case_name": "소유권이전등기",
+      "category": "RESIDENTIAL_SALE_AUTHORITY",
+      "reason": "가옥 매매에서 대리인의 매도 권한과 소유권이전등기 청구를 다룬다."
+    },
+    {
+      "precedent_id": "167632",
+      "case_number": "2011나32206,32213",
+      "case_name": "손해배상(기)·손해배상(기)",
+      "category": "RESIDENTIAL_SALE_TITLE",
+      "reason": "다세대주택 매수 후 불법 말소된 근저당권이 회복되어 발생한 매수인의 손해를 다룬다."
+    },
+    {
+      "precedent_id": "170892",
+      "case_number": "2012가합9912",
+      "case_name": "손해배상등",
+      "category": "RESIDENTIAL_SALE_BROKERAGE",
+      "reason": "아파트 매매 중개인이 실제 소유자와 매도 대리권을 확인할 의무를 다룬다."
+    },
+    {
+      "precedent_id": "184176",
+      "case_number": "2013가단95382(본소),2013가단232389(반소)",
+      "case_name": "가등기에기한본등기절차이행·가등기말소등기절차이행",
+      "category": "RESIDENTIAL_SALE_PAYMENT",
+      "reason": "빌라 매매대금 채무를 담보하기 위해 설정한 가등기의 성격과 효력을 다룬다."
+    },
+    {
+      "precedent_id": "197220",
+      "case_number": "96다33945",
+      "case_name": "부동산소유권확인",
+      "category": "RESIDENTIAL_SALE_TITLE",
+      "reason": "매수한 미등기 주택이 제3자에게 처분된 뒤 발생한 소유권 분쟁을 다룬다."
+    },
+    {
+      "precedent_id": "198867",
+      "case_number": "95다4674",
+      "case_name": "소유권이전등기",
+      "category": "RESIDENTIAL_SALE_SCOPE",
+      "reason": "주택 매매 시 공동도로 지분이 매매 목적물에 포함되는지를 다룬다."
+    },
+    {
+      "precedent_id": "202725",
+      "case_number": "92다25427",
+      "case_name": "소유권이전등기",
+      "category": "RESIDENTIAL_SALE_AUTHORITY",
+      "reason": "연립주택 소유자가 매각 동의서로 매도 대리권을 부여했는지를 다룬다."
+    },
+    {
+      "precedent_id": "205340",
+      "case_number": "91다6627",
+      "case_name": "소유권이전등기",
+      "category": "RESIDENTIAL_SALE_TITLE",
+      "reason": "주택 매매에서 소유권이전등기를 미루는 특약과 매도인의 담보 제공 위험을 다룬다."
+    },
+    {
+      "precedent_id": "206544",
+      "case_number": "84다카2527,84다카2528",
+      "case_name": "소유권이전등기(본소)ㆍ가옥명도(반소)",
+      "category": "RESIDENTIAL_SALE_CONTRACT",
+      "reason": "가옥 매매에서 잔금 미지급을 이유로 계약을 해제하기 위한 매도인의 이행 제공을 다룬다."
+    }
+  ]
+}
