@@ -1,18 +1,19 @@
 # build_search_eligibility_manifest.py
 """
-Description: final_cases를 보수적인 주택 임대차 기준으로 분류해
-판례 검색 API가 사용할 버전형 허용 목록 manifest를 생성한다.
+Description: 수동 검토로 확정한 주택 임대차 판례 목록에서
+분양 중심 판례를 제외해 판례 검색 API용 manifest를 생성한다.
 Author: choeminju
 Date: 2026-11-06
 Before:
-    - final_cases에 주택·상가 임대차와 매매·토지 판례가 함께 저장되어 있음.
+    - final_cases와 수동 검토로 확정한 주택 임대차 판례 ID 목록이 준비됨.
 After:
-    - 원본 삭제 없이 판례별 분류 사유와 검색 허용 ID가 JSON으로 기록됨.
+    - 분양 중심 판례 제외 기록과 최종 검색 허용 ID가 JSON으로 기록됨.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from collections import Counter
@@ -23,7 +24,7 @@ from ml.data_collection.statutes.law_api_common import PROJECT_ROOT
 
 
 SCHEMA_VERSION = "precedent_search_eligibility.v1"
-POLICY_VERSION = "residential_lease_precision_v1"
+POLICY_VERSION = "residential_lease_manual_review_v2"
 DEFAULT_CASES_DIR = (
     PROJECT_ROOT / "local_data" / "precedents" / "processed" / "final_cases"
 )
@@ -33,6 +34,21 @@ DEFAULT_OUTPUT_PATH = (
     / "precedents"
     / "metadata"
     / "precedent_search_eligibility_v01.json"
+)
+DEFAULT_REVIEWED_ELIGIBLE_IDS_PATH = (
+    PROJECT_ROOT
+    / "local_data"
+    / "precedents"
+    / "reviews"
+    / "eligibility_review_v01"
+    / "eligible_precedent_ids.json"
+)
+DEFAULT_DISTRIBUTION_EXCLUSIONS_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "precedents"
+    / "metadata"
+    / "precedent_search_distribution_exclusions_v01.json"
 )
 
 LEGAL_FIELDS = ("판시사항", "판결요지", "참조조문")
@@ -91,6 +107,7 @@ COMMERCIAL_MARKERS = (
     "영업용",
 )
 HANJA_PATTERN = re.compile(r"[一-龥]")
+DISTRIBUTION_MARKER = "분양"
 
 
 def _joined(case: dict[str, Any], fields: tuple[str, ...]) -> str:
@@ -121,6 +138,7 @@ def classify_case(case: dict[str, Any]) -> tuple[bool, str]:
 
 
 def build_manifest(cases_dir: Path) -> dict[str, Any]:
+    """초기 정밀도 우선 규칙으로 비교용 허용 목록을 생성한다."""
     if not cases_dir.is_dir():
         raise FileNotFoundError(f"final_cases 디렉터리가 없습니다: {cases_dir}")
 
@@ -162,26 +180,139 @@ def build_manifest(cases_dir: Path) -> dict[str, Any]:
     }
 
 
+def load_reviewed_eligible_ids(path: Path) -> list[str]:
+    """수동 검토로 확정한 판례 ID 목록을 검증해 읽는다."""
+    if not path.is_file():
+        raise FileNotFoundError(f"수동 검토 허용 목록이 없습니다: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("수동 검토 허용 목록은 비어 있지 않은 배열이어야 합니다.")
+    ids = [str(value).strip() for value in payload]
+    if any(not value.isdigit() for value in ids):
+        raise ValueError("수동 검토 판례 ID는 숫자 문자열이어야 합니다.")
+    if len(ids) != len(set(ids)):
+        raise ValueError("수동 검토 판례 ID가 중복되었습니다.")
+    return sorted(ids, key=int)
+
+
+def is_distribution_case(case: dict[str, Any]) -> bool:
+    """사용자 노출 요약에 분양 맥락이 명시된 판례인지 판단한다."""
+    return DISTRIBUTION_MARKER in _joined(case, SUMMARY_FIELDS)
+
+
+def build_reviewed_manifest(
+    cases_dir: Path,
+    reviewed_eligible_ids_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """수동 검토 1차 목록에서 분양 중심 판례를 제외한다."""
+    if not cases_dir.is_dir():
+        raise FileNotFoundError(f"final_cases 디렉터리가 없습니다: {cases_dir}")
+    reviewed_ids = load_reviewed_eligible_ids(reviewed_eligible_ids_path)
+    eligible_ids = []
+    excluded_records = []
+    for precedent_id in reviewed_ids:
+        path = cases_dir / f"{precedent_id}.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"수동 검토 판례 원본이 없습니다: {path}")
+        case = json.loads(path.read_text(encoding="utf-8"))
+        if is_distribution_case(case):
+            excluded_records.append(
+                {
+                    "precedent_id": precedent_id,
+                    "case_number": case.get("사건번호"),
+                    "case_name": case.get("사건명"),
+                    "reason": (
+                        "생성요약 또는 쉬운요약에서 분양·분양전환·"
+                        "분양권이 주요 사건 맥락으로 확인됨"
+                    ),
+                }
+            )
+        else:
+            eligible_ids.append(precedent_id)
+
+    source_count = len(list(cases_dir.glob("*.json")))
+    source_sha256 = hashlib.sha256(reviewed_eligible_ids_path.read_bytes()).hexdigest()
+    manifest = {
+        "schema_version": SCHEMA_VERSION,
+        "policy_version": POLICY_VERSION,
+        "policy_summary": (
+            "수동 검토로 확정한 주택 임대차 판례에서 사용자 노출 "
+            "요약이 분양·분양전환·분양권을 주요 맥락으로 다루는 판례를 "
+            "제외한다."
+        ),
+        "review_status": "MANUAL_BASE_PLUS_SUMMARY_FILTER",
+        "source_case_count": source_count,
+        "base_reviewed_eligible_case_count": len(reviewed_ids),
+        "distribution_excluded_case_count": len(excluded_records),
+        "eligible_case_count": len(eligible_ids),
+        "excluded_case_count": source_count - len(eligible_ids),
+        "reason_counts": {
+            "MANUAL_SCOPE_EXCLUDED": source_count - len(reviewed_ids),
+            "DISTRIBUTION_SUMMARY_EXCLUDED": len(excluded_records),
+            "ELIGIBLE": len(eligible_ids),
+        },
+        "source_reviewed_ids_sha256": source_sha256,
+        "distribution_exclusion_manifest": str(
+            DEFAULT_DISTRIBUTION_EXCLUSIONS_PATH.relative_to(PROJECT_ROOT)
+        ),
+        "eligible_precedent_ids": eligible_ids,
+    }
+    exclusions = {
+        "schema_version": "precedent_search_distribution_exclusions.v1",
+        "policy_version": POLICY_VERSION,
+        "policy_summary": (
+            "생성요약 또는 쉬운요약에 분양 맥락이 명시된 판례를 "
+            "판례 검색 허용 목록에서 제외한다. 이유·전문에 단어가 "
+            "단순 등장하는 경우는 제외하지 않는다."
+        ),
+        "base_reviewed_eligible_case_count": len(reviewed_ids),
+        "excluded_case_count": len(excluded_records),
+        "remaining_eligible_case_count": len(eligible_ids),
+        "excluded_precedents": excluded_records,
+    }
+    return manifest, exclusions
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases-dir", type=Path, default=DEFAULT_CASES_DIR)
+    parser.add_argument(
+        "--reviewed-eligible-ids",
+        type=Path,
+        default=DEFAULT_REVIEWED_ELIGIBLE_IDS_PATH,
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument(
+        "--distribution-exclusions-output",
+        type=Path,
+        default=DEFAULT_DISTRIBUTION_EXCLUSIONS_PATH,
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    manifest = build_manifest(args.cases_dir.expanduser().resolve())
+    manifest, exclusions = build_reviewed_manifest(
+        args.cases_dir.expanduser().resolve(),
+        args.reviewed_eligible_ids.expanduser().resolve(),
+    )
     output_path = args.output.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    exclusions_path = args.distribution_exclusions_output.expanduser().resolve()
+    exclusions_path.parent.mkdir(parents=True, exist_ok=True)
+    exclusions_path.write_text(
+        json.dumps(exclusions, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(
         f"generated={output_path} "
         f"eligible={manifest['eligible_case_count']} "
-        f"excluded={manifest['excluded_case_count']}"
+        f"excluded={manifest['excluded_case_count']} "
+        f"distribution_excluded={manifest['distribution_excluded_case_count']}"
     )
 
 

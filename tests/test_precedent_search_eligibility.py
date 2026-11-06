@@ -21,7 +21,9 @@ from api.services.precedent_search_eligibility import (
     load_eligible_precedent_ids,
 )
 from ml.preprocessing.precedents.build_search_eligibility_manifest import (
+    build_reviewed_manifest,
     classify_case,
+    is_distribution_case,
 )
 from ml.rag.precedent_retriever import PrecedentSearchResult
 
@@ -138,6 +140,85 @@ class PrecedentSearchEligibilityTests(unittest.TestCase):
             classify_case(bad_summary),
             (False, "EASY_SUMMARY_HANJA"),
         )
+
+    def test_builds_reviewed_manifest_and_excludes_distribution_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases_dir = root / "cases"
+            cases_dir.mkdir()
+            cases = {
+                "100": {
+                    "판례일련번호": "100",
+                    "사건번호": "2026가단100",
+                    "사건명": "임대차보증금",
+                    "생성요약": "주택 임차인의 보증금 반환 사건이다.",
+                    "쉬운요약": "세입자가 보증금을 돌려받지 못한 사건이다.",
+                },
+                "200": {
+                    "판례일련번호": "200",
+                    "사건번호": "2026가단200",
+                    "사건명": "소유권이전등기",
+                    "생성요약": "임대주택 우선 분양전환 자격 사건이다.",
+                    "쉬운요약": "세입자가 집을 먼저 살 수 있는지 다투었다.",
+                },
+                "300": {
+                    "판례일련번호": "300",
+                    "사건번호": "2026가단300",
+                    "사건명": "배당이의",
+                    "생성요약": "주택 임차인의 우선변제권 사건이다.",
+                    "쉬운요약": "세입자가 보증금을 먼저 받을 수 있는지 다투었다.",
+                    "이유": "전문에는 분양이라는 단어가 단순 언급되었다.",
+                },
+            }
+            for precedent_id, case in cases.items():
+                (cases_dir / f"{precedent_id}.json").write_text(
+                    json.dumps(case, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            reviewed_ids_path = root / "eligible.json"
+            reviewed_ids_path.write_text(
+                json.dumps(["100", "200", "300"]),
+                encoding="utf-8",
+            )
+
+            manifest, exclusions = build_reviewed_manifest(
+                cases_dir,
+                reviewed_ids_path,
+            )
+
+            self.assertEqual(manifest["eligible_precedent_ids"], ["100", "300"])
+            self.assertEqual(manifest["distribution_excluded_case_count"], 1)
+            self.assertEqual(exclusions["excluded_case_count"], 1)
+            self.assertEqual(
+                exclusions["excluded_precedents"][0]["precedent_id"],
+                "200",
+            )
+            self.assertTrue(is_distribution_case(cases["200"]))
+            self.assertFalse(is_distribution_case(cases["300"]))
+
+    def test_versioned_manifest_contains_reviewed_678_case_allowlist(self):
+        root = Path(__file__).resolve().parents[1]
+        manifest_path = (
+            root
+            / "data"
+            / "precedents"
+            / "metadata"
+            / "precedent_search_eligibility_v01.json"
+        )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        eligible_ids = manifest["eligible_precedent_ids"]
+
+        self.assertEqual(manifest["policy_version"], "residential_lease_manual_review_v2")
+        self.assertEqual(manifest["base_reviewed_eligible_case_count"], 750)
+        self.assertEqual(manifest["distribution_excluded_case_count"], 72)
+        self.assertEqual(manifest["eligible_case_count"], 678)
+        self.assertEqual(len(eligible_ids), 678)
+        self.assertEqual(len(eligible_ids), len(set(eligible_ids)))
+        self.assertIn("607217", eligible_ids)
+        self.assertIn("606789", eligible_ids)
+        self.assertNotIn("186226", eligible_ids)
+        self.assertNotIn("167949", eligible_ids)
+        self.assertNotIn("169234", eligible_ids)
 
 
 if __name__ == "__main__":
