@@ -34,7 +34,11 @@ from ml.evaluation.prompt_harness.runner import (
     load_cases,
 )
 from ml.evaluation.rag_eval import judge as judge_module
-from ml.evaluation.rag_eval.providers import OpenAIChatTransport, provider_for
+from ml.evaluation.rag_eval.providers import (
+    AnthropicMessagesTransport,
+    OpenAIChatTransport,
+    provider_for,
+)
 from ml.rag.contract_review_retriever import ContractReviewRagRetriever
 
 DEFAULT_OUTPUT_ROOT = Path("local_data/rag_eval/generation")
@@ -46,9 +50,14 @@ PRICING_USD_PER_MILLION: dict[str, tuple[float, float]] = {
     # OpenAI 공식 가격표(developers.openai.com/api/docs/pricing, 2026-11-06 확인, 기준일 표기 없음)
     "gpt-6-luna": (0.10, 0.50),
     "gpt-6.1-terra": (1.00, 5.00),
+    # Anthropic 공식 가격표(platform.claude.com/docs/en/about-claude/pricing, 2026-11-06 확인)
+    "claude-sonnet-5-5": (2.00, 10.00),
+    "claude-haiku-5-5": (0.10, 0.50),  # 프롬프트 100K 토큰 이하 기준
 }
 # 호출 1회 평균 토큰 가정(사전 비용 추정용). 실측 후 갱신한다.
 ESTIMATED_TOKENS = {"generate": (2100, 300), "judge": (1700, 250)}  # live-002 실측 평균 기반
+# Claude는 스키마를 지시문에 넣고 설명이 길어 호출당 토큰이 더 많다(live-008 실측: 입력 3400 / 출력 1270).
+CLAUDE_GENERATE_TOKENS = (3400, 1300)
 
 RETRIEVAL_PRESETS: dict[str, dict[str, Any]] = {
     "dense_k3": {"statute_top_k": 3, "evidence_top_k": 3, "min_similarity": 0.35},  # 서비스 기본값
@@ -57,24 +66,40 @@ RETRIEVAL_PRESETS: dict[str, dict[str, Any]] = {
 }
 
 
-def _api_key_for(model: str, api_key: str | None, openai_api_key: str | None) -> str | None:
-    return openai_api_key if provider_for(model) == "openai" else api_key
+_KEY_ENV = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
+
+
+def _api_key_for(
+    model: str, api_key: str | None, openai_api_key: str | None, anthropic_api_key: str | None = None
+) -> str | None:
+    return {"gemini": api_key, "openai": openai_api_key, "anthropic": anthropic_api_key}[
+        provider_for(model)
+    ]
 
 
 def _require_keys(
-    models: Sequence[str | None], api_key: str | None, openai_api_key: str | None
+    models: Sequence[str | None],
+    api_key: str | None,
+    openai_api_key: str | None,
+    anthropic_api_key: str | None = None,
 ) -> None:
     for model in models:
-        if model and not _api_key_for(model, api_key, openai_api_key):
-            env = "OPENAI_API_KEY" if provider_for(model) == "openai" else "GEMINI_API_KEY"
-            raise GenerationEvalError(f"{env} 가 없습니다.")
+        if model and not _api_key_for(model, api_key, openai_api_key, anthropic_api_key):
+            raise GenerationEvalError(f"{_KEY_ENV[provider_for(model)]} 가 없습니다.")
 
 
-def make_transport(model: str, api_key: str | None, openai_api_key: str | None) -> Any:
+def make_transport(
+    model: str,
+    api_key: str | None,
+    openai_api_key: str | None,
+    anthropic_api_key: str | None = None,
+) -> Any:
     """모델 제공자에 맞는 전송 객체(_post_json 등을 가진 객체)를 만든다."""
 
     if provider_for(model) == "openai":
         return OpenAIChatTransport(api_key=openai_api_key or "", model=model)
+    if provider_for(model) == "anthropic":
+        return AnthropicMessagesTransport(api_key=anthropic_api_key or "", model=model)
     return review_module.GeminiContractReviewAnalyzer(
         api_key=api_key or "", model=model, usage_manifest_path=None
     )
@@ -94,6 +119,8 @@ def estimate_cost(model: str | None, judge_model: str | None, case_count: int) -
         if price is None:
             return None
         tokens_in, tokens_out = ESTIMATED_TOKENS[kind]
+        if kind == "generate" and name.startswith("claude-"):
+            tokens_in, tokens_out = CLAUDE_GENERATE_TOKENS
         return (tokens_in * price[0] + tokens_out * price[1]) / 1_000_000 * case_count
 
     generate, judge = cost(model, "generate"), cost(judge_model, "judge")
@@ -383,6 +410,17 @@ def load_resume(
     return carried, config.get("usage", {})
 
 
+def _dump_partial(output_dir: Path, records: Sequence[Mapping[str, Any]], judged: Mapping[str, Any]) -> None:
+    with (output_dir / "results.jsonl").open("w", encoding="utf-8") as file:
+        for record in records:
+            row = {
+                **record,
+                "checks": [c.__dict__ for c in record["checks"]],
+                "judge": judged.get(record["case_id"], {}).get(record["item_id"]),
+            }
+            file.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def run_generation_eval(
     *,
     cases: Sequence[HarnessCase],
@@ -394,6 +432,7 @@ def run_generation_eval(
     judge_model: str | None = None,
     api_key: str | None = None,
     openai_api_key: str | None = None,
+    anthropic_api_key: str | None = None,
     confirm_live: bool = False,
     max_calls: int = 60,
     max_cost_usd: float = 0.5,
@@ -416,7 +455,7 @@ def run_generation_eval(
             raise GenerationEvalError(
                 f"예상 비용 ${estimate['estimated_cost_usd']}가 한도 ${max_cost_usd}를 넘습니다."
             )
-        _require_keys([model, judge_model], api_key, openai_api_key)
+        _require_keys([model, judge_model], api_key, openai_api_key, anthropic_api_key)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     save_evidence(output_dir / "evidence.json", retrieval_preset, evidence)
@@ -429,14 +468,14 @@ def run_generation_eval(
         if mode == "fake":
             judge_call = lambda payload: (judge_module.fake_judge(payload), {"input_tokens": 0, "output_tokens": 0})  # noqa: E731
         else:
-            transport = make_transport(judge_model, api_key, openai_api_key)
+            transport = make_transport(judge_model, api_key, openai_api_key, anthropic_api_key)
             judge_call = judge_module.gemini_judge_call(
                 transport, thinking_config=judge_module.judge_thinking_config(judge_model)
             )
 
     generation_transport = (
-        make_transport(model, api_key, openai_api_key)
-        if mode == "live" and provider_for(model) == "openai"
+        make_transport(model, api_key, openai_api_key, anthropic_api_key)
+        if mode == "live" and provider_for(model) != "gemini"
         else None
     )
     records: list[dict[str, Any]] = []
@@ -466,15 +505,26 @@ def run_generation_eval(
         hook = _fake_hook(case) if mode == "fake" else None
         case_records = _run_case(case, instance, method, hook) if any(i.evidence for i in case.items) else []
         records.extend(case_records)
+        _dump_partial(output_dir, records, judged)  # 생성 직후 저장: 판정이 실패해도 출력은 남는다.
         if judge_call is not None and case_records:
-            scores, usage = judge_module.judge_items(judge_inputs(case, case_records), judge_call)
+            try:
+                scores, usage = judge_module.judge_items(judge_inputs(case, case_records), judge_call)
+            except Exception as exc:  # 판정 오류는 기록만 하고 다음 케이스를 계속한다(--rejudge-from 으로 재채점).
+                scores, usage = {}, {"input_tokens": 0, "output_tokens": 0}
+                print(f"판정 실패({case.id}): {type(exc).__name__}: {str(exc)[:120]}")
             judged[case.id] = scores
             judge_usage_rows.append({"model": judge_model, **usage})
+            _dump_partial(output_dir, records, judged)  # 케이스마다 진행분 저장
         if mode == "live":  # 비용 한도 점검: 승인 범위를 넘으면 즉시 중단한다.
             rows = _read_usage(usage_path) + judge_usage_rows
             spent = sum(entry["cost_usd"] or 0.0 for entry in usage_cost(rows).values())
             if spent > max_cost_usd:
-                raise GenerationEvalError(f"실제 비용 ${spent:.4f}가 한도 ${max_cost_usd}를 넘어 중단했습니다.")
+                # 중단돼도 지금까지의 출력은 남겨 --resume-from 으로 이어서 실행할 수 있게 한다.
+                _dump_partial(output_dir, records, judged)
+                raise GenerationEvalError(
+                    f"실제 비용 ${spent:.4f}가 한도 ${max_cost_usd}를 넘어 중단했습니다. "
+                    f"{output_dir}/results.jsonl 에 진행분을 저장했습니다."
+                )
 
     # 근거가 0건이라 호출하지 못한 항목도 반환 실패로 센다(expected_items 기준).
     expected = sum(len(case.items) for case in cases)
@@ -532,6 +582,7 @@ def rejudge_run(
     mode: str = "fake",
     api_key: str | None = None,
     openai_api_key: str | None = None,
+    anthropic_api_key: str | None = None,
     confirm_live: bool = False,
     max_calls: int = 30,
     max_cost_usd: float = 0.1,
@@ -565,7 +616,7 @@ def rejudge_run(
             raise GenerationEvalError(
                 f"예상 비용 ${estimate['estimated_cost_usd']}가 한도 ${max_cost_usd}를 넘습니다."
             )
-        _require_keys([judge_model], api_key, openai_api_key)
+        _require_keys([judge_model], api_key, openai_api_key, anthropic_api_key)
     if judge_call is None:
         if mode == "fake":
             judge_call = lambda payload: (  # noqa: E731
@@ -573,7 +624,7 @@ def rejudge_run(
                 {"input_tokens": 0, "output_tokens": 0},
             )
         else:
-            transport = make_transport(judge_model, api_key, openai_api_key)
+            transport = make_transport(judge_model, api_key, openai_api_key, anthropic_api_key)
             judge_call = judge_module.gemini_judge_call(
                 transport, thinking_config=judge_module.judge_thinking_config(judge_model)
             )
@@ -663,6 +714,7 @@ def main() -> None:
     parser.add_argument("--max-calls", type=int, default=60)
     parser.add_argument("--max-cost-usd", type=float, default=0.5)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--cases", type=Path, default=None, help="평가 케이스 JSON(기본 cases_v01)")
     parser.add_argument("--resume-from", type=Path, default=None,
                         help="이전 실행에서 오류 없이 끝난 케이스는 재사용하고 나머지만 다시 호출")
     parser.add_argument("--rejudge-from", type=Path, default=None,
@@ -672,24 +724,26 @@ def main() -> None:
     if args.rejudge_from:
         if not args.judge_model:
             parser.error("--rejudge-from 은 --judge-model 이 필요합니다.")
-        key = openai_key = None
+        key = openai_key = anthropic_key = None
         if args.mode == "live":
             from precedents.precedent_config import load_env_file
 
             load_env_file()
             key = os.environ.get("GEMINI_API_KEY", "").strip()
             openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+            anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         out = args.output_dir or DEFAULT_OUTPUT_ROOT / datetime.now().strftime("%Y%m%d-%H%M%S")
         result = rejudge_run(
             source_dir=args.rejudge_from, output_dir=out, judge_model=args.judge_model,
-            mode=args.mode, api_key=key, openai_api_key=openai_key, confirm_live=args.confirm_live,
+            mode=args.mode, api_key=key, openai_api_key=openai_key, anthropic_api_key=anthropic_key,
+            confirm_live=args.confirm_live,
             max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
         )
         print(f"완료: {out}")
         print(json.dumps(result["summary"], ensure_ascii=False))
         return
 
-    cases = load_cases()
+    cases = load_cases(args.cases)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_dir = args.output_dir or DEFAULT_OUTPUT_ROOT / run_id
     if args.evidence_cache:
@@ -704,17 +758,19 @@ def main() -> None:
         print(f"검색 결과 저장: {output_dir / 'evidence.json'}")
         return
 
-    api_key = openai_api_key = None
+    api_key = openai_api_key = anthropic_api_key = None
     if args.mode == "live":
         from precedents.precedent_config import load_env_file
 
         load_env_file()
         api_key = os.environ.get("GEMINI_API_KEY", "").strip()
         openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     result = run_generation_eval(
         cases=cases, evidence=evidence, retrieval_preset=preset, model=args.model,
         output_dir=output_dir, mode=args.mode, judge_model=args.judge_model, api_key=api_key,
-        openai_api_key=openai_api_key, confirm_live=args.confirm_live, max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
+        openai_api_key=openai_api_key, anthropic_api_key=anthropic_api_key,
+        confirm_live=args.confirm_live, max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
         resume_from=args.resume_from,
     )
     print(f"완료: {output_dir}")

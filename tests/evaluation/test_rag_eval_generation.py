@@ -174,6 +174,35 @@ class GenerationEvalTest(unittest.TestCase):
             self.assertEqual(result["config"]["estimate"]["calls"], 2)  # 다시 돌린 1케이스: 생성+판정
             self.assertEqual(result["summary"]["returned_items"], result["summary"]["expected_items"])
 
+    def test_partial_dump_can_be_resumed(self):
+        full_cases = load_cases()
+        full_evidence = ge.retrieve_evidence(
+            full_cases, ContractReviewRagRetriever(statute_retriever=FakeStatuteRetriever())
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            ge.run_generation_eval(
+                cases=full_cases, evidence=full_evidence, retrieval_preset="dense_k3",
+                model="gemini-3.5-flash-lite", output_dir=source, judge_model="gemini-3.8-flash",
+            )
+            rows = [json.loads(line) for line in (source / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+            keep = {r["case_id"] for r in rows}
+            keep = set(sorted(keep)[:5])  # 중단 시점에 5케이스까지만 끝난 상황
+            from ml.agent.output_validation import CheckResult
+            records = [
+                {**r, "checks": [CheckResult(**c) for c in r["checks"]]} for r in rows if r["case_id"] in keep
+            ]
+            partial = Path(tmp) / "partial"
+            partial.mkdir()
+            (partial / "config.json").write_text(json.dumps({"usage": {}}), encoding="utf-8")
+            ge._dump_partial(partial, records, {})
+            carried, _ = ge.load_resume(partial)
+            self.assertEqual(set(carried), keep)
+
+    def test_claude_estimate_uses_measured_tokens(self):
+        claude = ge.estimate_cost("claude-sonnet-5-5", None, 25)["estimated_cost_usd"]
+        self.assertGreater(claude, 0.4)  # live-008 실측: 호출당 약 $0.02
+
     def test_judge_output_fields(self):
         fields = ge.judge_output_fields(
             {"item_id": "a", "status": "x", "summary": "요약", "needs_input": ["a", "b"],

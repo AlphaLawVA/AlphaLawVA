@@ -55,6 +55,10 @@ class ContractReviewRagRetriever:
 
     DEFAULT_EVIDENCE_TOP_K = 3
     DEFAULT_MIN_SIMILARITY = 0.35
+    # 판례 유사도는 법령보다 구조적으로 낮다(관련 판례가 0.27~0.43, 무관한 결과는 0.2 미만).
+    # 그래서 법령과 같은 기준으로 섞지 않고 종류별로 따로 고른다.
+    DEFAULT_PRECEDENT_EVIDENCE_TOP_K = 2
+    DEFAULT_PRECEDENT_MIN_SIMILARITY = 0.2
 
     def __init__(
         self,
@@ -65,10 +69,12 @@ class ContractReviewRagRetriever:
         precedent_top_k: int = 3,
         evidence_top_k: int = DEFAULT_EVIDENCE_TOP_K,
         min_similarity: float = DEFAULT_MIN_SIMILARITY,
+        precedent_evidence_top_k: int = DEFAULT_PRECEDENT_EVIDENCE_TOP_K,
+        precedent_min_similarity: float = DEFAULT_PRECEDENT_MIN_SIMILARITY,
     ) -> None:
-        if min(statute_top_k, precedent_top_k, evidence_top_k) < 1:
+        if min(statute_top_k, precedent_top_k, evidence_top_k, precedent_evidence_top_k) < 1:
             raise ValueError("검색 결과 수는 1 이상이어야 합니다.")
-        if not -1 <= min_similarity <= 1:
+        if not -1 <= min_similarity <= 1 or not -1 <= precedent_min_similarity <= 1:
             raise ValueError("최소 유사도는 -1 이상 1 이하여야 합니다.")
         self._statute_retriever = statute_retriever
         self._precedent_retriever = precedent_retriever
@@ -76,6 +82,8 @@ class ContractReviewRagRetriever:
         self._precedent_top_k = precedent_top_k
         self._evidence_top_k = evidence_top_k
         self._min_similarity = min_similarity
+        self._precedent_evidence_top_k = precedent_evidence_top_k
+        self._precedent_min_similarity = precedent_min_similarity
         self._lock = RLock()
 
     def retrieve(
@@ -99,22 +107,22 @@ class ContractReviewRagRetriever:
         self,
         candidates: list[ContractReviewEvidence],
     ) -> list[ContractReviewEvidence]:
-        """최소 관련도를 통과한 근거만 항목별 상위 순으로 보존한다."""
+        """법령과 판례를 종류별 기준·개수로 골라 항목별로 보존한다."""
 
-        relevant = [
-            candidate
-            for candidate in candidates
-            if candidate.similarity >= self._min_similarity
-        ]
-        return sorted(
-            relevant,
-            key=lambda candidate: (
-                -candidate.similarity,
-                candidate.rank,
-                candidate.source_type,
-                candidate.source_id,
-            ),
-        )[: self._evidence_top_k]
+        def top(source_type: str, minimum: float, limit: int) -> list[ContractReviewEvidence]:
+            relevant = [
+                candidate
+                for candidate in candidates
+                if candidate.source_type == source_type and candidate.similarity >= minimum
+            ]
+            return sorted(
+                relevant,
+                key=lambda candidate: (-candidate.similarity, candidate.rank, candidate.source_id),
+            )[:limit]
+
+        return top("statute", self._min_similarity, self._evidence_top_k) + top(
+            "precedent", self._precedent_min_similarity, self._precedent_evidence_top_k
+        )
 
     def _retrieve_statutes(
         self,

@@ -36,8 +36,9 @@ class ProviderTest(unittest.TestCase):
     def test_provider_for(self):
         self.assertEqual(providers.provider_for("gemini-3.8-flash"), "gemini")
         self.assertEqual(providers.provider_for("gpt-6.1-terra"), "openai")
+        self.assertEqual(providers.provider_for("claude-sonnet-5-5"), "anthropic")
         with self.assertRaises(ValueError):
-            providers.provider_for("claude-sonnet-5-5")
+            providers.provider_for("llama-3")
 
     def test_request_conversion(self):
         body = providers.to_openai_request("gpt-6.1-terra", REQUEST)
@@ -120,9 +121,46 @@ class ProviderTest(unittest.TestCase):
             transport._post_json(REQUEST)
         self.assertEqual(calls["n"], 1)
 
+    def test_anthropic_request_and_response(self):
+        body = providers.to_anthropic_request("claude-sonnet-5-5", REQUEST)
+        self.assertIn("JSON 스키마", body["system"])
+        self.assertEqual(body["messages"][0]["role"], "user")
+        self.assertNotIn("temperature", body)
+        converted = providers.anthropic_to_gemini_response(
+            {"content": [{"type": "text", "text": "```json\n{\"items\": []}\n```"}],
+             "usage": {"input_tokens": 7, "output_tokens": 3}}
+        )
+        self.assertEqual(converted["candidates"][0]["content"]["parts"][0]["text"], "{\"items\": []}")
+        self.assertEqual(converted["usageMetadata"]["totalTokenCount"], 10)
+        with self.assertRaises(RuntimeError):
+            providers.anthropic_to_gemini_response({"content": []})
+
+    def test_anthropic_transport_headers_and_errors(self):
+        seen = {}
+
+        def opener(request, timeout):
+            seen["key"] = request.headers.get("X-api-key")
+            seen["version"] = request.headers.get("Anthropic-version")
+            return FakeResponse(json.dumps({"content": [{"type": "text", "text": "{}"}], "usage": {}}).encode())
+
+        transport = providers.AnthropicMessagesTransport(api_key="k", model="claude-sonnet-5-5", opener=opener)
+        self.assertEqual(transport._extract_text(transport._post_json(REQUEST)), "{}")
+        self.assertEqual(seen, {"key": "k", "version": providers.ANTHROPIC_VERSION})
+
+        def credit(request, timeout):
+            raise HTTPError("u", 400, "bad", {}, io.BytesIO(b'{"error": {"message": "credit balance too low"}}'))
+
+        with self.assertRaises(RuntimeError) as ctx:
+            providers.AnthropicMessagesTransport(api_key="k", model="m", opener=credit)._post_json(REQUEST)
+        self.assertIn("credit balance", str(ctx.exception))
+        self.assertNotIn("k", str(ctx.exception).replace("credit", ""))
+
     def test_key_requirements(self):
         with self.assertRaises(GenerationEvalError):
             _require_keys(["gpt-6.1-terra"], "gemini-key", None)
+        with self.assertRaises(GenerationEvalError):
+            _require_keys(["claude-sonnet-5-5"], "g", "o", None)
+        _require_keys(["claude-sonnet-5-5"], "g", "o", "a")
         _require_keys(["gpt-6.1-terra", "gemini-3.8-flash"], "g", "o")
         self.assertIsInstance(make_transport("gpt-6-luna", None, "o"), providers.OpenAIChatTransport)
 

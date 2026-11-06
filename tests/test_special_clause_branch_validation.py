@@ -89,13 +89,14 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "추가 입력 요청이 비어"):
             self._generate([_item(status="needs_input", needs_input=[])])
 
-    def test_draft_with_open_questions_is_treated_as_needs_input(self) -> None:
+    def test_draft_with_open_questions_keeps_draft_and_questions(self) -> None:
+        # 초안과 함께 남은 질문은 '추가로 정하면 좋은 항목'이므로 초안을 숨기지 않는다.
         result = self._generate([_item(needs_input=["금지 기한을 알려주세요."])])
 
-        self.assertEqual(result[0].status, "needs_input")
-        self.assertIsNone(result[0].draft_text)
-        self.assertIsNone(result[0].reason)
-        self.assertIsNone(result[0].strategy)
+        self.assertEqual(result[0].status, "draft_ready")
+        self.assertTrue(result[0].draft_text)
+        self.assertTrue(result[0].reason)
+        self.assertTrue(result[0].strategy)
         self.assertEqual(result[0].needs_input, ["금지 기한을 알려주세요."])
 
     def test_draft_ready_keeps_empty_questions(self) -> None:

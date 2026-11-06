@@ -1,22 +1,10 @@
-const offTopicPatterns = [
-  /날씨|메뉴|레시피|요리|숙제|번역|코딩|주식|게임|여행|노래|운세/,
-];
-
-const realEstatePatterns = [
-  /계약|임대|임차|전세|월세|보증금|집주인|세입자|부동산|주택|아파트|원룸|매매|매수|등기|근저당|퇴거|수리|누수|곰팡이|하자|반려|흡연|담배|벽|못|타공|보일러|원상회복/,
-];
-
+// 부동산 계약과의 관련성은 키워드로 판단하지 않는다. 서버의 LLM 범위 분류기가 판단하고,
+// 관련 없는 요청은 서버가 out_of_scope로 돌려준다. 여기서는 빈 입력과 길이만 확인한다.
 export function validateRealEstateInput(value: string, minimumLength: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
 
   if (!normalized) return "내용을 입력해주세요.";
   if (normalized.length < minimumLength) return "상황과 원하는 내용을 조금 더 구체적으로 적어주세요.";
-  if (offTopicPatterns.some((pattern) => pattern.test(normalized))) {
-    return "부동산 계약이나 주거 분쟁과 관련된 내용만 도와드릴 수 있습니다. 계약 종류, 현재 상황과 원하는 조치를 적어주세요.";
-  }
-  if (!realEstatePatterns.some((pattern) => pattern.test(normalized))) {
-    return "부동산 계약과 관련된 요청인지 확인하기 어렵습니다. 계약 대상과 당사자, 원하는 조건을 함께 적어주세요.";
-  }
 
   return "";
 }

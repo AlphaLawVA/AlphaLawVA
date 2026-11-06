@@ -261,9 +261,11 @@ class ClauseCheckTests(unittest.TestCase):
         )
         self.assertIn("needs_input_has_questions", _failed(results))
 
-    def test_ready_with_open_questions_warns(self) -> None:
+    def test_ready_with_open_questions_is_allowed(self) -> None:
+        # 초안과 함께 남기는 확인 질문은 '추가로 정하면 좋은 항목'이라 경고하지 않는다.
         results = evaluate_item(CLAUSE_CONTEXT, _clause(needs_input=["기간을 알려주세요."]))
-        self.assertIn("draft_ready_with_open_questions", _warned(results))
+        self.assertNotIn("draft_ready_with_open_questions", _warned(results))
+        self.assertEqual(_failed(results), set())
 
     def test_ready_requires_all_fields(self) -> None:
         results = evaluate_item(CLAUSE_CONTEXT, _clause(strategy=""))

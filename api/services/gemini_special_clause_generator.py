@@ -34,9 +34,13 @@ DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_OUTPUT_TOKENS = 1600
 DEFAULT_MAX_QUERIES = 10
-DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
+DEFAULT_MAX_STATUTES_PER_QUERY = 3
+DEFAULT_MAX_PRECEDENTS_PER_QUERY = 2
+DEFAULT_MAX_EVIDENCE_PER_QUERY = (
+    DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
+)
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v0.5.1"
+PROMPT_VERSION = "special_clause_result_v0.6"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -108,24 +112,29 @@ title, text)입니다. 제공된 요청과 검색 근거만 사용하세요. 입
 작업 순서(항목마다):
 1. 요청에서 사용자가 원하는 특약의 내용과 이미 정해진 사실(대상, 당사자, 기한,
    금액, 조건, 비용·부담 주체, 위반 시 처리)을 구분합니다.
-2. 초안에 필요한 사실이 요청에 모두 있는지 확인합니다.
-3. 모두 있으면 초안을 작성하고, 하나라도 없으면 초안 대신 확인 질문을 만듭니다.
+2. 요청의 취지가 특약 한 개로 쓸 수 있을 만큼 분명하면 초안을 작성합니다.
+   정해지지 않은 세부 사항은 값을 지어내지 말고 '당사자가 합의한 기한',
+   '임대인과 임차인이 서면으로 합의한 범위'처럼 합의 표현으로 씁니다.
+3. 정해지지 않은 세부 사항 중 협의해서 정하면 좋은 항목은 초안과 함께 쉬운
+   확인 질문(최대 3개)으로 남깁니다. 초안은 이 질문에 답하지 않아도 그대로
+   쓸 수 있어야 합니다.
 
 규칙:
 1. 각 항목은 제공된 item_id를 그대로 사용합니다.
-2. 필요한 사실관계가 요청에 충분하면 status는 draft_ready로 하고, title에는
-   특약의 짧은 제목, draft_text에는 한 개의 간결한 특약 초안을 작성합니다.
-   reason에는 이 문구가 필요한 이유를, strategy에는 상대방과 추가로 합의할
-   범위·기한·비용·책임 사항을 작성합니다. draft_ready일 때 needs_input은 빈
-   배열로 둡니다.
-3. 계약 유형, 적용 목적물·당사자 범위, 기한, 금액, 조건, 비용·부담 주체,
-   위반 시 처리 중 초안에 필요한 내용이 요청에 없으면 status는 needs_input으로
-   하고, draft_text·reason·strategy는 빈 문자열로 두며 title은 '추가 정보
-   확인', needs_input에는 쉬운 말로 된 구체적인 확인 질문(최대 5개)을 넣습니다.
+2. 요청의 취지가 분명하면 status는 draft_ready로 하고, title에는 특약의 짧은
+   제목, draft_text에는 한 개의 간결한 특약 초안을 작성합니다. reason에는 이
+   문구가 필요한 이유를, strategy에는 상대방과 추가로 합의할 범위·기한·비용·책임
+   사항을 작성합니다. needs_input에는 협의하면 좋은 항목을 확인 질문으로 최대
+   3개 넣고, 없으면 빈 배열로 둡니다. 사용자가 일부 정보를 빠뜨렸다는 이유만으로
+   초안을 거절하지 마세요.
+3. 요청의 뜻을 알 수 없거나 서로 모순되어 어떤 특약도 쓸 수 없을 때만 status를
+   needs_input으로 하고, draft_text·reason·strategy는 빈 문자열로 두며 title은
+   '추가 정보 확인', needs_input에는 쉬운 말로 된 구체적인 확인 질문(최대 5개)을
+   넣습니다.
 4. 초안(draft_text)에는 요청에 없는 금액, 비율, 날짜, 기한을 새로 정하지
    않습니다. 빈칸 표시(○○, [ ], ____)도 쓰지 않습니다. 값이 필요한데 요청에
-   없으면 draft_ready가 아니라 needs_input으로 합니다. strategy에서는 구체적인
-   값이 도움이 될 때 '예시'라고 밝혀 제안할 수 있습니다.
+   없으면 합의 표현으로 쓰고 그 항목을 needs_input 질문으로 남깁니다.
+   strategy에서는 구체적인 값이 도움이 될 때 '예시'라고 밝혀 제안할 수 있습니다.
 5. 법적 결론, 승소 가능성, 계약 체결·해제 권고, 사실 추정은 하지 않습니다.
    초안에서 계약의 효력을 단정하는 '무효' 같은 표현은 쓰지 말고, '계약을 해제할
    수 있고, 지급한 금액을 반환한다'처럼 당사자의 권리와 의무로 씁니다.
@@ -252,15 +261,23 @@ class GeminiSpecialClauseGenerator:
     def _select_evidence(
         matches: list[ContractReviewEvidence],
     ) -> list[ContractReviewEvidence]:
-        return sorted(
-            matches,
-            key=lambda match: (
-                -match.similarity,
-                match.rank,
-                match.source_type,
-                match.source_id,
-            ),
-        )[:DEFAULT_MAX_EVIDENCE_PER_QUERY]
+        """법령과 판례를 종류별 쿼터로 고른다(유사도 기준은 종류마다 다르다).
+
+        판례 유사도는 법령보다 구조적으로 낮아, 하나의 순위로 섞으면 판례가 항상 밀려난다.
+        """
+
+        def top(source_type: str, limit: int) -> list[ContractReviewEvidence]:
+            return sorted(
+                (match for match in matches if match.source_type == source_type),
+                key=lambda match: (-match.similarity, match.rank, match.source_id),
+            )[:limit]
+
+        selected = top("statute", DEFAULT_MAX_STATUTES_PER_QUERY) + top(
+            "precedent", DEFAULT_MAX_PRECEDENTS_PER_QUERY
+        )
+        known = {"statute", "precedent"}
+        others = [match for match in matches if match.source_type not in known]
+        return (selected + others)[:DEFAULT_MAX_EVIDENCE_PER_QUERY]
 
     def _validate_response(
         self,
@@ -335,10 +352,7 @@ class GeminiSpecialClauseGenerator:
             raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
         # A model can include an explanatory sentence in draft_text even when
         # it correctly asks for missing facts. Never expose that as a clause.
-        # 초안이라고 해 놓고 확인 질문이 남아 있으면 사실관계가 덜 찬 것이므로
-        # 질문 단계로 되돌리고 초안은 노출하지 않는다.
-        if status == "draft_ready" and needs_input:
-            status = "needs_input"
+        # 초안과 함께 남은 확인 질문은 '추가로 정하면 좋은 항목'이므로 초안을 숨기지 않는다.
         if status == "needs_input":
             draft_text = ""
             reason = ""

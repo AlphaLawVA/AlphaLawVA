@@ -17,6 +17,7 @@ type GeneratedClause = {
   clause: string;
   reason: string;
   strategy: string;
+  followUps?: string[];
   statutes: LegalBasis[];
   precedents: CaseBasis[];
 };
@@ -117,6 +118,8 @@ function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
       clause: item.draft_text ?? `추가 확인 필요: ${needsInput || "요청 내용을 구체적으로 확인해주세요."}`,
       reason: item.reason ?? "특약 초안을 만들기 전에 추가 정보가 필요합니다.",
       strategy: item.strategy ?? (needsInput || "적용 범위와 이행 조건을 상대방과 확인하세요."),
+      // 초안이 있으면 남은 확인 질문은 '추가로 정하면 좋은 항목'으로 따로 보여준다.
+      followUps: item.draft_text ? item.needs_input : undefined,
       statutes: evidence.filter((entry) => entry.source_type === "statute").map(evidenceToLaw),
       precedents: evidence.filter((entry) => entry.source_type === "precedent").map(evidenceToPrecedent),
     };
@@ -289,6 +292,12 @@ export default function ClauseGeneratorPage() {
               <section className={styles.detailSection}><h3>생성된 특약</h3><p className={styles.generatedText}>{current.clause}</p></section>
               <section className={styles.detailSection}><h3>생성된 이유</h3><p>{current.reason}</p></section>
               <section className={styles.detailSection}><h3>협상 전략</h3><p>{current.strategy}</p></section>
+              {current.followUps && current.followUps.length > 0 && (
+                <section className={styles.detailSection}>
+                  <h3>추가로 정하면 좋은 항목</h3>
+                  <ul>{current.followUps.map((question) => <li key={question}>{question}</li>)}</ul>
+                </section>
+              )}
               <details className={styles.detailDisclosure}><summary>관련 법령 {current.statutes.length}건</summary>
                 {current.statutes.length ? current.statutes.map((law) => <article className={styles.basisCard} key={`${law.law}-${law.article}`}><strong>{law.law} {law.article}</strong><p>{law.excerpt}</p><span>{law.explanation}</span>{law.url && <a href={law.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a>}</article>) : <p>이 초안에 직접 연결된 법령 근거는 없습니다.</p>}
               </details>
