@@ -142,6 +142,8 @@ def judge_thinking_config(model: str) -> dict[str, Any]:
     name = model.removeprefix("models/")
     if name.startswith("gemini-2.5-"):
         return {"thinkingBudget": 0}
+    if not name.startswith("gemini-"):
+        return {}  # 다른 제공자는 기본 추론 설정을 쓴다.
     return {"thinkingLevel": "minimal" if "lite" in name else "low"}
 
 

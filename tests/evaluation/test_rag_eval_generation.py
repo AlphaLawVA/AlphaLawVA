@@ -9,6 +9,7 @@ After:
     - 검색 교체, 오프라인 실행, 판정 점수, 실호출 가드, 결과 저장이 검증됨.
 """
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -139,6 +140,39 @@ class GenerationEvalTest(unittest.TestCase):
                 ge.rejudge_run(
                     source_dir=source, output_dir=out, judge_model="gemini-3.8-flash", mode="live"
                 )
+
+    def test_resume_reuses_error_free_cases(self):
+        full_cases = load_cases()
+        full_evidence = ge.retrieve_evidence(
+            full_cases, ContractReviewRagRetriever(statute_retriever=FakeStatuteRetriever())
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            ge.run_generation_eval(
+                cases=full_cases, evidence=full_evidence, retrieval_preset="dense_k3",
+                model="gemini-3.5-flash-lite", output_dir=source, judge_model="gemini-3.8-flash",
+            )
+            # 한 케이스를 오류가 난 것처럼 표시한다.
+            rows = [json.loads(line) for line in (source / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+            failed_case = rows[0]["case_id"]
+            for row in rows:
+                if row["case_id"] == failed_case:
+                    row["error"] = "RuntimeError: HTTP 401"
+            (source / "results.jsonl").write_text(
+                "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8"
+            )
+            carried, _ = ge.load_resume(source)
+            self.assertNotIn(failed_case, carried)
+            self.assertEqual(len(carried), len(full_cases) - 1)
+            out = Path(tmp) / "resumed"
+            result = ge.run_generation_eval(
+                cases=full_cases, evidence=full_evidence, retrieval_preset="dense_k3",
+                model="gemini-3.5-flash-lite", output_dir=out, judge_model="gemini-3.8-flash",
+                resume_from=source,
+            )
+            self.assertEqual(result["config"]["resumed_from"], "source")
+            self.assertEqual(result["config"]["estimate"]["calls"], 2)  # 다시 돌린 1케이스: 생성+판정
+            self.assertEqual(result["summary"]["returned_items"], result["summary"]["expected_items"])
 
     def test_judge_output_fields(self):
         fields = ge.judge_output_fields(

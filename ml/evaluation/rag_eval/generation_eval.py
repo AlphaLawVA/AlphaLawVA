@@ -34,6 +34,7 @@ from ml.evaluation.prompt_harness.runner import (
     load_cases,
 )
 from ml.evaluation.rag_eval import judge as judge_module
+from ml.evaluation.rag_eval.providers import OpenAIChatTransport, provider_for
 from ml.rag.contract_review_retriever import ContractReviewRagRetriever
 
 DEFAULT_OUTPUT_ROOT = Path("local_data/rag_eval/generation")
@@ -42,6 +43,9 @@ DEFAULT_OUTPUT_ROOT = Path("local_data/rag_eval/generation")
 PRICING_USD_PER_MILLION: dict[str, tuple[float, float]] = {
     "gemini-3.5-flash-lite": (0.30, 2.50),
     "gemini-3.8-flash": (0.75, 3.75),  # 2026-12-31까지 도입가, 2027-01-01부터 (1.50, 7.50)
+    # OpenAI 공식 가격표(developers.openai.com/api/docs/pricing, 2026-11-06 확인, 기준일 표기 없음)
+    "gpt-6-luna": (0.10, 0.50),
+    "gpt-6.1-terra": (1.00, 5.00),
 }
 # 호출 1회 평균 토큰 가정(사전 비용 추정용). 실측 후 갱신한다.
 ESTIMATED_TOKENS = {"generate": (2100, 300), "judge": (1700, 250)}  # live-002 실측 평균 기반
@@ -51,6 +55,29 @@ RETRIEVAL_PRESETS: dict[str, dict[str, Any]] = {
     "dense_k5": {"statute_top_k": 5, "evidence_top_k": 5, "min_similarity": 0.35},
     "dense_k3_min0.5": {"statute_top_k": 3, "evidence_top_k": 3, "min_similarity": 0.5},
 }
+
+
+def _api_key_for(model: str, api_key: str | None, openai_api_key: str | None) -> str | None:
+    return openai_api_key if provider_for(model) == "openai" else api_key
+
+
+def _require_keys(
+    models: Sequence[str | None], api_key: str | None, openai_api_key: str | None
+) -> None:
+    for model in models:
+        if model and not _api_key_for(model, api_key, openai_api_key):
+            env = "OPENAI_API_KEY" if provider_for(model) == "openai" else "GEMINI_API_KEY"
+            raise GenerationEvalError(f"{env} 가 없습니다.")
+
+
+def make_transport(model: str, api_key: str | None, openai_api_key: str | None) -> Any:
+    """모델 제공자에 맞는 전송 객체(_post_json 등을 가진 객체)를 만든다."""
+
+    if provider_for(model) == "openai":
+        return OpenAIChatTransport(api_key=openai_api_key or "", model=model)
+    return review_module.GeminiContractReviewAnalyzer(
+        api_key=api_key or "", model=model, usage_manifest_path=None
+    )
 
 
 class GenerationEvalError(ValueError):
@@ -328,6 +355,34 @@ def render_review_sheet(
     return "\n".join(lines)
 
 
+def load_resume(
+    source_dir: Path,
+) -> tuple[dict[str, tuple[list[dict[str, Any]], dict[str, Any]]], dict[str, Any]]:
+    """이전 실행에서 오류 없이 끝난 케이스의 기록·판정을 불러온다."""
+
+    from ml.agent.output_validation import CheckResult
+
+    rows = [
+        json.loads(line)
+        for line in (source_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    by_case: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_case.setdefault(row["case_id"], []).append(row)
+    carried = {}
+    for case_id, case_rows in by_case.items():
+        if any(row.get("error") for row in case_rows):
+            continue
+        records = [
+            {**row, "checks": [CheckResult(**c) for c in row["checks"]]} for row in case_rows
+        ]
+        scores = {row["item_id"]: row["judge"] for row in case_rows if row.get("judge")}
+        carried[case_id] = (records, scores)
+    config = json.loads((source_dir / "config.json").read_text(encoding="utf-8"))
+    return carried, config.get("usage", {})
+
+
 def run_generation_eval(
     *,
     cases: Sequence[HarnessCase],
@@ -338,14 +393,18 @@ def run_generation_eval(
     mode: str = "fake",
     judge_model: str | None = None,
     api_key: str | None = None,
+    openai_api_key: str | None = None,
     confirm_live: bool = False,
     max_calls: int = 60,
     max_cost_usd: float = 0.5,
     judge_call: Callable[..., Any] | None = None,
+    resume_from: Path | None = None,
 ) -> dict[str, Any]:
     if mode not in {"fake", "live"}:
         raise GenerationEvalError("mode는 fake|live여야 합니다.")
-    estimate = estimate_cost(model, judge_model, len(cases))
+    carried, carried_usage = load_resume(resume_from) if resume_from else ({}, {})
+    todo = [case for case in cases if case.id not in carried]
+    estimate = estimate_cost(model, judge_model, len(todo))
     if mode == "live":
         if not confirm_live:
             raise GenerationEvalError("실제 모델 호출은 --confirm-live 가 있어야 실행합니다(유료).")
@@ -357,8 +416,7 @@ def run_generation_eval(
             raise GenerationEvalError(
                 f"예상 비용 ${estimate['estimated_cost_usd']}가 한도 ${max_cost_usd}를 넘습니다."
             )
-        if not api_key:
-            raise GenerationEvalError("GEMINI_API_KEY 가 없습니다.")
+        _require_keys([model, judge_model], api_key, openai_api_key)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     save_evidence(output_dir / "evidence.json", retrieval_preset, evidence)
@@ -371,17 +429,24 @@ def run_generation_eval(
         if mode == "fake":
             judge_call = lambda payload: (judge_module.fake_judge(payload), {"input_tokens": 0, "output_tokens": 0})  # noqa: E731
         else:
-            transport = review_module.GeminiContractReviewAnalyzer(
-                api_key=api_key, model=judge_model, usage_manifest_path=None
-            )
+            transport = make_transport(judge_model, api_key, openai_api_key)
             judge_call = judge_module.gemini_judge_call(
                 transport, thinking_config=judge_module.judge_thinking_config(judge_model)
             )
 
+    generation_transport = (
+        make_transport(model, api_key, openai_api_key)
+        if mode == "live" and provider_for(model) == "openai"
+        else None
+    )
     records: list[dict[str, Any]] = []
     judged: dict[str, dict[str, dict[str, Any]]] = {}
     spent = 0.0
     for case in replaced:
+        if case.id in carried:  # 이전 실행에서 오류 없이 끝난 케이스는 다시 호출하지 않는다.
+            records.extend(carried[case.id][0])
+            judged[case.id] = carried[case.id][1]
+            continue
         if case.kind == "review":
             instance: Any = review_module.GeminiContractReviewAnalyzer(
                 api_key=api_key or "offline-key", model=model, usage_manifest_path=usage_path
@@ -396,6 +461,8 @@ def run_generation_eval(
         # 모델이 지원하는 최저 수준으로 바꾸고 config에 기록한다(기준선과 사고 수준이 다를 수 있음).
         thinking = judge_module.judge_thinking_config(model)
         instance._thinking_config = lambda t=thinking: dict(t)
+        if generation_transport is not None:  # OpenAI 모델: 요청을 변환해 보내고 응답을 되돌린다.
+            instance._post_json = generation_transport._post_json
         hook = _fake_hook(case) if mode == "fake" else None
         case_records = _run_case(case, instance, method, hook) if any(i.evidence for i in case.items) else []
         records.extend(case_records)
@@ -433,6 +500,8 @@ def run_generation_eval(
         "judge_prompt_version": judge_module.JUDGE_PROMPT_VERSION,
         "estimate": estimate,
         "usage": usage,
+        "resumed_from": resume_from.name if resume_from else None,
+        "resumed_usage": carried_usage or None,
     }
     with (output_dir / "results.jsonl").open("w", encoding="utf-8") as file:
         for record in records:
@@ -462,6 +531,7 @@ def rejudge_run(
     judge_model: str,
     mode: str = "fake",
     api_key: str | None = None,
+    openai_api_key: str | None = None,
     confirm_live: bool = False,
     max_calls: int = 30,
     max_cost_usd: float = 0.1,
@@ -495,8 +565,7 @@ def rejudge_run(
             raise GenerationEvalError(
                 f"예상 비용 ${estimate['estimated_cost_usd']}가 한도 ${max_cost_usd}를 넘습니다."
             )
-        if not api_key:
-            raise GenerationEvalError("GEMINI_API_KEY 가 없습니다.")
+        _require_keys([judge_model], api_key, openai_api_key)
     if judge_call is None:
         if mode == "fake":
             judge_call = lambda payload: (  # noqa: E731
@@ -504,9 +573,7 @@ def rejudge_run(
                 {"input_tokens": 0, "output_tokens": 0},
             )
         else:
-            transport = review_module.GeminiContractReviewAnalyzer(
-                api_key=api_key, model=judge_model, usage_manifest_path=None
-            )
+            transport = make_transport(judge_model, api_key, openai_api_key)
             judge_call = judge_module.gemini_judge_call(
                 transport, thinking_config=judge_module.judge_thinking_config(judge_model)
             )
@@ -596,6 +663,8 @@ def main() -> None:
     parser.add_argument("--max-calls", type=int, default=60)
     parser.add_argument("--max-cost-usd", type=float, default=0.5)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--resume-from", type=Path, default=None,
+                        help="이전 실행에서 오류 없이 끝난 케이스는 재사용하고 나머지만 다시 호출")
     parser.add_argument("--rejudge-from", type=Path, default=None,
                         help="저장된 실행 폴더의 출력을 다시 생성하지 않고 판정만 새로 채점")
     args = parser.parse_args()
@@ -603,16 +672,17 @@ def main() -> None:
     if args.rejudge_from:
         if not args.judge_model:
             parser.error("--rejudge-from 은 --judge-model 이 필요합니다.")
-        key = None
+        key = openai_key = None
         if args.mode == "live":
             from precedents.precedent_config import load_env_file
 
             load_env_file()
             key = os.environ.get("GEMINI_API_KEY", "").strip()
+            openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
         out = args.output_dir or DEFAULT_OUTPUT_ROOT / datetime.now().strftime("%Y%m%d-%H%M%S")
         result = rejudge_run(
             source_dir=args.rejudge_from, output_dir=out, judge_model=args.judge_model,
-            mode=args.mode, api_key=key, confirm_live=args.confirm_live,
+            mode=args.mode, api_key=key, openai_api_key=openai_key, confirm_live=args.confirm_live,
             max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
         )
         print(f"완료: {out}")
@@ -634,16 +704,18 @@ def main() -> None:
         print(f"검색 결과 저장: {output_dir / 'evidence.json'}")
         return
 
-    api_key = None
+    api_key = openai_api_key = None
     if args.mode == "live":
         from precedents.precedent_config import load_env_file
 
         load_env_file()
         api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     result = run_generation_eval(
         cases=cases, evidence=evidence, retrieval_preset=preset, model=args.model,
         output_dir=output_dir, mode=args.mode, judge_model=args.judge_model, api_key=api_key,
-        confirm_live=args.confirm_live, max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
+        openai_api_key=openai_api_key, confirm_live=args.confirm_live, max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
+        resume_from=args.resume_from,
     )
     print(f"완료: {output_dir}")
     print(json.dumps(result["summary"], ensure_ascii=False))
