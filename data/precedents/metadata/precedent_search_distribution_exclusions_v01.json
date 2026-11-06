@@ -1,6 +1,6 @@
 {
   "schema_version": "precedent_search_distribution_exclusions.v1",
-  "policy_version": "residential_lease_manual_review_v2",
+  "policy_version": "residential_real_estate_manual_review_v3",
   "policy_summary": "생성요약 또는 쉬운요약에 분양 맥락이 명시된 판례를 판례 검색 허용 목록에서 제외한다. 이유·전문에 단어가 단순 등장하는 경우는 제외하지 않는다.",
   "base_reviewed_eligible_case_count": 750,
   "excluded_case_count": 72,
