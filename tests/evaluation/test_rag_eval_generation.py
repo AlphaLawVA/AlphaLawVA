@@ -119,6 +119,34 @@ class GenerationEvalTest(unittest.TestCase):
             with self.assertRaises(ge.GenerationEvalError):  # 키 없음
                 ge.run_generation_eval(model="gemini-3.5-flash-lite", output_dir=out, confirm_live=True, **base)
 
+    def test_rejudge_from_saved_run(self):
+        full_cases = load_cases()
+        full_evidence = ge.retrieve_evidence(
+            full_cases, ContractReviewRagRetriever(statute_retriever=FakeStatuteRetriever())
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            ge.run_generation_eval(
+                cases=full_cases, evidence=full_evidence, retrieval_preset="dense_k3",
+                model="gemini-3.5-flash-lite", output_dir=source,
+            )
+            out = Path(tmp) / "rejudged"
+            result = ge.rejudge_run(source_dir=source, output_dir=out, judge_model="gemini-3.8-flash")
+            self.assertIsNotNone(result["summary"]["faithfulness"])
+            self.assertEqual(result["config"]["rejudged_from"], "source")
+            self.assertEqual(result["config"]["judge_prompt_version"], judge.JUDGE_PROMPT_VERSION)
+            with self.assertRaises(ge.GenerationEvalError):  # --confirm-live 없는 실호출 거부
+                ge.rejudge_run(
+                    source_dir=source, output_dir=out, judge_model="gemini-3.8-flash", mode="live"
+                )
+
+    def test_judge_output_fields(self):
+        fields = ge.judge_output_fields(
+            {"item_id": "a", "status": "x", "summary": "요약", "needs_input": ["a", "b"],
+             "reason": "", "evidence_source_ids": ["s"]}
+        )
+        self.assertEqual(fields, {"summary": "요약", "needs_input": "a; b"})
+
     def test_estimate_cost(self):
         estimate = ge.estimate_cost("gemini-3.5-flash-lite", "gemini-3.8-flash", 25)
         self.assertEqual(estimate["calls"], 50)

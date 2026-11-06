@@ -44,7 +44,7 @@ PRICING_USD_PER_MILLION: dict[str, tuple[float, float]] = {
     "gemini-3.8-flash": (0.75, 3.75),  # 2026-12-31까지 도입가, 2027-01-01부터 (1.50, 7.50)
 }
 # 호출 1회 평균 토큰 가정(사전 비용 추정용). 실측 후 갱신한다.
-ESTIMATED_TOKENS = {"generate": (2500, 600), "judge": (3500, 900)}
+ESTIMATED_TOKENS = {"generate": (2100, 300), "judge": (1700, 250)}  # live-002 실측 평균 기반
 
 RETRIEVAL_PRESETS: dict[str, dict[str, Any]] = {
     "dense_k3": {"statute_top_k": 3, "evidence_top_k": 3, "min_similarity": 0.35},  # 서비스 기본값
@@ -57,7 +57,7 @@ class GenerationEvalError(ValueError):
     """생성 평가 설정이 안전하지 않거나 올바르지 않을 때 발생한다."""
 
 
-def estimate_cost(model: str, judge_model: str | None, case_count: int) -> dict[str, Any]:
+def estimate_cost(model: str | None, judge_model: str | None, case_count: int) -> dict[str, Any]:
     """호출 수와 예상 비용(가정 토큰 기준)을 계산한다. 모델 단가를 모르면 비용은 None이다."""
 
     def cost(name: str | None, kind: str) -> float | None:
@@ -72,9 +72,9 @@ def estimate_cost(model: str, judge_model: str | None, case_count: int) -> dict[
     generate, judge = cost(model, "generate"), cost(judge_model, "judge")
     total = None if generate is None or judge is None else round(generate + judge, 4)
     return {
-        "calls": case_count + (case_count if judge_model else 0),
+        "calls": (case_count if model else 0) + (case_count if judge_model else 0),
         "estimated_cost_usd": total,
-        "assumption": "호출당 토큰 가정: 생성 2500/600, 판정 3500/900 (입력/출력)",
+        "assumption": "호출당 토큰 가정(live-002 실측 기반): 생성 2100/300, 판정 1700/250 (입력/출력)",
     }
 
 
@@ -159,6 +159,22 @@ def retrieval_quality(
     }
 
 
+_NON_TEXT_FIELDS = {"item_id", "status", "review_status", "evidence_source_ids"}
+
+
+def judge_output_fields(output: Mapping[str, Any]) -> dict[str, str]:
+    """모델 출력에서 판정에 필요한 텍스트 필드만 필드 이름과 함께 남긴다."""
+
+    fields: dict[str, str] = {}
+    for key, value in output.items():
+        if key in _NON_TEXT_FIELDS:
+            continue
+        text = "; ".join(str(v) for v in value) if isinstance(value, list) else str(value or "")
+        if text.strip():
+            fields[key] = text
+    return fields
+
+
 def judge_inputs(case: HarnessCase, records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """판정기에 넣을 항목(질의, 근거 원문, 출력 텍스트)을 만든다."""
 
@@ -175,7 +191,7 @@ def judge_inputs(case: HarnessCase, records: Sequence[Mapping[str, Any]]) -> lis
                 "evidence": [
                     {"source_id": e.source_id, "text": f"{e.title}\n{e.text}"} for e in item.evidence
                 ],
-                "output": output_text(record["kind"], record["output"]),
+                "output": judge_output_fields(record["output"]),
             }
         )
     return inputs
@@ -358,7 +374,9 @@ def run_generation_eval(
             transport = review_module.GeminiContractReviewAnalyzer(
                 api_key=api_key, model=judge_model, usage_manifest_path=None
             )
-            judge_call = judge_module.gemini_judge_call(transport)
+            judge_call = judge_module.gemini_judge_call(
+                transport, thinking_config=judge_module.judge_thinking_config(judge_model)
+            )
 
     records: list[dict[str, Any]] = []
     judged: dict[str, dict[str, dict[str, Any]]] = {}
@@ -374,6 +392,10 @@ def run_generation_eval(
                 api_key=api_key or "offline-key", model=model, usage_manifest_path=usage_path
             )
             method = "generate"
+        # 서비스 분석기는 minimal 사고 수준을 고정해 보내는데, 일부 모델(3.8 Flash)은 이를 거부한다.
+        # 모델이 지원하는 최저 수준으로 바꾸고 config에 기록한다(기준선과 사고 수준이 다를 수 있음).
+        thinking = judge_module.judge_thinking_config(model)
+        instance._thinking_config = lambda t=thinking: dict(t)
         hook = _fake_hook(case) if mode == "fake" else None
         case_records = _run_case(case, instance, method, hook) if any(i.evidence for i in case.items) else []
         records.extend(case_records)
@@ -398,6 +420,8 @@ def run_generation_eval(
         "mode": mode,
         "model": model if mode == "live" else f"{model} (fake)",
         "judge_model": judge_model,
+        "generation_thinking": judge_module.judge_thinking_config(model),
+        "self_judged": judge_model == model,
         "retrieval_preset": retrieval_preset,
         "retrieval_config": RETRIEVAL_PRESETS.get(retrieval_preset),
         "case_count": len(cases),
@@ -429,6 +453,110 @@ def run_generation_eval(
     (output_dir / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_dir / "summary.md").write_text(render_summary(config, summary, retrieval), encoding="utf-8")
     return {"config": config, "summary": summary, "retrieval": retrieval}
+
+
+def rejudge_run(
+    *,
+    source_dir: Path,
+    output_dir: Path,
+    judge_model: str,
+    mode: str = "fake",
+    api_key: str | None = None,
+    confirm_live: bool = False,
+    max_calls: int = 30,
+    max_cost_usd: float = 0.1,
+    judge_call: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    """저장된 생성 출력(results.jsonl)을 다시 생성하지 않고 판정만 새로 채점한다."""
+
+    from ml.agent.output_validation import CheckResult
+
+    if mode not in {"fake", "live"}:
+        raise GenerationEvalError("mode는 fake|live여야 합니다.")
+    source_config = json.loads((source_dir / "config.json").read_text(encoding="utf-8"))
+    preset, evidence = load_evidence(source_dir / "evidence.json")
+    original_cases = load_cases()
+    cases = with_retrieved_evidence(original_cases, evidence)
+    rows = [
+        json.loads(line)
+        for line in (source_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    records = [{**row, "checks": [CheckResult(**check) for check in row["checks"]]} for row in rows]
+    judged_case_ids = {r["case_id"] for r in records if r["output"]}
+    estimate = estimate_cost(None, judge_model, len(judged_case_ids))
+    if mode == "live":
+        if not confirm_live:
+            raise GenerationEvalError("실제 모델 호출은 --confirm-live 가 있어야 실행합니다(유료).")
+        if estimate["calls"] > max_calls:
+            raise GenerationEvalError(f"예상 호출 {estimate['calls']}회가 한도 {max_calls}회를 넘습니다.")
+        if estimate["estimated_cost_usd"] is None:
+            raise GenerationEvalError("단가를 모르는 모델입니다.")
+        if estimate["estimated_cost_usd"] > max_cost_usd:
+            raise GenerationEvalError(
+                f"예상 비용 ${estimate['estimated_cost_usd']}가 한도 ${max_cost_usd}를 넘습니다."
+            )
+        if not api_key:
+            raise GenerationEvalError("GEMINI_API_KEY 가 없습니다.")
+    if judge_call is None:
+        if mode == "fake":
+            judge_call = lambda payload: (  # noqa: E731
+                judge_module.fake_judge(payload),
+                {"input_tokens": 0, "output_tokens": 0},
+            )
+        else:
+            transport = review_module.GeminiContractReviewAnalyzer(
+                api_key=api_key, model=judge_model, usage_manifest_path=None
+            )
+            judge_call = judge_module.gemini_judge_call(
+                transport, thinking_config=judge_module.judge_thinking_config(judge_model)
+            )
+
+    judged: dict[str, dict[str, dict[str, Any]]] = {}
+    usage_rows: list[dict[str, Any]] = []
+    for case in cases:
+        inputs = judge_inputs(case, [r for r in records if r["case_id"] == case.id])
+        if not inputs:
+            continue
+        scores, usage = judge_module.judge_items(inputs, judge_call)
+        judged[case.id] = scores
+        usage_rows.append({"model": judge_model, **usage})
+        spent = sum(e["cost_usd"] or 0.0 for e in usage_cost(usage_rows).values())
+        if mode == "live" and spent > max_cost_usd:
+            raise GenerationEvalError(f"실제 비용 ${spent:.4f}가 한도 ${max_cost_usd}를 넘어 중단했습니다.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary = summarize(records, judged, sum(len(case.items) for case in cases))
+    retrieval = retrieval_quality(original_cases, evidence)
+    config = {
+        **source_config,
+        "run_id": output_dir.name,
+        "mode": mode,
+        "rejudged_from": source_dir.name,
+        "judge_model": judge_model,
+        "judge_prompt_version": judge_module.JUDGE_PROMPT_VERSION,
+        "estimate": estimate,
+        "usage": {
+            **{k: v for k, v in source_config.get("usage", {}).items() if k != judge_model},
+            f"{judge_model} (재채점)": usage_cost(usage_rows).get(judge_model, {}),
+        },
+    }
+    with (output_dir / "results.jsonl").open("w", encoding="utf-8") as file:
+        for record in records:
+            row = {
+                **record,
+                "checks": [c.__dict__ for c in record["checks"]],
+                "judge": judged.get(record["case_id"], {}).get(record["item_id"]),
+            }
+            file.write(json.dumps(row, ensure_ascii=False) + "\n")
+    (output_dir / "config.json").write_text(
+        json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (output_dir / "summary.md").write_text(render_summary(config, summary, retrieval), encoding="utf-8")
+    (output_dir / "review_sheet.md").write_text(
+        render_review_sheet(cases, records, judged), encoding="utf-8"
+    )
+    save_evidence(output_dir / "evidence.json", preset, evidence)
+    return {"config": config, "summary": summary}
 
 
 def _read_usage(path: Path) -> list[dict[str, Any]]:
@@ -468,7 +596,28 @@ def main() -> None:
     parser.add_argument("--max-calls", type=int, default=60)
     parser.add_argument("--max-cost-usd", type=float, default=0.5)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--rejudge-from", type=Path, default=None,
+                        help="저장된 실행 폴더의 출력을 다시 생성하지 않고 판정만 새로 채점")
     args = parser.parse_args()
+
+    if args.rejudge_from:
+        if not args.judge_model:
+            parser.error("--rejudge-from 은 --judge-model 이 필요합니다.")
+        key = None
+        if args.mode == "live":
+            from precedents.precedent_config import load_env_file
+
+            load_env_file()
+            key = os.environ.get("GEMINI_API_KEY", "").strip()
+        out = args.output_dir or DEFAULT_OUTPUT_ROOT / datetime.now().strftime("%Y%m%d-%H%M%S")
+        result = rejudge_run(
+            source_dir=args.rejudge_from, output_dir=out, judge_model=args.judge_model,
+            mode=args.mode, api_key=key, confirm_live=args.confirm_live,
+            max_calls=args.max_calls, max_cost_usd=args.max_cost_usd,
+        )
+        print(f"완료: {out}")
+        print(json.dumps(result["summary"], ensure_ascii=False))
+        return
 
     cases = load_cases()
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
