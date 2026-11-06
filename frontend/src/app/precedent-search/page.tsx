@@ -24,9 +24,9 @@ type Stage = "search" | "searching" | "results" | "empty" | "detail";
 type ComparisonState = "idle" | "loading" | "complete" | "error";
 
 const exampleQueries = [
-  "전세 계약이 끝났는데 집주인이 보증금을 돌려주지 않아요.",
-  "집을 샀는데 입주하고 나서 누수를 발견했어요.",
-  "전셋집이 경매로 넘어가면 보증금을 돌려받을 수 있나요?",
+  "전세계약을 했는데 중개사가 집에 먼저 잡힌 빚이 있다는 사실을 알려주지 않아 보증금을 돌려받지 못했습니다. 이런 판례가 있나요?",
+  "전입신고와 확정일자를 받았는데 집이 경매로 넘어갔습니다. 보증금을 먼저 돌려받은 판례가 있나요?",
+  "전세 계약이 끝났는데 집주인이 먼저 이사해야 보증금을 주겠다고 합니다. 이사와 보증금 반환을 같이 한 판례가 있나요?",
 ];
 
 function PrecedentSearchPage() {
@@ -222,7 +222,7 @@ function PrecedentSearchPage() {
           <input id="case-query" onBlur={() => setQueryFocused(false)} onFocus={() => setQueryFocused(true)} onKeyDown={(event) => { if (event.key === "Enter" && stage !== "searching") void startSearch(); }} placeholder={queryFocused ? "" : "예: 전세 계약이 끝났는데 집주인이 보증금을 돌려주지 않아요."} value={query} onChange={(event) => setQuery(event.target.value)} />
           <button className={styles.primaryButton} disabled={stage === "searching"} type="button" onClick={() => void startSearch()}><Search size={17} />검색</button>
         </div>
-        <p className={styles.searchGuide}>부동산 매매·임대차와 관련해 계약 종류, 문제 발생 시점, 상대방의 행동을 함께 적어주세요.</p>
+        <p className={styles.searchGuide}>부동산 매매·임대차와 관련해 계약 관계와 발생한 문제가 드러나도록 입력해주세요.</p>
         {error && <div className={styles.validationNotice} role="alert"><Search size={19} /><div><strong>검색 결과를 확인할 수 없습니다</strong><span>{error}</span></div></div>}
         {stage === "search" && <div className={styles.recentSearches}><span>예시 질문</span>{exampleQueries.map((item) => <button type="button" key={item} onClick={() => setQuery(item)}>{item}</button>)}</div>}
       </section>
