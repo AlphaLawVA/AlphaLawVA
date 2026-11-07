@@ -37,7 +37,15 @@ _DOMAIN_KEYWORDS = (
 _MIN_COMPACT_LENGTH = 4
 
 
+def is_too_short(request: str) -> bool:
+    """공백·문장부호를 뺀 길이가 너무 짧아 모델을 부르지 않고 정보 부족으로 볼 요청인지 판단한다."""
+
+    return len(re.sub(r"[\s?!.,]", "", request)) < _MIN_COMPACT_LENGTH
+
+
 def classify_request_scope(request: str) -> ScopeDecision:
+    """키워드로 범위를 판정하는 예비 규칙이다. LLM 분류기가 설정되지 않은 환경에서만 쓴다."""
+
     """요청 한 건을 범위 밖, 정보 부족, 범위 안 중 하나로 분류한다."""
 
     compact = re.sub(r"[\s?!.,]", "", request)

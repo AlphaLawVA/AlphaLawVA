@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 from typing import Callable
 from uuid import uuid4
 
@@ -33,6 +34,9 @@ from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from ml.agent.contract_review_graph import ContractReviewGraph
 from ml.agent.contract_review_graph import ContractReviewAnalyzer
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
+
+
+logger = logging.getLogger(__name__)
 
 
 class ContractReviewService:
@@ -77,6 +81,8 @@ class ContractReviewService:
                 analyzer=self._analyzer,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
+            # 실패 원인이 응답에는 드러나지 않으므로 서버 로그에 남긴다.
+            logger.warning("계약서 검토 근거 검색 또는 분석 단계가 실패해 unavailable로 응답합니다.", exc_info=True)
             precheck_result = self._review_graph.prepare(
                 contract_snapshot,
                 registry_snapshot,

@@ -35,7 +35,8 @@ from api.services.contract_ocr_service import MAX_UPLOAD_BYTES, ContractOcrServi
 from api.services.registry_ocr_service import RegistryOcrService
 
 
-router = APIRouter(prefix="/api/v1", tags=["contracts"])
+# 문서(Swagger) 그룹은 엔드포인트마다 지정한다: OCR, 스냅샷, 계약서 검토, 특약 생성.
+router = APIRouter(prefix="/api/v1")
 
 VALIDATION_RESPONSES = {
     422: {"model": ApiErrorResponse, "description": "요청 값 검증 실패"},
@@ -105,6 +106,7 @@ RegistryOcrServiceDependency = Annotated[
 
 @router.post(
     "/contract-ocr-drafts",
+    tags=["contract-ocr"],
     response_model=ContractOcrDraftResponse,
     responses={400: {"model": ApiErrorResponse}, 503: {"model": ApiErrorResponse}},
     summary="사용자 확인 전 계약서 OCR 초안 생성",
@@ -131,6 +133,7 @@ async def create_contract_ocr_draft(
 
 @router.post(
     "/registry-ocr-drafts",
+    tags=["contract-ocr"],
     response_model=RegistryOcrDraftResponse,
     responses={400: {"model": ApiErrorResponse}, 503: {"model": ApiErrorResponse}},
     summary="사용자 확인 전 등기사항증명서 OCR 초안 생성",
@@ -153,6 +156,7 @@ async def create_registry_ocr_draft(
 
 @router.post(
     "/contract-snapshots",
+    tags=["contract-snapshots"],
     response_model=ConfirmedContractSnapshot,
     status_code=status.HTTP_201_CREATED,
     responses=VALIDATION_RESPONSES,
@@ -167,6 +171,7 @@ def save_contract_snapshot(
 
 @router.post(
     "/registry-snapshots",
+    tags=["contract-snapshots"],
     response_model=ConfirmedRegistrySnapshot,
     status_code=status.HTTP_201_CREATED,
     responses=VALIDATION_RESPONSES,
@@ -181,6 +186,7 @@ def save_registry_snapshot(
 
 @router.post(
     "/contract-reviews",
+    tags=["contract-review"],
     response_model=ContractReviewResponse,
     responses=SNAPSHOT_LOOKUP_RESPONSES,
     summary="사용자 확인 계약 정보의 검토 대기 항목 생성",
@@ -194,6 +200,7 @@ def create_contract_review(
 
 @router.post(
     "/special-clause-drafts",
+    tags=["special-clause"],
     response_model=SpecialClauseDraftResponse,
     responses=VALIDATION_RESPONSES,
     summary="자연어 특약 생성 결과 구성",

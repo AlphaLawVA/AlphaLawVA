@@ -192,19 +192,62 @@ class SpecialClauseLlmScopeTests(unittest.TestCase):
             {"request-1": "needs_information", "request-2": "in_scope"},
         )
 
-    def test_model_failure_falls_back_to_keyword_rules(self) -> None:
+    def test_model_failure_is_retried_once_then_passes_as_in_scope(self) -> None:
+        # 키워드로 막지 않는다: 키워드에 없는 요청도 LLM 실패 시 범위 안으로 통과한다.
         classifier = FakeScopeClassifier(error=RuntimeError("모델 호출 실패"))
 
-        result = self._prepare(classifier, ["치킨 레시피 알려줘"])
+        result = self._prepare(classifier, ["집에서 고양이 두 마리를 키우고 싶어요"])
 
-        self.assertEqual(result.scope_decisions, {"request-1": "out_of_scope"})
+        self.assertEqual(result.scope_decisions, {"request-1": "in_scope"})
+        self.assertEqual(len(classifier.calls), 2)  # 최초 1회 + 재시도 1회
 
-    def test_invalid_model_answer_falls_back_to_keyword_rules(self) -> None:
+    def test_invalid_model_answer_is_retried_then_passes_as_in_scope(self) -> None:
         classifier = FakeScopeClassifier(error=ValueError("형식 오류"))
 
         result = self._prepare(classifier, ["권리 변동을 막는 특약"])
 
         self.assertEqual(result.scope_decisions, {"request-1": "in_scope"})
+        self.assertEqual(len(classifier.calls), 2)
+
+    def test_transient_failure_recovers_on_retry(self) -> None:
+        class Flaky:
+            def __init__(self):
+                self.calls = 0
+
+            def classify(self, requests):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("일시 오류")
+                return ["out_of_scope"] * len(requests)
+
+        classifier = Flaky()
+        result = self._prepare(classifier, ["치킨 레시피 알려줘"])
+
+        self.assertEqual(result.scope_decisions, {"request-1": "out_of_scope"})
+        self.assertEqual(classifier.calls, 2)
+
+    def test_llm_classifier_ignores_keyword_rules(self) -> None:
+        # 키워드가 없어도(고양이) 모델이 범위 안이라고 하면 통과한다.
+        classifier = FakeScopeClassifier(["in_scope"])
+
+        result = self._prepare(classifier, ["집에서 고양이 두 마리를 키우고 싶어요"])
+
+        self.assertEqual(result.scope_decisions, {"request-1": "in_scope"})
+
+    def test_too_short_request_never_calls_model(self) -> None:
+        classifier = FakeScopeClassifier(["in_scope"])
+
+        result = self._prepare(classifier, ["특약"])
+
+        self.assertEqual(result.scope_decisions, {"request-1": "needs_information"})
+        self.assertEqual(classifier.calls, [])
+
+    def test_without_classifier_keyword_rules_remain_as_offline_fallback(self) -> None:
+        result = SpecialClauseGraph().prepare(
+            ["치킨 레시피 알려줘"], evidence_retriever=FakeRetriever(), generator=None
+        )
+
+        self.assertEqual(result.scope_decisions, {"request-1": "out_of_scope"})
 
 
 class SpecialClauseScopeTests(unittest.TestCase):

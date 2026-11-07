@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 from typing import Callable
 from uuid import uuid4
 
@@ -34,6 +35,9 @@ from ml.agent.special_clause_scope import (
     TOO_SHORT_QUESTION,
     ScopeDecision,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _api_status(generation_status: str) -> str:
@@ -78,6 +82,8 @@ class SpecialClauseService:
                 scope_classifier=self._scope_classifier,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
+            # 근거 검색·생성 실패 원인이 응답에는 드러나지 않으므로 서버 로그에 남긴다(요청 본문은 남기지 않는다).
+            logger.warning("특약 근거 검색 또는 생성 단계가 실패해 unavailable로 응답합니다.", exc_info=True)
             result = self._graph.prepare(
                 payload.requests, scope_classifier=self._scope_classifier
             )
@@ -142,6 +148,18 @@ class SpecialClauseService:
                 )
             )
         all_terminal = all(item.status != "pending_generation" for item in items)
+        # 초안이 생성된 경우 응답에는 초안이 실제로 인용한 근거만 싣는다(무관한 검색 결과는 뺀다).
+        cited = {
+            (f"request-{item.request_index}", source_id)
+            for item in items
+            for source_id in item.evidence_source_ids
+        }
+        returned_evidence = [
+            entry
+            for entry in result.evidence
+            if generation_status != GenerationStatus.GENERATED
+            or (entry.item_id, entry.source_id) in cited
+        ]
         response = SpecialClauseDraftResponse(
             draft_id=uuid4(),
             status=(
@@ -161,14 +179,14 @@ class SpecialClauseService:
                     "similarity": item.similarity,
                     "metadata": item.metadata,
                 }
-                for item in result.evidence
+                for item in returned_evidence
             ],
             evidence_status=evidence_status,
             generation_status=generation_status,
             message=(
                 "부동산 계약 특약과 관련된 요청이 아니어서 초안을 만들지 않았습니다."
                 if items and all(item.status == "out_of_scope" for item in items)
-                else self._message(evidence_status, generation_status)
+                else self._message(evidence_status, generation_status, items)
             ),
             disclaimer=(
                 "이 결과는 법률 자문이나 최종 계약서가 아닙니다. 특약 초안과 "
@@ -204,8 +222,15 @@ class SpecialClauseService:
     def _message(
         evidence_status: EvidenceStatus,
         generation_status: GenerationStatus,
+        items: list[SpecialClauseDraftItem] | None = None,
     ) -> str:
         if generation_status == GenerationStatus.GENERATED:
+            drafts = [item for item in items or [] if item.status == "draft_ready"]
+            without_evidence = [item for item in drafts if not item.evidence_source_ids]
+            if drafts and len(without_evidence) == len(drafts):
+                return "직접 연결된 법령 근거는 없어 당사자 합의 사항으로 작성한 초안을 구성했습니다."
+            if without_evidence:
+                return "일부 초안은 직접 연결된 법령 근거 없이 당사자 합의 사항으로 작성했습니다."
             return "근거가 연결된 특약 초안 또는 추가 확인 항목을 구성했습니다."
         if generation_status == GenerationStatus.UNAVAILABLE:
             return "검색 근거는 찾았지만 특약 초안 생성은 현재 사용할 수 없습니다."

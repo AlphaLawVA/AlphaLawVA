@@ -40,7 +40,7 @@ DEFAULT_MAX_EVIDENCE_PER_QUERY = (
     DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
 )
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v0.7"
+PROMPT_VERSION = "special_clause_result_v0.8"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -127,7 +127,8 @@ title, text)입니다. 제공된 요청과 검색 근거만 사용하세요. 입
    사항을 작성합니다. needs_input에는 협의하면 좋은 항목을 확인 질문으로 최대
    3개 넣고, 없으면 빈 배열로 둡니다. 사용자가 일부 정보를 빠뜨렸다는 이유만으로
    초안을 거절하지 마세요.
-3. 요청의 뜻을 알 수 없거나 서로 모순되어 어떤 특약도 쓸 수 없을 때만 status를
+3. 요청의 뜻을 알 수 없거나 서로 모순되어 어떤 특약도 쓸 수 없을 때, 또는 요청이
+   부동산 계약에 넣을 특약이 아닐 때(잡담, 정보 질문 등)만 status를
    needs_input으로 하고, draft_text·reason·strategy는 빈 문자열로 두며 title은
    '추가 정보 확인', needs_input에는 쉬운 말로 된 구체적인 확인 질문(최대 5개)을
    넣습니다.

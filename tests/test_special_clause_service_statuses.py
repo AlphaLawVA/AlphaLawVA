@@ -128,6 +128,66 @@ class SpecialClauseServiceStatusTests(unittest.TestCase):
         self.assertEqual(response.items[0].needs_input, ["기간을 알려주세요."])
 
 
+def _generation_with(item_id, source_ids):
+    return SpecialClauseGeneration(
+        item_id=item_id,
+        status="draft_ready",
+        draft_text="특약 초안 문구",
+        title="제목입니다",
+        reason="이유",
+        strategy="전략",
+        needs_input=[],
+        evidence_source_ids=source_ids,
+    )
+
+
+class EvidenceTrimAndMessageTests(unittest.TestCase):
+    def _create(self, generations, requests=("추가 담보 설정 금지",)):
+        service = SpecialClauseService(
+            evidence_retriever=FakeRetriever(), generator=FakeGenerator(generations)
+        )
+        return service.create_draft(SpecialClauseDraftRequest(requests=list(requests)))
+
+    def test_uncited_evidence_is_not_returned_when_draft_has_no_citation(self) -> None:
+        response = self._create([_generation_with("request-1", [])])
+
+        self.assertEqual(response.evidence, [])
+        self.assertEqual(
+            response.message,
+            "직접 연결된 법령 근거는 없어 당사자 합의 사항으로 작성한 초안을 구성했습니다.",
+        )
+
+    def test_only_cited_evidence_is_returned(self) -> None:
+        response = self._create(
+            [_generation_with("request-1", ["law:1"]), _generation_with("request-2", [])],
+            requests=("추가 담보 설정 금지", "수리비 부담 관련 특약"),
+        )
+
+        self.assertEqual([(e.item_id, e.source_id) for e in response.evidence], [("request-1", "law:1")])
+        self.assertEqual(
+            response.message, "일부 초안은 직접 연결된 법령 근거 없이 당사자 합의 사항으로 작성했습니다."
+        )
+
+    def test_cited_draft_keeps_original_message(self) -> None:
+        response = self._create([_generation_with("request-1", ["law:1"])])
+
+        self.assertEqual(len(response.evidence), 1)
+        self.assertEqual(
+            response.message, "근거가 연결된 특약 초안 또는 추가 확인 항목을 구성했습니다."
+        )
+
+    def test_evidence_is_kept_when_generation_is_unavailable(self) -> None:
+        service = SpecialClauseService(
+            evidence_retriever=FakeRetriever(),
+            generator=type("Failing", (), {"generate": lambda self, q, e: (_ for _ in ()).throw(RuntimeError("실패"))})(),
+        )
+
+        response = service.create_draft(SpecialClauseDraftRequest(requests=["추가 담보 설정 금지"]))
+
+        self.assertEqual(response.generation_status, GenerationStatus.UNAVAILABLE)
+        self.assertEqual(len(response.evidence), 1)  # 생성 실패 때는 찾은 근거를 그대로 보여준다
+
+
 class ScopeStatusTests(unittest.TestCase):
     def test_out_of_scope_item_has_fixed_message_and_no_draft(self) -> None:
         service = SpecialClauseService(
