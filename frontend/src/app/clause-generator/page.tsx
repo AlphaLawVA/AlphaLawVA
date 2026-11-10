@@ -295,7 +295,7 @@ export default function ClauseGeneratorPage() {
               {current.followUps && current.followUps.length > 0 && (
                 <section className={styles.detailSection}>
                   <h3>특약 작성 시 함께 정해두면 좋은 내용</h3>
-                  <p>입력하실 필요는 없고, 상대방과 협의할 때 참고하세요.</p>
+                  <p>상대방과 협의할 때 참고하세요.</p>
                   <ul>{current.followUps.map((question) => <li key={question}>{question}</li>)}</ul>
                 </section>
               )}
