@@ -118,7 +118,7 @@ function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
       clause: item.draft_text ?? `추가 확인 필요: ${needsInput || "요청 내용을 구체적으로 확인해주세요."}`,
       reason: item.reason ?? "특약 초안을 만들기 전에 추가 정보가 필요합니다.",
       strategy: item.strategy ?? (needsInput || "적용 범위와 이행 조건을 상대방과 확인하세요."),
-      // 초안이 있으면 남은 확인 질문은 '추가로 정하면 좋은 항목'으로 따로 보여준다.
+      // 초안이 있으면 남은 확인 질문은 '함께 정해두면 좋은 내용'으로 따로 보여준다.
       followUps: item.draft_text ? item.needs_input : undefined,
       statutes: evidence.filter((entry) => entry.source_type === "statute").map(evidenceToLaw),
       precedents: evidence.filter((entry) => entry.source_type === "precedent").map(evidenceToPrecedent),
@@ -294,7 +294,8 @@ export default function ClauseGeneratorPage() {
               <section className={styles.detailSection}><h3>협상 전략</h3><p>{current.strategy}</p></section>
               {current.followUps && current.followUps.length > 0 && (
                 <section className={styles.detailSection}>
-                  <h3>추가로 정하면 좋은 항목</h3>
+                  <h3>특약 작성 시 함께 정해두면 좋은 내용</h3>
+                  <p>입력하실 필요는 없고, 상대방과 협의할 때 참고하세요.</p>
                   <ul>{current.followUps.map((question) => <li key={question}>{question}</li>)}</ul>
                 </section>
               )}
