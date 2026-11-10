@@ -40,7 +40,7 @@ DEFAULT_MAX_EVIDENCE_PER_QUERY = (
     DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
 )
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v0.8"
+PROMPT_VERSION = "special_clause_result_v0.9"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -152,7 +152,13 @@ title, text)입니다. 제공된 요청과 검색 근거만 사용하세요. 입
 9. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
     항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
     인용하지 않습니다.
-10. 지정된 JSON 스키마만 출력합니다.
+10. 요청의 핵심 내용(허용·금지 여부, 부담 주체, 권리·의무의 방향, 적용되는 조건과
+    범위)을 바꾸거나 약하게 만들지 마세요. 예를 들어 '허용해 달라'는 요청을 '상대방의
+    동의를 받아야 허용'처럼 조건부로 바꾸지 않고, '거절되면'이라는 조건을 '상대방의
+    사유로 거절되면'처럼 좁히지 않습니다. 핵심에 영향을 줄 수 있는 조건은 초안에 넣지
+    말고 needs_input의 확인 질문으로 남기세요. 핵심을 바꾸지 않는 부수적인 내용(예: 훼손 시
+    복구 방법)은 초안에 넣어도 됩니다.
+11. 지정된 JSON 스키마만 출력합니다.
 """
 
 _MANIFEST_LOCK = Lock()
