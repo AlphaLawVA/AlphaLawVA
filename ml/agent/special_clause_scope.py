@@ -23,7 +23,10 @@ class ScopeDecision(str, Enum):
 
 
 OUT_OF_SCOPE_MESSAGE = "부동산 계약 특약과 관련된 요청만 도와드릴 수 있어요."
-TOO_SHORT_QUESTION = "어떤 상황의 특약인지 한 문장 이상으로 알려주세요."
+TOO_SHORT_QUESTION = (
+    "어떤 상황에서 무엇을 원하는지 함께 적어 주세요. "
+    "예: '고양이 두 마리를 키우고 싶어요', '보증금반환보증 가입이 거절되면 계약금을 돌려받고 싶어요'"
+)
 
 # 부동산 계약·특약 요청에 자주 나오는 낱말. 하나라도 있으면 범위 안으로 본다.
 _DOMAIN_KEYWORDS = (

@@ -115,9 +115,9 @@ function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
     }
     return {
       title: item.title ?? `특약 ${item.request_index}`,
-      clause: item.draft_text ?? `추가 확인 필요: ${needsInput || "요청 내용을 구체적으로 확인해주세요."}`,
-      reason: item.reason ?? "특약 초안을 만들기 전에 추가 정보가 필요합니다.",
-      strategy: item.strategy ?? (needsInput || "적용 범위와 이행 조건을 상대방과 확인하세요."),
+      clause: item.draft_text ?? `요청이 구체적이지 않아 초안을 만들지 못했어요. ${needsInput || "어떤 상황에서 무엇을 원하는지 함께 적어 주세요."}`,
+      reason: item.reason ?? "특약 초안을 만들기 전에 요청 내용을 조금 더 구체적으로 알아야 합니다.",
+      strategy: item.strategy ?? "내용을 보완해 다시 입력하시면 그에 맞춰 초안을 만들어 드립니다.",
       // 초안이 있으면 남은 확인 질문은 '함께 정해두면 좋은 내용'으로 따로 보여준다.
       followUps: item.draft_text ? item.needs_input : undefined,
       statutes: evidence.filter((entry) => entry.source_type === "statute").map(evidenceToLaw),
