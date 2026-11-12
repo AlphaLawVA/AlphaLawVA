@@ -786,6 +786,26 @@
   margin-top: 0;
 }
 
+.draftNotice {
+  margin-top: 18px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.draftNotice svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--navy);
+}
+
 .resultButton strong { font-size: 17px; }
 .resultButton span { font-size: 15px; }
 .detail > h2 { font-size: 28px; }
