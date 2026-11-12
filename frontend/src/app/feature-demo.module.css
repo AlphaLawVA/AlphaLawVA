@@ -850,6 +850,35 @@
   to { transform: rotate(360deg); }
 }
 
+@media print {
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+
+  :global(body) {
+    background: white;
+  }
+
+  :global(body) * {
+    visibility: hidden;
+  }
+
+  .letterPaper,
+  .letterPaper * {
+    visibility: visible;
+  }
+
+  .letterPaper {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+}
+
 @media (max-width: 600px) {
   .header h1 { font-size: 31px; }
   .caseDetailHead h1 { font-size: 29px; }
