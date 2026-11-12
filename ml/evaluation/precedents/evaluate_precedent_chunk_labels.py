@@ -59,6 +59,7 @@ METHOD_SUMMARY_FIELDS = [
     "query_count",
     "ndcg@5",
     "precision@3",
+    "recall@5",
     "mrr@5",
     "mean_top3_score",
     "oracle_chunk_match_rate@5",
@@ -219,12 +220,22 @@ def compute_chunk_metrics(
         None,
     )
     top3 = selected_relevances[:3]
+    relevant_oracle_count = sum(
+        score >= RELEVANT_THRESHOLD for score in oracle_relevances
+    )
     return {
         "ndcg@5": round(dcg(selected_top5) / ideal_dcg, 6) if ideal_dcg else 0.0,
         "precision@3": round(
             sum(score >= RELEVANT_THRESHOLD for score in top3) / max(len(top3), 1),
             6,
         ),
+        "recall@5": round(
+            sum(score >= RELEVANT_THRESHOLD for score in selected_top5)
+            / relevant_oracle_count,
+            6,
+        )
+        if relevant_oracle_count
+        else 0.0,
         "mrr@5": round(1 / first_relevant, 6) if first_relevant else 0.0,
         "mean_top3_score": round(sum(top3) / max(len(top3), 1), 6),
     }

@@ -37,6 +37,7 @@ class EvaluatePrecedentChunkLabelsTests(unittest.TestCase):
         )
 
         self.assertAlmostEqual(metrics["precision@3"], 2 / 3, places=6)
+        self.assertAlmostEqual(metrics["recall@5"], 3 / 4, places=6)
         self.assertEqual(metrics["mrr@5"], 1.0)
         self.assertGreater(metrics["ndcg@5"], 0)
         self.assertLess(metrics["ndcg@5"], 1)
