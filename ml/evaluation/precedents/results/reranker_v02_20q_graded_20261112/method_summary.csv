@@ -1,0 +1,5 @@
+method,query_count,ndcg@5,precision@3,mrr@5,mean_top3_score,oracle_chunk_match_rate@5,mean_chunk_regret@5
+dense,20,0.601422,0.666667,0.789167,2.016667,0.9,0.1
+bge-reranker-v2-m3,20,0.72718,0.783333,0.916667,2.316667,0.93,0.07
+kure-reranker-nano,20,0.755565,0.833333,0.925,2.383333,0.92,0.1
+qwen3-reranker-0.6b,20,0.651776,0.716667,0.85,2.183333,0.93,0.07
