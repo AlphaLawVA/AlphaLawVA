@@ -264,9 +264,23 @@ export default function CertifiedLetterPage() {
           <div className={styles.notice}><AlertCircle size={18} /><span>이 문서는 AI가 계약서와 입력 내용을 바탕으로 작성한 초안입니다. 발송만으로 사실관계나 법적 효과가 확정되지는 않으므로 실제 정보와 최신 근거를 다시 확인하세요.</span></div>
           {draftResult.warnings.map((warning) => <div className={styles.notice} key={warning}><AlertCircle size={18} /><span>{warning}</span></div>)}
           <article className={styles.letterPaper}>
-            <h2>{draftResult.document.title}</h2>
-            <div className={styles.letterPartyGrid}><section><span>수신인</span><strong>{draftResult.document.recipient.name}</strong><p>{[draftResult.document.recipient.address, draftResult.document.recipient.detail_address].filter(Boolean).join(", ")}</p></section><section><span>발신인</span><strong>{draftResult.document.sender.name}</strong><p>{[draftResult.document.sender.address, draftResult.document.sender.detail_address].filter(Boolean).join(", ")}</p></section></div>
+            <h2 className={styles.letterDocumentHeading}>내용증명</h2>
+            <dl className={styles.letterParties}>
+              <div>
+                <dt>발신인</dt>
+                <dd><strong>{draftResult.document.sender.name}</strong><span>{[draftResult.document.sender.address, draftResult.document.sender.detail_address].filter(Boolean).join(", ")}</span></dd>
+              </div>
+              <div>
+                <dt>수신인</dt>
+                <dd><strong>{draftResult.document.recipient.name}</strong><span>{[draftResult.document.recipient.address, draftResult.document.recipient.detail_address].filter(Boolean).join(", ")}</span></dd>
+              </div>
+            </dl>
+            <div className={styles.letterSubject}><span>제목</span><strong>{draftResult.document.title}</strong></div>
             <div className={styles.letterBody} style={{ whiteSpace: "pre-wrap" }}>{draftResult.document.body}</div>
+            <footer className={styles.letterClosing}>
+              <p><span>작성일</span><strong>년&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일</strong></p>
+              <p><span>발신인</span><strong>{draftResult.document.sender.name} (서명 또는 날인)</strong></p>
+            </footer>
           </article>
           <div className={styles.letterAnalysisGrid}>
             <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>{draftResult.strategy_summary}</p></section>
