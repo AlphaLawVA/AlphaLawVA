@@ -21,6 +21,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from api.services.openai_chat_transport import (
+    DEFAULT_LLM_MODEL,
+    OpenAIChatTransport,
+    is_openai_model,
+)
 from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewRetrievalQuery,
@@ -52,6 +57,7 @@ DEFAULT_USAGE_MANIFEST_PATH = (
 MODEL_PRICING_USD_PER_MILLION = {
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gpt-6.1-terra": (1.00, 5.00),
 }
 
 OUTPUT_SCHEMA = {
@@ -176,6 +182,7 @@ class GeminiSpecialClauseGenerator:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         usage_manifest_path: Path | None = DEFAULT_USAGE_MANIFEST_PATH,
+        transport: Any | None = None,
     ) -> None:
         self._api_key = api_key.strip()
         self._model_name = model.strip().removeprefix("models/")
@@ -191,6 +198,12 @@ class GeminiSpecialClauseGenerator:
             raise ValueError("Gemini base URL은 HTTPS 주소여야 합니다.")
         if self._timeout_seconds <= 0 or self._max_output_tokens < 1:
             raise ValueError("Gemini 실행 제한값이 올바르지 않습니다.")
+        # 다른 제공자(OpenAI 등) 전송 객체를 받으면 호출만 그쪽으로 보내고 나머지 검증·정규화는 그대로 쓴다.
+        self._provider = "gemini"
+        if transport is not None:
+            self._post_json = transport._post_json
+            self._thinking_config = transport._thinking_config
+            self._provider = "openai"
 
     def generate(
         self,
@@ -441,7 +454,7 @@ class GeminiSpecialClauseGenerator:
         )
         record = {
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "provider": "gemini",
+            "provider": self._provider,
             "model": self._model_name,
             "prompt_version": PROMPT_VERSION,
             "success": success,
@@ -484,22 +497,41 @@ class GeminiSpecialClauseGenerator:
 
 
 def create_gemini_special_clause_generator_from_env() -> GeminiSpecialClauseGenerator | None:
-    """명시적으로 활성화하고 키가 있는 경우에만 Gemini 생성기를 만든다."""
+    """명시적으로 활성화하고 모델 제공자의 키가 있는 경우에만 생성기를 만든다.
+
+    기본 모델은 gpt-6.1-terra(OpenAI Chat Completions)이며, 모델 이름을 gemini-로 시작하게
+    지정하면 Gemini를 쓴다. 키가 없으면 대체 모델 없이 생성기를 만들지 않는다.
+    """
 
     load_env_file()
     enabled = os.environ.get("SPECIAL_CLAUSE_LLM_ENABLED", "false").lower()
     if enabled not in {"1", "true", "yes"}:
         return None
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
+    model = (
+        os.environ.get("SPECIAL_CLAUSE_LLM_MODEL", "").strip()
+        or os.environ.get("SPECIAL_CLAUSE_GEMINI_MODEL", "").strip()
+        or DEFAULT_LLM_MODEL
+    )
+    timeout_seconds = float(
+        os.environ.get("SPECIAL_CLAUSE_GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+    )
+    transport = None
+    if is_openai_model(model):
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            return None
+        transport = OpenAIChatTransport(
+            api_key=api_key, model=model, timeout_seconds=timeout_seconds
+        )
+    else:
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            return None
     manifest_value = os.environ.get("SPECIAL_CLAUSE_GEMINI_USAGE_MANIFEST", "")
     return GeminiSpecialClauseGenerator(
         api_key=api_key,
-        model=os.environ.get("SPECIAL_CLAUSE_GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
-        timeout_seconds=float(
-            os.environ.get("SPECIAL_CLAUSE_GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
-        ),
+        model=model,
+        timeout_seconds=timeout_seconds,
         max_output_tokens=int(
             os.environ.get(
                 "SPECIAL_CLAUSE_GEMINI_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS
@@ -510,4 +542,5 @@ def create_gemini_special_clause_generator_from_env() -> GeminiSpecialClauseGene
             if manifest_value.strip()
             else DEFAULT_USAGE_MANIFEST_PATH
         ),
+        transport=transport,
     )
