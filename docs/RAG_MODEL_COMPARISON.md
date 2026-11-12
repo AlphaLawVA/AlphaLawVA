@@ -317,6 +317,20 @@ v0.2에 짧은 주제 요청 규칙 한 줄을 추가하며 같은 케이스로 
 - 평가 질문이 23개이고 특약 요청은 9개뿐이라 신뢰구간이 넓다.
 - 이 키는 OpenAI Responses API 권한(`api.responses.write`)이 없어 판정을 Chat Completions로 호출했다. 서비스에 OpenAI를 붙일 때 같은 제약을 고려해야 한다.
 
+### 2-13. 서비스 적용 (2026-11-12 결정 반영)
+
+- **생성 모델**: 특약 생성과 계약서 검토의 생성·분석 모델을 `gpt-6.1-terra`(OpenAI Chat Completions)로 바꿨다. 대체 모델은 두지 않는다(OpenAI 키가 없으면 생성기를 만들지 않는다). 범위 분류기는 Gemini flash-lite를 유지한다.
+  - 코드: `api/services/openai_chat_transport.py`(평가 코드의 OpenAI 전송 객체를 서비스로 이동, 평가 코드는 기존 경로로 다시 불러 씀), 생성기·분석기의 `transport` 인자와 `*_from_env`의 모델 선택.
+  - 환경변수: `SPECIAL_CLAUSE_LLM_MODEL` / `CONTRACT_REVIEW_LLM_MODEL`(기본 `gpt-6.1-terra`, `gemini-`로 시작하면 Gemini와 `GEMINI_API_KEY`를 사용, 기존 `*_GEMINI_MODEL`도 그대로 인식), `OPENAI_API_KEY`.
+  - 이 OpenAI 키는 Chat Completions만 허용된다(Responses API 권한 없음). 사용량 기록의 제공자 이름과 terra 단가($1/$5)를 추가했다.
+- **리랭커**: 법령 검색에 KURE-Reranker-nano를 기본 적용했다. dense 후보 10개 중 최소 유사도(0.35)를 넘은 것을 리랭커로 재정렬해 상위 3개를 쓴다. 판례 검색은 바꾸지 않았다. 특약 생성과 계약서 검토가 같은 검색기를 쓰므로 함께 적용된다.
+  - 코드: `ml/rag/contract_review_retriever.py`(`statute_reranker`, 실패하면 dense 순서로 대체), 기존 `ml/rag/reranker.py`의 `CrossEncoderReranker`를 재사용.
+  - 모델 파일: `local_data/models/rerankers/kure-reranker-nano`(0.6GB, git 제외). 없으면 경고 후 리랭커 없이 동작한다.
+  - 환경변수: `RAG_STATUTE_RERANKER_ENABLED`(기본 true), `RAG_STATUTE_RERANKER_DIR`, `RAG_STATUTE_RERANKER_CANDIDATES`(기본 10), `..._DEVICE`(기본 auto), `..._MAX_LENGTH`(512), `..._BATCH_SIZE`(16).
+  - 속도: CPU에서 후보 10개 재정렬에 약 3.6초가 추가된다(시험 측정, 서버 사양에 따라 다름).
+- **롤백**: `RAG_STATUTE_RERANKER_ENABLED=false`로 리랭커를 끄고, `SPECIAL_CLAUSE_LLM_MODEL=gemini-3.5-flash-lite`, `CONTRACT_REVIEW_LLM_MODEL=gemini-3.5-flash-lite`로 모델을 되돌린다. 코드 롤백은 해당 커밋을 되돌린다.
+- 확인: 서비스 검색기 경로에서 nano가 로드되고 차임 동결 요청의 상위 3개가 시험 결과와 같음을 확인했다. terra 호출을 포함한 서버 끝단 확인은 별도로 진행한다.
+
 ### 2-4. 비교 설정 (참고)
 
 | 항목 | 내용 |
