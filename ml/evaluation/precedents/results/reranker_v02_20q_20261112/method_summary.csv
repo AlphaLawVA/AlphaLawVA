@@ -1,0 +1,5 @@
+﻿method,query_count,ndcg@5,precision@3,mrr@5,mean_top3_score,recall@5,non_gold_top5_count,load_seconds,warmup_seconds,warm_rerank_total_seconds,mean_milliseconds_per_query,p50_milliseconds_per_query,p95_milliseconds_per_query,peak_rss_mb
+dense,20,0.447343,0.45,0.676667,1.0,0.365417,63,,,,,,,
+kure-reranker-nano,20,0.437058,0.416667,0.6875,0.933334,0.371647,61,1.1235,1.7041,223.5852,11179.259504,10797.4046,14016.1986,1538.3
+bge-reranker-v2-m3,20,0.462693,0.45,0.71,1.016667,0.387421,62,0.6786,4.2586,431.8211,21591.056602,21268.3776,28426.8375,2128.16
+qwen3-reranker-0.6b,20,0.444411,0.483333,0.726667,1.066667,0.371012,60,3.0464,1.8093,869.5055,43475.276044,42684.4675,56185.7375,3924.48
