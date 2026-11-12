@@ -11,10 +11,14 @@ After:
 """
 
 import unittest
+import csv
+from tempfile import TemporaryDirectory
+from pathlib import Path
 
 from ml.evaluation.precedents.evaluate_precedent_chunk_labels import (
     adjudication_id,
     compute_chunk_metrics,
+    load_labels,
 )
 
 
@@ -36,6 +40,31 @@ class EvaluatePrecedentChunkLabelsTests(unittest.TestCase):
         self.assertEqual(metrics["mrr@5"], 1.0)
         self.assertGreater(metrics["ndcg@5"], 0)
         self.assertLess(metrics["ndcg@5"], 1)
+
+    def test_load_labels_accepts_csv_directory(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index in range(2):
+                with (root / f"q{index}.csv").open(
+                    "w", encoding="utf-8", newline=""
+                ) as file:
+                    writer = csv.DictWriter(
+                        file,
+                        fieldnames=["adjudication_id", "relevance", "reviewer"],
+                    )
+                    writer.writeheader()
+                    writer.writerow(
+                        {
+                            "adjudication_id": f"item-{index}",
+                            "relevance": index,
+                            "reviewer": "tester",
+                        }
+                    )
+
+            labels = load_labels(root)
+
+        self.assertEqual(set(labels), {"item-0", "item-1"})
+        self.assertEqual(labels["item-1"]["relevance"], 1)
 
 
 if __name__ == "__main__":

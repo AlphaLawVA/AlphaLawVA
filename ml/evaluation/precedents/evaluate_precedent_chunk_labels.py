@@ -162,21 +162,38 @@ def prepare_review(args: argparse.Namespace) -> None:
 
 def load_labels(path: Path) -> dict[str, dict[str, Any]]:
     labels = {}
-    for row in read_csv(path):
-        item_id = row.get("adjudication_id", "").strip()
-        raw_relevance = row.get("relevance", "").strip()
-        if not item_id or not raw_relevance:
-            raise ValueError(f"평가 ID 또는 점수가 없습니다: {row}")
-        try:
-            relevance = int(raw_relevance)
-        except ValueError as error:
-            raise ValueError(f"점수는 0~3 정수여야 합니다: {raw_relevance}") from error
-        if relevance not in {0, 1, 2, 3}:
-            raise ValueError(f"점수는 0~3이어야 합니다: {relevance}")
-        if item_id in labels:
-            raise ValueError(f"평가 ID가 중복되었습니다: {item_id}")
-        labels[item_id] = {**row, "relevance": relevance}
+    paths = sorted(path.glob("*.csv")) if path.is_dir() else [path]
+    if not paths:
+        raise ValueError(f"평가 CSV를 찾을 수 없습니다: {path}")
+    for labels_path in paths:
+        for row in read_csv(labels_path):
+            item_id = row.get("adjudication_id", "").strip()
+            raw_relevance = row.get("relevance", "").strip()
+            if not item_id or not raw_relevance:
+                raise ValueError(f"평가 ID 또는 점수가 없습니다: {row}")
+            try:
+                relevance = int(raw_relevance)
+            except ValueError as error:
+                raise ValueError(f"점수는 0~3 정수여야 합니다: {raw_relevance}") from error
+            if relevance not in {0, 1, 2, 3}:
+                raise ValueError(f"점수는 0~3이어야 합니다: {relevance}")
+            if item_id in labels:
+                raise ValueError(f"평가 ID가 중복되었습니다: {item_id}")
+            labels[item_id] = {**row, "relevance": relevance}
     return labels
+
+
+def labels_sha256(path: Path) -> str:
+    if path.is_file():
+        return file_sha256(path)
+    digest = hashlib.sha256()
+    paths = sorted(path.glob("*.csv"))
+    if not paths:
+        raise ValueError(f"평가 CSV를 찾을 수 없습니다: {path}")
+    for labels_path in paths:
+        digest.update(labels_path.name.encode())
+        digest.update(bytes.fromhex(file_sha256(labels_path)))
+    return digest.hexdigest()
 
 
 def dcg(relevances: list[int]) -> float:
@@ -361,7 +378,7 @@ def score_labels(args: argparse.Namespace) -> None:
             "schema_version": "precedent_chunk_relevance_comparison.v1",
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "candidate_pool_sha256": file_sha256(args.candidate_pool),
-            "labels_csv_sha256": file_sha256(args.labels_csv),
+            "labels_csv_sha256": labels_sha256(args.labels_csv),
             "label_count": len(labels),
             "label_distribution": dict(
                 sorted(Counter(item["relevance"] for item in labels.values()).items())
