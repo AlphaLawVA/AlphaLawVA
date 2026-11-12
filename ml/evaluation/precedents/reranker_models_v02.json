@@ -3,6 +3,8 @@
   "runtime": {
     "sentence_transformers": "5.4.1",
     "transformers": "4.57.6",
+    "torch": "2.15.0",
+    "chromadb": "1.5.9",
     "device": "cpu"
   },
   "models": {
