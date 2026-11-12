@@ -59,16 +59,19 @@ DEFAULT_MODEL_ROOT = LOCAL_DATA_ROOT / "models" / "rerankers"
 MODEL_SPECS = {
     "kure-reranker-nano": {
         "repo_id": "nlpai-lab/KURE-Reranker-nano",
+        "revision": "8514b9e113f3b27c441ed9c2b50f81d80388b2fd",
         "path": DEFAULT_MODEL_ROOT / "KURE-Reranker-nano",
         "trust_remote_code": False,
     },
     "bge-reranker-v2-m3": {
         "repo_id": "BAAI/bge-reranker-v2-m3",
+        "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
         "path": DEFAULT_MODEL_ROOT / "bge-reranker-v2-m3",
         "trust_remote_code": False,
     },
     "qwen3-reranker-0.6b": {
         "repo_id": "Qwen/Qwen3-Reranker-0.6B",
+        "revision": "e61197ed45024b0ed8a2d74b80b4d909f1255473",
         "path": DEFAULT_MODEL_ROOT / "Qwen3-Reranker-0.6B",
         "trust_remote_code": False,
     },
@@ -426,6 +429,7 @@ def evaluate_model(args: argparse.Namespace) -> None:
         {
             "schema_version": "precedent_reranker_result.v2",
             "repo_id": spec["repo_id"],
+            "revision": spec["revision"],
             "model_path": str(model_path.resolve()),
             "model_safetensors_sha256": file_sha256(model_path / "model.safetensors"),
             "candidate_pool_sha256": file_sha256(args.candidate_pool),

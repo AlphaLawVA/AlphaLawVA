@@ -1,0 +1,31 @@
+{
+  "schema_version": "precedent_reranker_models.v2",
+  "runtime": {
+    "sentence_transformers": "5.4.1",
+    "transformers": "4.57.6",
+    "device": "cpu"
+  },
+  "models": {
+    "kure-reranker-nano": {
+      "repo_id": "nlpai-lab/KURE-Reranker-nano",
+      "revision": "8514b9e113f3b27c441ed9c2b50f81d80388b2fd",
+      "local_directory": "local_data/models/rerankers/KURE-Reranker-nano",
+      "model_safetensors_bytes": 597306212,
+      "model_safetensors_sha256": "41e752090da96fcab4813a9ba82259c31c6d28453c18189322ae63d5599a30c0"
+    },
+    "bge-reranker-v2-m3": {
+      "repo_id": "BAAI/bge-reranker-v2-m3",
+      "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+      "local_directory": "local_data/models/rerankers/bge-reranker-v2-m3",
+      "model_safetensors_bytes": 2271071852,
+      "model_safetensors_sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286"
+    },
+    "qwen3-reranker-0.6b": {
+      "repo_id": "Qwen/Qwen3-Reranker-0.6B",
+      "revision": "e61197ed45024b0ed8a2d74b80b4d909f1255473",
+      "local_directory": "local_data/models/rerankers/Qwen3-Reranker-0.6B",
+      "model_safetensors_bytes": 1191588280,
+      "model_safetensors_sha256": "27cd75a405b9c1b46b59abfd88aaa209e6fed2a1972cde9b70e7659537c5e65b"
+    }
+  }
+}
