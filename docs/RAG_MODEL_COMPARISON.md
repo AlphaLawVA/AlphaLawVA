@@ -323,13 +323,15 @@ v0.2에 짧은 주제 요청 규칙 한 줄을 추가하며 같은 케이스로 
   - 코드: `api/services/openai_chat_transport.py`(평가 코드의 OpenAI 전송 객체를 서비스로 이동, 평가 코드는 기존 경로로 다시 불러 씀), 생성기·분석기의 `transport` 인자와 `*_from_env`의 모델 선택.
   - 환경변수: `SPECIAL_CLAUSE_LLM_MODEL` / `CONTRACT_REVIEW_LLM_MODEL`(기본 `gpt-6.1-terra`, `gemini-`로 시작하면 Gemini와 `GEMINI_API_KEY`를 사용, 기존 `*_GEMINI_MODEL`도 그대로 인식), `OPENAI_API_KEY`.
   - 이 OpenAI 키는 Chat Completions만 허용된다(Responses API 권한 없음). 사용량 기록의 제공자 이름과 terra 단가($1/$5)를 추가했다.
-- **리랭커**: 법령 검색에 KURE-Reranker-nano를 기본 적용했다. dense 후보 10개 중 최소 유사도(0.35)를 넘은 것을 리랭커로 재정렬해 상위 3개를 쓴다. 판례 검색은 바꾸지 않았다. 특약 생성과 계약서 검토가 같은 검색기를 쓰므로 함께 적용된다.
+- **리랭커**: 법령 검색에 KURE-Reranker-nano를 기본 적용했다. dense 후보 10개 중 최소 유사도(0.35)를 넘은 것을 리랭커로 재정렬해 상위 3개를 쓴다. 판례 검색에는 리랭커를 적용하지 않았다. 특약 생성과 계약서 검토가 같은 검색기를 쓰므로 함께 적용된다.
   - 코드: `ml/rag/contract_review_retriever.py`(`statute_reranker`, 실패하면 dense 순서로 대체), 기존 `ml/rag/reranker.py`의 `CrossEncoderReranker`를 재사용.
   - 모델 파일: `local_data/models/rerankers/kure-reranker-nano`(0.6GB, git 제외). 없으면 경고 후 리랭커 없이 동작한다.
   - 환경변수: `RAG_STATUTE_RERANKER_ENABLED`(기본 true), `RAG_STATUTE_RERANKER_DIR`, `RAG_STATUTE_RERANKER_CANDIDATES`(기본 10), `..._DEVICE`(기본 auto), `..._MAX_LENGTH`(512), `..._BATCH_SIZE`(16).
   - 속도: CPU에서 후보 10개 재정렬에 약 3.6초가 추가된다(시험 측정, 서버 사양에 따라 다름).
 - **롤백**: `RAG_STATUTE_RERANKER_ENABLED=false`로 리랭커를 끄고, `SPECIAL_CLAUSE_LLM_MODEL=gemini-3.5-flash-lite`, `CONTRACT_REVIEW_LLM_MODEL=gemini-3.5-flash-lite`로 모델을 되돌린다. 코드 롤백은 해당 커밋을 되돌린다.
-- 확인: 서비스 검색기 경로에서 nano가 로드되고 차임 동결 요청의 상위 3개가 시험 결과와 같음을 확인했다. terra 호출을 포함한 서버 끝단 확인은 별도로 진행한다.
+- **판례 최소 유사도 제거**: 판례 검색의 최소 유사도 0.2는 2026-11-06 커밋 `3ba92d3a5`에서 법령과 분리하며 임시로 넣은 값이고 검증 자료가 없었다. 팀 협의로 판례는 최소 유사도를 두지 않기로 했다(유사도 상위 2개를 사용, 법령 0.35는 유지). 판례 후보는 질의와 무관해도 항상 2개가 붙을 수 있다.
+- **배포**: 리랭커 모델은 Docker 이미지에 포함한다(팀 결정). 이미지를 만들 때 `python -m ml.rag.download_reranker_model`를 실행하면 고정된 버전(`nlpai-lab/KURE-Reranker-nano` 커밋 `8514b9e1…`, Apache-2.0, 약 0.6GB)을 `local_data/models/rerankers/kure-reranker-nano`에 받고 `model.safetensors`의 SHA-256까지 검증한다. 예: `RUN python -m ml.rag.download_reranker_model`. 이미 있는 파일만 검증하려면 `--verify-only`. Dockerfile 자체는 아직 저장소에 없다.
+- 확인: 서비스 검색기 경로에서 nano가 로드되고 차임 동결 요청의 상위 3개가 시험 결과와 같음을 확인했다. 서버 끝단 확인(특약 요청 3건): 3건 모두 초안 생성, 사용량 기록에 `gpt-6.1-terra`(입력 7,242 / 출력 916토큰, $0.0118), 리랭커 오류 0건. 응답 시간은 모델 로딩 포함 첫 요청 52초, 이후 1건 12.5초(이 노트북 CPU 기준).
 
 ### 2-4. 비교 설정 (참고)
 
