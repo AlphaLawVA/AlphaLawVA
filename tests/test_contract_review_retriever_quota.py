@@ -58,8 +58,15 @@ class QuotaTest(unittest.TestCase):
         self.assertEqual(kinds.count("statute"), 3)
         self.assertEqual(kinds.count("precedent"), 2)  # 쿼터 2개
 
-    def test_precedents_below_own_threshold_are_dropped(self):
-        evidence = self._retrieve([_precedent(1, 0.15), _precedent(2, -0.1)])
+    def test_precedents_have_no_minimum_similarity_by_default(self):
+        evidence = self._retrieve([_precedent(1, 0.15), _precedent(2, -0.1), _precedent(3, 0.05)])
+        precedents = [e for e in evidence if e.source_type == "precedent"]
+        self.assertEqual([e.source_id for e in precedents], ["p:1", "p:3"])  # 유사도 상위 2개, 기준 없음
+
+    def test_explicit_precedent_threshold_still_drops_low_similarity(self):
+        evidence = self._retrieve(
+            [_precedent(1, 0.15), _precedent(2, -0.1)], precedent_min_similarity=0.2
+        )
         self.assertNotIn("precedent", [e.source_type for e in evidence])
 
     def test_statute_threshold_does_not_apply_to_precedents(self):

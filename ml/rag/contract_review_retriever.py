@@ -85,10 +85,10 @@ class ContractReviewRagRetriever:
 
     DEFAULT_EVIDENCE_TOP_K = 3
     DEFAULT_MIN_SIMILARITY = 0.35
-    # 판례 유사도는 법령보다 구조적으로 낮다(관련 판례가 0.27~0.43, 무관한 결과는 0.2 미만).
-    # 그래서 법령과 같은 기준으로 섞지 않고 종류별로 따로 고른다.
+    # 판례는 법령과 섞지 않고 종류별로 따로 고르며 최소 유사도는 두지 않는다(2026-11-12 팀 결정).
+    # 이전의 0.2는 검증 자료 없이 임시로 정한 값이었다.
     DEFAULT_PRECEDENT_EVIDENCE_TOP_K = 2
-    DEFAULT_PRECEDENT_MIN_SIMILARITY = 0.2
+    DEFAULT_PRECEDENT_MIN_SIMILARITY: float | None = None
 
     def __init__(
         self,
@@ -100,12 +100,14 @@ class ContractReviewRagRetriever:
         evidence_top_k: int = DEFAULT_EVIDENCE_TOP_K,
         min_similarity: float = DEFAULT_MIN_SIMILARITY,
         precedent_evidence_top_k: int = DEFAULT_PRECEDENT_EVIDENCE_TOP_K,
-        precedent_min_similarity: float = DEFAULT_PRECEDENT_MIN_SIMILARITY,
+        precedent_min_similarity: float | None = DEFAULT_PRECEDENT_MIN_SIMILARITY,
         statute_reranker: Any | None = None,
     ) -> None:
         if min(statute_top_k, precedent_top_k, evidence_top_k, precedent_evidence_top_k) < 1:
             raise ValueError("검색 결과 수는 1 이상이어야 합니다.")
-        if not -1 <= min_similarity <= 1 or not -1 <= precedent_min_similarity <= 1:
+        if not -1 <= min_similarity <= 1 or (
+            precedent_min_similarity is not None and not -1 <= precedent_min_similarity <= 1
+        ):
             raise ValueError("최소 유사도는 -1 이상 1 이하여야 합니다.")
         self._statute_retriever = statute_retriever
         self._precedent_retriever = precedent_retriever
@@ -145,12 +147,13 @@ class ContractReviewRagRetriever:
         법령은 리랭커가 있으면 최소 유사도를 넘은 후보를 질문과 함께 다시 정렬해 상위를 고른다.
         """
 
-        def relevant(source_type: str, minimum: float) -> list[ContractReviewEvidence]:
+        def relevant(source_type: str, minimum: float | None) -> list[ContractReviewEvidence]:
             return sorted(
                 (
                     candidate
                     for candidate in candidates
-                    if candidate.source_type == source_type and candidate.similarity >= minimum
+                    if candidate.source_type == source_type
+                    and (minimum is None or candidate.similarity >= minimum)
                 ),
                 key=lambda candidate: (-candidate.similarity, candidate.rank, candidate.source_id),
             )
