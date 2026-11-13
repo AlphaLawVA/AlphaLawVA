@@ -88,8 +88,10 @@ class ContractReviewEvidenceItem(ContractApiModel):
 class ContractReviewAnalysisItem(ContractApiModel):
     item_id: str = Field(min_length=1)
     summary: str = Field(min_length=2, max_length=500)
-    review_status: str = Field(pattern="^(safe|check)$")
+    review_status: str = Field(pattern="^(safe|caution|check)$")
     # review_status가 safe이면 수정안·협상 안내는 빈 문자열이다.
+    # caution은 보증금·권리 변동 등 금전적·권리상 위험이 있는 쟁점이고,
+    # check은 그보다 위험이 낮은 단순 확인 쟁점이다.
     revision: str = Field(default="", max_length=1000)
     negotiation: str = Field(default="", max_length=700)
     evidence_source_ids: list[str] = Field(min_length=1, max_length=6)

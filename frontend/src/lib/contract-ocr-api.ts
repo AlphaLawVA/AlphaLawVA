@@ -198,6 +198,7 @@ export function mapContractOcrDraftToSnapshot(draft: ContractOcrDraft): Confirme
     "deposit",
     "down-payment",
     "interim-payment",
+    "interim-payment-2",
     "balance",
     "maintenance-fee",
     "special-terms",
@@ -237,7 +238,10 @@ export function mapContractOcrDraftToSnapshot(draft: ContractOcrDraft): Confirme
     ["lessee", fieldValue(buyer?.name), buyer?.name.source, contractType === "매매" ? "매수인" : "임차인", review(buyer ? [`parties.${extraction.parties.indexOf(buyer)}.name`] : [], [buyer?.name])],
     ["deposit", moneyValue(price?.value), price?.source, contractType === "매매" ? "매매대금" : "보증금", review([extraction.payment.sale_price ? "payment.sale_price" : "payment.deposit"], [price])],
     ["down-payment", paymentWithDate(extraction.payment.down_payment), extraction.payment.down_payment?.source, "계약금", review(["payment.down_payment"], [extraction.payment.down_payment])],
+    // 중도금이 1차·2차로 나뉜 계약은 두 번째 칸(interim-payment-2)에 2차중도금을 채운다.
+    // 하나만 있으면 기존대로 "중도금" 한 칸만 쓰고 두 번째 칸은 "없음"으로 둔다.
     ["interim-payment", extraction.payment.intermediate_payments.length > 0 ? paymentWithDate(extraction.payment.intermediate_payments[0].amount, extraction.payment.intermediate_payments[0].due_date) : "없음", extraction.payment.intermediate_payments[0]?.amount.source, "중도금", review(["payment.intermediate_payments.0.amount", "payment.intermediate_payments.0.due_date"], [extraction.payment.intermediate_payments[0]?.amount, extraction.payment.intermediate_payments[0]?.due_date])],
+    ["interim-payment-2", extraction.payment.intermediate_payments.length > 1 ? paymentWithDate(extraction.payment.intermediate_payments[1].amount, extraction.payment.intermediate_payments[1].due_date) : "없음", extraction.payment.intermediate_payments[1]?.amount.source, "2차중도금", review(["payment.intermediate_payments.1.amount", "payment.intermediate_payments.1.due_date"], [extraction.payment.intermediate_payments[1]?.amount, extraction.payment.intermediate_payments[1]?.due_date])],
     ["balance", paymentWithDate(extraction.payment.remaining_balance, extraction.payment.remaining_balance_date), extraction.payment.remaining_balance?.source ?? extraction.payment.remaining_balance_date?.source, "잔금", review(["payment.remaining_balance", "payment.remaining_balance_date"], [extraction.payment.remaining_balance, extraction.payment.remaining_balance_date])],
     ["maintenance-fee", moneyValue(extraction.payment.maintenance_fee?.value), extraction.payment.maintenance_fee?.source, "관리비", review(["payment.maintenance_fee"], [extraction.payment.maintenance_fee])],
     ["special-terms", terms.map((term) => `${term.item_order}. ${term.original_text}`).join("\n"), terms[0]?.source, "특약사항"],

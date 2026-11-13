@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink } from "lucide-react";
+import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink, TriangleAlert } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
 import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
@@ -13,6 +13,32 @@ import type { ContractEvidence, ContractReviewItem, ContractReviewResult } from 
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
+
+const STATUS_LABEL: Record<string, string> = {
+  safe: "문제없음",
+  caution: "주의",
+  check: "확인 필요",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  safe: "var(--success)",
+  caution: "var(--status-caution)",
+  check: "var(--status-check-dot)",
+};
+
+function statusLabel(status: string): string {
+  return STATUS_LABEL[status] ?? STATUS_LABEL.check;
+}
+
+function statusColor(status: string): string {
+  return STATUS_COLOR[status] ?? STATUS_COLOR.check;
+}
+
+function statusBadgeClass(status: string): string {
+  if (status === "safe") return styles.safeBadge;
+  if (status === "caution") return styles.cautionBadge;
+  return styles.checkBadge;
+}
 
 function statuteBasis(evidence: ContractEvidence): LegalBasis {
   return {
@@ -86,12 +112,15 @@ function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
         action: analysis ? `${analysis.summary} ${analysis.negotiation}`.trim() : undefined,
       };
     }
+    // registry_field인데 원문이 없는 항목은 "유효 권리부담 없음"처럼 확인할 등기 자체가
+    // 없다는 안내다. 분석이 없다고 "확인 필요"로 보이면 안내 문구와 모순되므로 안전으로 본다.
+    const isNoEncumbranceNotice = item.category === "registry_field" && !item.original_text;
     return {
       id: item.item_id,
       title: item.label,
       // 등본 원문이 없는 안내 항목(특약 제안 등)은 원문 줄을 비워 둔다.
       value: item.original_text ?? (item.category === "registry_field" ? "확인된 원문 없음" : ""),
-      status: analysis?.review_status ?? "check",
+      status: analysis?.review_status ?? (isNoEncumbranceNotice ? "safe" : "check"),
       summary: analysis?.summary ?? item.message,
       action: analysis?.negotiation,
     };
@@ -128,9 +157,11 @@ export function ResultDemo() {
     [clauseReviews, selectedId],
   );
   const safeClauseCount = clauseReviews.filter((item) => item.status === "safe").length;
-  const checkClauseCount = clauseReviews.length - safeClauseCount;
+  const cautionClauseCount = clauseReviews.filter((item) => item.status === "caution").length;
+  const checkClauseCount = clauseReviews.length - safeClauseCount - cautionClauseCount;
   const safeRegistryCount = registryReviews.filter((item) => item.status === "safe").length;
-  const checkRegistryCount = registryReviews.length - safeRegistryCount;
+  const cautionRegistryCount = registryReviews.filter((item) => item.status === "caution").length;
+  const checkRegistryCount = registryReviews.length - safeRegistryCount - cautionRegistryCount;
 
   return (
     <>
@@ -142,6 +173,9 @@ export function ResultDemo() {
         <div className={styles.summaryCounts} aria-label="검토 결과 요약">
           <span className={styles.safeBadge}>
             문제없음 {tab === "registry" ? safeRegistryCount : safeClauseCount}
+          </span>
+          <span className={styles.cautionBadge}>
+            주의 {tab === "registry" ? cautionRegistryCount : cautionClauseCount}
           </span>
           <span className={styles.checkBadge}>
             확인 필요 {tab === "registry" ? checkRegistryCount : checkClauseCount}
@@ -196,7 +230,7 @@ export function ResultDemo() {
                 <span className={styles.resultItemTitle}>
                   <i
                     className={styles.statusDot}
-                    style={{ background: clause.status === "safe" ? "var(--success)" : "#e47e22" }}
+                    style={{ background: statusColor(clause.status) }}
                   />
                   {clause.title}
                 </span>
@@ -207,10 +241,10 @@ export function ResultDemo() {
 
           <article className={styles.detailPanel}>
             <span className={styles.detailStatus}>
-              {selectedClause.status === "safe"
-                ? <CircleCheck size={16} color="var(--success)" aria-hidden="true" />
-                : <CircleHelp size={16} color="var(--warning)" aria-hidden="true" />}
-              {selectedClause.status === "safe" ? "문제없음" : "확인 필요"}
+              {selectedClause.status === "safe" && <CircleCheck size={16} color="var(--success)" aria-hidden="true" />}
+              {selectedClause.status === "caution" && <TriangleAlert size={16} color="var(--status-caution)" aria-hidden="true" />}
+              {selectedClause.status === "check" && <CircleHelp size={16} color="var(--status-check-dot)" aria-hidden="true" />}
+              {statusLabel(selectedClause.status)}
             </span>
             <h2>{selectedClause.title}</h2>
 
@@ -265,8 +299,8 @@ export function ResultDemo() {
         <div className={styles.registryGrid}>
           {registryReviews.map((item, index) => (
             <article className={styles.registryItem} key={`${item.id}-${index}`}>
-              <span className={item.status === "safe" ? styles.safeBadge : styles.checkBadge}>
-                {item.status === "safe" ? "문제없음" : "확인 필요"}
+              <span className={statusBadgeClass(item.status)}>
+                {statusLabel(item.status)}
               </span>
               <h3>{item.title}</h3>
               {item.value && <p className={styles.registryValue}>{item.value}</p>}

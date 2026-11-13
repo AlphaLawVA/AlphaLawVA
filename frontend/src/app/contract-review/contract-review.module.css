@@ -947,9 +947,14 @@
   background: var(--success-bg);
 }
 
+.cautionBadge {
+  color: var(--status-caution);
+  background: var(--status-caution-bg);
+}
+
 .checkBadge {
-  color: var(--warning);
-  background: var(--warning-bg);
+  color: var(--status-check);
+  background: var(--status-check-bg);
 }
 
 .aiNotice {
