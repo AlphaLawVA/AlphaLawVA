@@ -27,8 +27,13 @@ _ATTENTION_CATEGORY = "registry_attention"
 _CROSSCHECK_CATEGORY = "contract_registry_crosscheck"
 _SUGGESTION_CATEGORY = "special_term_suggestion"
 
+# 권리변동 금지 취지의 특약 문구. "근저당권 설정", "권리 변동"처럼 붙은 표현과
+# "근저당권 등 새로운 권리를 설정하지 않는다"처럼 사이에 말이 끼는 표현을 함께 본다.
 _RIGHTS_CHANGE_TERM = re.compile(
-    r"권리\s*변동|(?:근?저당권|담보권)[을를]?\s*설정"
+    r"권리\s*변동"
+    r"|(?:근?저당권|담보권)[을를]?\s*설정"
+    r"|(?:근?저당권|저당권|담보권)\s*등[^.\n]{0,20}설정"
+    r"|새로운\s*권리[을를]?\s*설정"
 )
 _GUARANTEE_TERM = re.compile(r"보증보험|보증금\s*반환\s*보증|반환보증")
 

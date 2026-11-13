@@ -212,6 +212,33 @@ class RegistryAttentionItemsTests(unittest.TestCase):
 
         self.assertNotIn("mortgage_without_restriction_term", _ids(items))
 
+    def test_rights_change_term_is_recognized_with_words_between(self) -> None:
+        registry = _registry(
+            [_entry("eulgu", "1", "근저당권설정", amount=150000000)]
+        )
+        phrases = (
+            "임대인은 잔금 지급일 다음 날까지 근저당권 등 새로운 권리를 설정하지 않는다.",
+            "임대인은 잔금일까지 저당권 및 담보권 등 어떠한 권리도 설정하지 않는다.",
+            "임대인은 잔금일까지 새로운 권리를 설정하지 않는다.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                items = build_registry_attention_items(
+                    _contract(special_terms=[phrase]), registry
+                )
+                self.assertNotIn("mortgage_without_restriction_term", _ids(items))
+                self.assertNotIn("suggest_rights_change_restriction", _ids(items))
+
+    def test_unrelated_special_term_still_gets_restriction_notice(self) -> None:
+        registry = _registry(
+            [_entry("eulgu", "1", "근저당권설정", amount=150000000)]
+        )
+        items = build_registry_attention_items(
+            _contract(special_terms=["옵션인 에어컨, 세탁기, 냉장고 노후 고장은 임대인이 수리한다."]),
+            registry,
+        )
+        self.assertIn("mortgage_without_restriction_term", _ids(items))
+
     def test_lease_always_gets_clause_suggestions_and_tax_notice(self) -> None:
         items = build_registry_attention_items(_contract(), _registry())
 
