@@ -157,7 +157,9 @@ class RegistryColumnFitTests(unittest.TestCase):
         self.assertEqual(len(texts), 2)
         self.assertIn("서울특별시 성동구 알파로 27", texts[0])
         self.assertIn("제12층 제1203호", texts[1])
-        self.assertEqual(result.detail_address.value, "서울특별시 성동구 알파로 27")
+        self.assertEqual(
+            result.detail_address.value, "서울특별시 성동구 알파로 27 제101동 제12층 제1203호"
+        )
         self.assertNotIn("전유부분", "".join(texts))  # 하위 표 제목은 본문에 섞이지 않는다
         self.assertEqual(result.owners[0].name.value, "박도윤")
 

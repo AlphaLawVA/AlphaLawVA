@@ -29,6 +29,7 @@ from ml.document_processing.contracts.extraction_schema import (
     RESIDENT_REGISTRATION_NUMBER,
     RegistryExtraction,
 )
+from ml.document_processing.contracts.privacy import relabel_corporate_number
 
 _MASKED_REGISTRATION_NUMBER = "[등록번호 마스킹]"
 _SECTION_MARKERS = {"표제부": "title", "갑구": "gapgu", "을구": "eulgu"}
@@ -95,7 +96,12 @@ _HOLDER_LABEL = re.compile(
 
 
 def _clean(text: str) -> str:
-    return RESIDENT_REGISTRATION_NUMBER.sub(_MASKED_REGISTRATION_NUMBER, text)
+    # 토큰 단위로 Document AI 결과를 읽을 때는 load_lines가 번호를 토큰 하나만 보고
+    # 먼저 마스킹해 법인명 같은 주변 문맥을 못 본다. 이 행으로 토큰을 합친 뒤에는
+    # 문맥이 다시 보이므로, 그때 법인·단체 번호를 다시 구분해 라벨을 바로잡는다.
+    return relabel_corporate_number(
+        RESIDENT_REGISTRATION_NUMBER.sub(_MASKED_REGISTRATION_NUMBER, text)
+    )
 
 
 def _bands(tokens: list[Line]) -> list[tuple[float, list[Line]]]:
@@ -296,7 +302,10 @@ def _unique_property_number(lines: list[Line]):
     return field(match[0] if match else None, nearby if match else [])
 
 
-def _detail_address(blocks: list[tuple[str, list[Line]]]):
+_UNIT_NUMBER = re.compile(r"제\s*\d+\s*(?:동|층|호)")
+
+
+def _road_address(blocks: list[tuple[str, list[Line]]]):
     """표제부 소재지번 열의 [도로명주소] 표기 값을 읽는다."""
 
     for _, block in blocks:
@@ -318,7 +327,34 @@ def _detail_address(blocks: list[tuple[str, list[Line]]]):
                     value = " ".join(_row_text(next_items) for _, next_items in following).strip()
                     used += [item for _, next_items in following for item in next_items]
                 if value:
-                    return _field(value, used)
+                    return value, used
+    return None, []
+
+
+def _detail_address(blocks: list[tuple[str, list[Line]]], lines: list[Line]):
+    """[도로명주소]와, 집합건물이면 맨 위 머리글 줄의 동·층·호를 함께 상세주소로 읽는다.
+
+    동·층·호는 표제부 표 안이 아니라 문서 맨 위 "[집합건물] 소재지 ... 동 ... 층
+    ... 호" 형식의 머리글 줄에만 나온다. 일반 건물은 동·층·호가 없어 도로명주소만
+    상세주소가 된다.
+    """
+
+    road_value, road_used = _road_address(blocks)
+    unit_line = next(
+        (
+            line
+            for line in lines
+            if re.match(r"^\[?\s*(?:집합)?건물\s*\]?\s*", line.text.strip())
+        ),
+        None,
+    )
+    unit_value = " ".join(_UNIT_NUMBER.findall(unit_line.text)) if unit_line else ""
+    if road_value and unit_value:
+        return _field(f"{road_value} {unit_value}", road_used + [unit_line])
+    if unit_value:
+        return _field(unit_value, [unit_line])
+    if road_value:
+        return _field(road_value, road_used)
     return field(None, [])
 
 
@@ -461,7 +497,7 @@ def extract_registry_document_ai(document: dict) -> RegistryExtraction:
             "issued_at": _issued_at(lines),
             "unique_property_number": _unique_property_number(lines),
             "address": _document_address(lines),
-            "detail_address": _detail_address(tables["title"]),
+            "detail_address": _detail_address(tables["title"], lines),
             "property_description": _property_descriptions(tables["title"]),
             "owners": owners,
             "encumbrances": encumbrances,
