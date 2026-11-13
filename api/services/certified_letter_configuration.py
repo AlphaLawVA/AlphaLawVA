@@ -7,7 +7,7 @@ Date: 2026-10-22
 Before:
     - 기본 FastAPI 앱이 내용증명 그래프를 실제 모델·검색 DB와 조립하지 않는 상태.
 After:
-    - Gemini 테스트 모델과 법령·판례 검색 및 판례 리랭커가 환경 설정으로 연결됨.
+    - Gemini 질문 분기와 GPT-6.1 Terra 생성 모델이 검색·리랭커와 분리 연결됨.
 """
 
 from __future__ import annotations
@@ -26,6 +26,13 @@ from ml.agent.certified_letter.gemini import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_TIMEOUT_SECONDS,
     GeminiStructuredLetterModel,
+)
+from ml.agent.certified_letter.openai import (
+    DEFAULT_MAX_OUTPUT_TOKENS as DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_REASONING_EFFORT,
+    DEFAULT_TIMEOUT_SECONDS as DEFAULT_OPENAI_TIMEOUT_SECONDS,
+    OpenAIStructuredLetterModel,
 )
 from ml.agent.certified_letter.retrieval import (
     BgeM3PrecedentSearchAdapter,
@@ -74,8 +81,9 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
     runtime_root = _load_environment()
     if not _enabled("CERTIFIED_LETTER_GENERATION_ENABLED", default=True):
         return CertifiedLetterService()
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
+    gemini_api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not gemini_api_key or not openai_api_key:
         return CertifiedLetterService()
 
     local_data_dir = _path_from_env(
@@ -101,19 +109,27 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         / "precedents_bge-m3_v1",
         base_dir=runtime_root,
     )
-    usage_manifest = _path_from_env(
+    gemini_usage_manifest = _path_from_env(
         "CERTIFIED_LETTER_GEMINI_USAGE_MANIFEST",
         local_data_dir
         / "certified_letters"
         / "manifests"
-        / "gemini_generation_usage.jsonl",
+        / "gemini_scope_usage.jsonl",
+        base_dir=runtime_root,
+    )
+    openai_usage_manifest = _path_from_env(
+        "CERTIFIED_LETTER_OPENAI_USAGE_MANIFEST",
+        local_data_dir
+        / "certified_letters"
+        / "manifests"
+        / "openai_generation_usage.jsonl",
         base_dir=runtime_root,
     )
     device = os.environ.get("CERTIFIED_LETTER_EMBEDDING_DEVICE", "auto").strip()
     shared_model_loader = _SharedBgeM3ModelLoader()
 
-    model = GeminiStructuredLetterModel(
-        api_key=api_key,
+    scope_classifier = GeminiStructuredLetterModel(
+        api_key=gemini_api_key,
         model=os.environ.get(
             "CERTIFIED_LETTER_GEMINI_MODEL",
             DEFAULT_GEMINI_MODEL,
@@ -130,9 +146,36 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
                 str(DEFAULT_MAX_OUTPUT_TOKENS),
             )
         ),
-        usage_manifest_path=usage_manifest,
+        usage_manifest_path=gemini_usage_manifest,
         max_session_cost_usd=_optional_positive_float(
             "CERTIFIED_LETTER_GEMINI_SESSION_BUDGET_USD"
+        ),
+    )
+    model = OpenAIStructuredLetterModel(
+        api_key=openai_api_key,
+        model=os.environ.get(
+            "CERTIFIED_LETTER_OPENAI_MODEL",
+            DEFAULT_OPENAI_MODEL,
+        ),
+        timeout_seconds=float(
+            os.environ.get(
+                "CERTIFIED_LETTER_OPENAI_TIMEOUT_SECONDS",
+                str(DEFAULT_OPENAI_TIMEOUT_SECONDS),
+            )
+        ),
+        max_output_tokens=int(
+            os.environ.get(
+                "CERTIFIED_LETTER_OPENAI_MAX_OUTPUT_TOKENS",
+                str(DEFAULT_OPENAI_MAX_OUTPUT_TOKENS),
+            )
+        ),
+        reasoning_effort=os.environ.get(
+            "CERTIFIED_LETTER_OPENAI_REASONING_EFFORT",
+            DEFAULT_REASONING_EFFORT,
+        ),
+        usage_manifest_path=openai_usage_manifest,
+        max_session_cost_usd=_optional_positive_float(
+            "CERTIFIED_LETTER_OPENAI_SESSION_BUDGET_USD"
         ),
     )
     statute_search = BgeM3StatuteSearchAdapter(
@@ -165,7 +208,7 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
     )
     graph = create_certified_letter_workflow(
         model=model,
-        scope_classifier=model,
+        scope_classifier=scope_classifier,
         statute_search=statute_search,
         precedent_search=precedent_search,
         statute_reranker=statute_reranker,

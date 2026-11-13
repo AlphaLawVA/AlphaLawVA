@@ -21,6 +21,7 @@ from api.services.certified_letter_configuration import (
     create_certified_letter_service_from_env,
 )
 from ml.agent.certified_letter.gemini import GeminiStructuredLetterModel
+from ml.agent.certified_letter.openai import OpenAIStructuredLetterModel
 from ml.rag.reranker import CrossEncoderReranker, DenseSimilarityReranker
 
 
@@ -42,6 +43,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
                 os.environ,
                 {
                     "GEMINI_API_KEY": "test-key",
+                    "OPENAI_API_KEY": "test-openai-key",
                     "CERTIFIED_LETTER_GENERATION_ENABLED": "false",
                 },
                 clear=True,
@@ -53,6 +55,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
         graph = object()
         environment = {
             "GEMINI_API_KEY": "test-key",
+            "OPENAI_API_KEY": "test-openai-key",
             "CERTIFIED_LETTER_GEMINI_MODEL": "models/gemini-3.5-flash-lite",
             "ALPHALAWVA_LOCAL_DATA_DIR": "local-fixtures",
             "CERTIFIED_LETTER_STATUTE_DB_DIR": "statute-db",
@@ -73,9 +76,17 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
 
         self.assertIs(service.graph, graph)
         arguments = create_workflow.call_args.kwargs
-        self.assertIsInstance(arguments["model"], GeminiStructuredLetterModel)
-        self.assertIs(arguments["scope_classifier"], arguments["model"])
-        self.assertEqual(arguments["model"].model_name, "gemini-3.5-flash-lite")
+        self.assertIsInstance(arguments["model"], OpenAIStructuredLetterModel)
+        self.assertIsInstance(
+            arguments["scope_classifier"],
+            GeminiStructuredLetterModel,
+        )
+        self.assertIsNot(arguments["scope_classifier"], arguments["model"])
+        self.assertEqual(arguments["model"].model_name, "gpt-6.1-terra")
+        self.assertEqual(
+            arguments["scope_classifier"].model_name,
+            "gemini-3.5-flash-lite",
+        )
         self.assertEqual(
             arguments["statute_search"].retriever.db_dir,
             PROJECT_ROOT / "statute-db",
@@ -123,6 +134,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
                 os.environ,
                 {
                     "GEMINI_API_KEY": "test-key",
+                    "OPENAI_API_KEY": "test-openai-key",
                     "CERTIFIED_LETTER_PRECEDENT_RERANKER": "dense",
                 },
                 clear=True,
@@ -143,6 +155,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
     def test_can_plug_independent_local_cross_encoders_without_code_change(self):
         environment = {
             "GEMINI_API_KEY": "test-key",
+            "OPENAI_API_KEY": "test-openai-key",
             "ALPHALAWVA_LOCAL_DATA_DIR": "local-fixtures",
             "CERTIFIED_LETTER_STATUTE_RERANKER": "future-statute-model",
             "CERTIFIED_LETTER_PRECEDENT_RERANKER": "future-precedent-model",
@@ -188,6 +201,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
                 os.environ,
                 {
                     "GEMINI_API_KEY": "test-key",
+                    "OPENAI_API_KEY": "test-openai-key",
                     "CERTIFIED_LETTER_STATUTE_RERANKER": "../outside",
                 },
                 clear=True,
@@ -203,6 +217,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
             env_file = runtime_root / ".env"
             env_file.write_text(
                 "GEMINI_API_KEY=test-key\n"
+                "OPENAI_API_KEY=test-openai-key\n"
                 "ALPHALAWVA_LOCAL_DATA_DIR=local_data\n"
                 "CERTIFIED_LETTER_STATUTE_DB_DIR=data/statutes/vectorstores/bge_m3\n"
                 "CERTIFIED_LETTER_MODEL_CACHE_DIR=data/statutes/models\n",
