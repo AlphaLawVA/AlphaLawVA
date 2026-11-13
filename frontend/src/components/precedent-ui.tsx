@@ -1,11 +1,14 @@
 "use client";
 
-import { Bookmark, ExternalLink, FileText, X } from "lucide-react";
-import { useState } from "react";
+import { Bookmark, ExternalLink, FileText, Info, X } from "lucide-react";
+import { useId, useState } from "react";
 import type { CaseBasis } from "@/lib/demo-types";
 import styles from "./precedent-ui.module.css";
 
 type ReferenceMode = "search" | "related";
+
+const EASY_SUMMARY_NOTICE = "쉬운 요약은 판례의 이해를 돕기 위해 원문의 표현을 쉽게 풀어쓴 참고 자료입니다. 정확한 사실관계와 판단 내용은 판례 원문을 함께 확인해 주세요.";
+const COMPARISON_NOTICE = "입력한 상황과 판례의 관련 부분을 비교한 참고 자료입니다. 사건의 세부 내용에 따라 법적 판단은 달라질 수 있습니다.";
 
 type PrecedentReferenceProps = {
   precedent: CaseBasis;
@@ -73,6 +76,8 @@ export function PrecedentSummary({
   precedent: CaseBasis;
   highlight?: boolean;
 }) {
+  const tooltipId = useId();
+
   return (
     <div className={styles.summaryColumns}>
       <section>
@@ -80,10 +85,25 @@ export function PrecedentSummary({
         <p><HighlightedEvidenceText content={precedent.summary} highlight={highlight} ranges={findEvidenceRanges(precedent, "summary", precedent.summary)} /></p>
       </section>
       <section className={styles.easySummary}>
-        <h3>쉬운요약</h3>
+        <div className={styles.easySummaryHeading}>
+          <h3>쉬운요약</h3>
+          <button aria-describedby={tooltipId} aria-label="쉬운요약 안내" className={styles.easySummaryInfo} type="button">
+            <Info aria-hidden="true" size={15} />
+          </button>
+          <span className={styles.easySummaryTooltip} id={tooltipId} role="tooltip">{EASY_SUMMARY_NOTICE}</span>
+        </div>
         <p><HighlightedEvidenceText content={precedent.easySummary ?? precedent.summary} highlight={highlight} ranges={findEvidenceRanges(precedent, precedent.easySummary ? "easySummary" : "summary", precedent.easySummary ?? precedent.summary)} /></p>
       </section>
     </div>
+  );
+}
+
+export function PrecedentComparisonNotice() {
+  return (
+    <span className={styles.comparisonNotice}>
+      <Info aria-hidden="true" size={14} />
+      <span>{COMPARISON_NOTICE}</span>
+    </span>
   );
 }
 
@@ -192,6 +212,7 @@ export function PrecedentModal({
               <section className={styles.comparisonBox}>
                 <span>저장한 질문</span>
                 <h3>{comparisonQuery}</h3>
+                <PrecedentComparisonNotice />
                 {comparisonStatus === "generated" && comparisonText ? (
                   <p>{comparisonText}</p>
                 ) : comparisonStatus === "generating" ? (

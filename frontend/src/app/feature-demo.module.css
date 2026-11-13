@@ -584,6 +584,8 @@
 .summaryColumns p, .similarBox p { margin-top: 12px; color: var(--text-muted); font-size: 15px; line-height: 1.75; }
 .easySummary { background: var(--navy-soft); }
 .similarBox { margin-top: 22px; }
+.similarHeading { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 12px; }
+.similarHeading + .primaryButton { margin-top: 14px; }
 
 .caseMeta {
   margin: 8px 0 4px;

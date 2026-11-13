@@ -18,6 +18,13 @@
 .summaryColumns h3, .fullText h3 { margin: 0 0 9px; color: var(--ink); font-size: 1rem; }
 .summaryColumns p, .chunk p, .fullText p { margin: 0; line-height: 1.7; }
 .easySummary { background: var(--surface-subtle); }
+.easySummaryHeading { position: relative; display: flex; width: fit-content; align-items: center; gap: 5px; margin-bottom: 9px; }
+.easySummaryHeading h3 { margin: 0; }
+.easySummaryInfo { display: inline-grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--warning); padding: 0; cursor: help; }
+.easySummaryInfo:hover, .easySummaryInfo:focus-visible { background: var(--warning-bg); outline: none; }
+.easySummaryTooltip { position: absolute; z-index: 10; top: calc(100% + 8px); left: 0; width: min(320px, calc(100vw - 80px)); border: 1px solid #e4bc72; border-radius: 6px; background: var(--warning-bg); box-shadow: 0 8px 24px rgb(69 52 34 / 16%); color: #5c432d; padding: 12px 14px; font-size: 0.78rem; font-weight: 500; line-height: 1.6; opacity: 0; pointer-events: none; transform: translateY(-3px); transition: opacity 140ms ease, transform 140ms ease; visibility: hidden; }
+.easySummaryTooltip::before { position: absolute; top: -6px; left: 20px; width: 10px; height: 10px; border-top: 1px solid #e4bc72; border-left: 1px solid #e4bc72; background: var(--warning-bg); content: ""; transform: rotate(45deg); }
+.easySummaryHeading:hover .easySummaryTooltip, .easySummaryHeading:focus-within .easySummaryTooltip { opacity: 1; transform: translateY(0); visibility: visible; }
 .textHighlight { box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.08em; background: linear-gradient(transparent 38%, #fffbe8 38%, #fffbe8 95%, transparent 95%); }
 .referenceDisclosure { margin-top: 24px; border: 1px solid var(--line); border-radius: 6px; padding: 0 18px; }
 .referenceDetails summary { padding: 16px 0; color: var(--ink); font-size: 0.94rem; font-weight: 800; cursor: pointer; }
@@ -38,6 +45,9 @@
 .comparisonBox > span { color: var(--text-muted); font-size: 0.78rem; font-weight: 800; }
 .comparisonBox h3 { margin: 7px 0 11px; color: var(--ink); font-size: 1.02rem; line-height: 1.5; }
 .comparisonBox p { margin: 0; color: var(--text-muted); line-height: 1.7; }
+.comparisonNotice { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 0.82rem; font-weight: 650; line-height: 1.5; }
+.comparisonNotice svg { flex: 0 0 auto; color: var(--warning); }
+.comparisonBox .comparisonNotice { display: flex; margin: 0 0 12px; }
 .comparisonAction { width: 100%; min-height: 44px; margin-top: 14px; border: 1px solid var(--navy); border-radius: 5px; background: var(--navy); color: #fff; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
 .returnButton { margin-bottom: 18px; }
 .dataNotice { margin: 0 0 14px; color: var(--text-muted); font-size: 0.9rem; }
