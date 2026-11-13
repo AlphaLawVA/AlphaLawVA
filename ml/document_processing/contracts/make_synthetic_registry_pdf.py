@@ -48,6 +48,28 @@ OWNER_TRANSFER = [
     f"소유자 김가상 900101-*******\n{ROAD}, 101호",
 ]
 
+
+TITLE_COLS = ("표시번호", "접 수", "소재지번,건물명칭 및 번호", "건물 내 역", "등기원인 및 기타사항")
+TITLE_WIDTHS = (0.092, 0.157, 0.255, 0.249, 0.246)  # 경계 0.143 0.285 0.515 0.74 (표 6%~96.2%)
+RIGHTS_COLS = ("순위번호", "등 기 목 적", "접 수", "등 기 원 인", "권리자 및 기타사항")
+RIGHTS_WIDTHS = (0.094, 0.177, 0.145, 0.154, 0.430)  # 경계 0.145 0.305 0.436 0.575
+
+# 집합건물(아파트) 등본: 계약서 전세_손글씨_01(임대인 박도윤, 알파로 27, 알파아파트 101동 1203호)과 같은 부동산·소유자다.
+APT_PROPERTY = "서울특별시 성동구 성수동1가 685 알파아파트 제101동 제12층 제1203호"
+APT_ROAD = "서울특별시 성동구 알파로 27"
+APT_TITLE_TABLES = [
+    (("표 제 부", "1동의 건물의 표시"), TITLE_COLS, TITLE_WIDTHS, [
+        ["1", "2019년5월2일",
+         f"서울특별시 성동구\n성수동1가 685\n알파아파트 제101동\n\n[도로명주소]\n{APT_ROAD}",
+         "철근콘크리트조\n(철근)콘크리트지붕\n20층\n1층 1,245.60㎡\n2층 1,030.21㎡",
+         "도로명주소\n2019년5월2일 등기"],
+    ]),
+    (("", "전유부분의 건물의 표시"),
+     ("표시번호", "접 수", "건물번호", "건물 내 역", "등기원인 및 기타사항"), TITLE_WIDTHS, [
+        ["1", "2019년5월2일", "제12층 제1203호", "철근콘크리트조\n84.97㎡", ""],
+    ]),
+]
+
 # 시나리오: 갑구 행, 을구 행, 정답 값
 SCENARIOS: dict[str, dict[str, Any]] = {
     "A_근저당": {
@@ -93,12 +115,24 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "eulgu": [],
         "expected": {"owner": "김가상", "encumbrances": "없음"},
     },
+    "E_일치_집합건물": {
+        "header_label": "집합건물",
+        "property": APT_PROPERTY,
+        "document_kind": "- 집합건물 -",
+        "title_tables": APT_TITLE_TABLES,
+        "gapgu": [
+            ["1", "소유권이전", "2021년4월12일\n제45678호", "2021년4월9일\n매매",
+             "소유자 박도윤 850515-*******\n서울특별시 성동구 알파로 27, 알파아파트 101동 1203호"],
+        ],
+        "eulgu": [
+            ["1", "근저당권설정", "2024년2월14일\n제11223호", "2024년2월14일\n설정계약",
+             "채권최고액 금180,000,000원\n채무자 박도윤\n서울특별시 성동구 알파로 27, 알파아파트 101동 1203호\n"
+             "근저당권자 알파은행 주식회사 110111-2222222\n서울특별시 중구 가상로 1"],
+        ],
+        "expected": {"owner": "박도윤", "address_match_with": "전세_손글씨_01", "mortgage_amount": 180_000_000},
+    },
 }
 
-TITLE_COLS = ("표시번호", "접 수", "소재지번,건물명칭 및 번호", "건물 내 역", "등기원인 및 기타사항")
-TITLE_WIDTHS = (0.092, 0.157, 0.255, 0.249, 0.246)  # 경계 0.143 0.285 0.515 0.74 (표 6%~96.2%)
-RIGHTS_COLS = ("순위번호", "등 기 목 적", "접 수", "등 기 원 인", "권리자 및 기타사항")
-RIGHTS_WIDTHS = (0.094, 0.177, 0.145, 0.154, 0.430)  # 경계 0.145 0.305 0.436 0.575
 
 
 def _font_path() -> Path:
@@ -118,6 +152,8 @@ class Renderer:
         self.page: fitz.Page | None = None
         self.y = 0.0
         self.width = PAGE_W - MARGIN - RIGHT_MARGIN
+        self.property_label = "건물"
+        self.property_text = PROPERTY
 
     def text_width(self, text: str, size: float) -> float:
         return self.font.text_length(text, fontsize=size)
@@ -180,9 +216,13 @@ class Renderer:
               rows: list[list[str]], empty_text: str | None = None) -> None:
         if self.y + 22 + 22 + 40 > PAGE_H - 90:
             self.new_page()
-            self.write(MARGIN, self.y + 8, f"[건물] {PROPERTY}", 9)
+            self.write(MARGIN, self.y + 8, f"[{self.property_label}] {self.property_text}", 9)
             self.y += 20
-        self.section_title(*title)
+        if title[0]:
+            self.section_title(*title)
+        else:  # 표제부의 하위 표(전유부분의 건물의 표시 등)는 박스 없이 제목만 쓴다
+            self.write(MARGIN + 6, self.y + 12, f"( {title[1]} )", 9)
+            self.y += 20
         self.header_row(columns, widths)
         body = rows or ([[ "", "", "", "", empty_text]] if empty_text else [])
         for cells in body:
@@ -190,7 +230,7 @@ class Renderer:
             height = max(len(lines) for lines in wrapped) * LINE_H + 10
             if self.y + height > PAGE_H - 90:  # 쪽 넘김: 다음 쪽에 소재와 머리글을 다시 쓴다
                 self.new_page()
-                self.write(MARGIN, self.y + 8, f"[건물] {PROPERTY}", 9)
+                self.write(MARGIN, self.y + 8, f"[{self.property_label}] {self.property_text}", 9)
                 self.y += 20
                 self.header_row(columns, widths)
             self._draw_row(wrapped, widths, height)
@@ -221,12 +261,18 @@ def build(name: str, scenario: dict[str, Any]) -> fitz.Document:
     r = Renderer()
     r.new_page()
     r.write(0, r.y + 20, "등기사항전부증명서(현재 유효사항)", 15, center_in=PAGE_W)
-    r.write(0, r.y + 40, "- 건물 -", 13, center_in=PAGE_W)
+    r.write(0, r.y + 40, scenario.get("document_kind", "- 건물 -"), 13, center_in=PAGE_W)
     r.write(PAGE_W - MARGIN - 170, r.y + 62, f"고유번호 {FILE_NAME_ID}", 8.5)
     r.y += 78
-    r.write(MARGIN, r.y + 10, f"[건물] {PROPERTY}", 9)
+    label = scenario.get("header_label", "건물")
+    r.property_text = scenario.get("property", PROPERTY)
+    r.property_label = label
+    r.write(MARGIN, r.y + 10, f"[{label}] {r.property_text}", 9)
     r.y += 20
-    r.table(("표 제 부", "건물의 표시"), TITLE_COLS, TITLE_WIDTHS, TITLE_ROWS)
+    for title, columns, widths, rows in scenario.get("title_tables") or [
+        (("표 제 부", "건물의 표시"), TITLE_COLS, TITLE_WIDTHS, TITLE_ROWS)
+    ]:
+        r.table(title, columns, widths, rows)
     r.table(("갑   구", "소유권에 관한 사항"), RIGHTS_COLS, RIGHTS_WIDTHS, scenario["gapgu"], "기록사항 없음")
     r.table(("을   구", "소유권 이외의 권리에 관한 사항"), RIGHTS_COLS, RIGHTS_WIDTHS, scenario["eulgu"], "기록사항 없음")
     r.finish(notes=True)
