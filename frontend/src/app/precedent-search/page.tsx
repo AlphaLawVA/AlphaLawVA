@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bookmark, LoaderCircle, Search } from "lucide-react";
-import { PrecedentListItem, PrecedentMeta, PrecedentModal, PrecedentReference, PrecedentSummary } from "@/components/precedent-ui";
+import { PrecedentComparisonNotice, PrecedentListItem, PrecedentMeta, PrecedentModal, PrecedentReference, PrecedentSummary } from "@/components/precedent-ui";
 import type { CaseBasis } from "@/lib/demo-types";
 import {
   createPrecedentFavorite,
@@ -194,8 +194,11 @@ function PrecedentSearchPage() {
             <>
               <PrecedentSummary highlight={highlightSimilar} precedent={current} />
               <section className={styles.similarBox}>
-                <h2>내 상황과 유사한 부분</h2>
-                {comparison === "idle" && <><p>필요할 때 검색 질문과 판례 근거를 비교해 설명합니다.</p><button className={styles.primaryButton} type="button" onClick={() => void compareCurrent()}>내 상황과 비교하기</button></>}
+                <div className={styles.similarHeading}>
+                  <h2>내 상황과 유사한 부분</h2>
+                  <PrecedentComparisonNotice />
+                </div>
+                {comparison === "idle" && <button className={styles.primaryButton} type="button" onClick={() => void compareCurrent()}>내 상황과 비교하기</button>}
                 {comparison === "loading" && <p className={styles.loadingInline}><LoaderCircle className={styles.spinner} size={17} />비교 내용을 만들고 있습니다.</p>}
                 {comparison === "complete" && <p>{current.matchedReason}</p>}
                 {comparison === "error" && <><p>비교 내용을 만들지 못했습니다. 생성 모델 설정을 확인한 뒤 다시 시도해주세요.</p><button className={styles.primaryButton} type="button" onClick={() => void compareCurrent()}>재시도</button></>}
