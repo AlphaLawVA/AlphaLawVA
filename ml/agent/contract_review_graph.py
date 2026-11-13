@@ -366,7 +366,9 @@ class ContractReviewGraph:
         # 계약서는 도로명, 등본 소재지는 지번인 경우가 많아 등본의 소재지와
         # 도로명주소 표기 중 하나라도 맞으면 같은 목적물로 본다.
         contract_address = ContractReviewGraph._normalize_text(contract.property.address)
-        for candidate in (registry.address, registry.detail_address):
+        # 표제부 원문에는 지번 소재지와 함께 [도로명주소]가 적혀 있으므로 원문도 비교 대상에 넣는다.
+        description_texts = [item.original_text for item in registry.property_description]
+        for candidate in (registry.address, registry.detail_address, *description_texts):
             normalized = ContractReviewGraph._normalize_text(candidate or "")
             if len(normalized) < 6 or len(contract_address) < 6:
                 continue

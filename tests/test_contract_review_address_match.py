@@ -47,6 +47,23 @@ class AddressMatchTests(unittest.TestCase):
             _address_items("서울특별시 성동구 알파로27", JIBUN, f"[도로명] {ROAD}"), []
         )
 
+    def test_road_address_in_title_description_matches(self) -> None:
+        # 상세주소 칸에는 동·호만 있어도 표제부 원문의 [도로명주소]로 같은 목적물임을 알 수 있다.
+        contract = _contract()
+        contract.contract.property.address = ROAD
+        registry = _registry(description=f"{JIBUN}\n[도로명주소]\n{ROAD}\n철근콘크리트구조")
+        registry = registry.model_copy(update={"address": JIBUN, "detail_address": "101동 1203호"})
+        result = ContractReviewGraph().prepare(contract, registry)
+        self.assertEqual([i for i in result.items if i.item_id == "property_address_match"], [])
+
+    def test_other_address_in_title_description_still_needs_confirmation(self) -> None:
+        contract = _contract()
+        contract.contract.property.address = ROAD
+        registry = _registry(description="서울특별시 강남구 테헤란로 5")
+        registry = registry.model_copy(update={"address": JIBUN, "detail_address": None})
+        result = ContractReviewGraph().prepare(contract, registry)
+        self.assertEqual(len([i for i in result.items if i.item_id == "property_address_match"]), 1)
+
     def test_different_address_still_needs_confirmation(self) -> None:
         items = _address_items(
             "서울특별시 강남구 테헤란로 5", JIBUN, ROAD
