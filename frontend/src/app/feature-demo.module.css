@@ -196,6 +196,13 @@
   background: white;
 }
 
+.addButton:disabled {
+  border-color: #b7b4ab;
+  color: #77736d;
+  background: #d9d5ca;
+  cursor: not-allowed;
+}
+
 .primaryButton {
   border: 1px solid var(--navy);
   color: white;

@@ -10,6 +10,10 @@ import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-va
 import { createSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
 import styles from "../feature-demo.module.css";
 
+// 서버가 한 번에 받는 요청 개수 상한(api/models/contracts.py의
+// SpecialClauseDraftRequest.requests max_length)과 같은 값으로 맞춘다.
+const MAX_REQUESTS = 10;
+
 type Stage = "input" | "review" | "generating" | "result";
 type RequestItem = { id: number; value: string };
 type GeneratedClause = {
@@ -159,7 +163,9 @@ export default function ClauseGeneratorPage() {
   }
 
   function addRequest() {
-    setRequests((items) => [...items, { id: nextId, value: "" }]);
+    setRequests((items) => (
+      items.length >= MAX_REQUESTS ? items : [...items, { id: nextId, value: "" }]
+    ));
     setNextId((value) => value + 1);
   }
 
@@ -170,6 +176,7 @@ export default function ClauseGeneratorPage() {
   async function generateClauses() {
     setSelected(0);
     setProgress(35);
+    setError("");
     setDraftResult(null);
     setStage("generating");
     try {
@@ -231,6 +238,7 @@ export default function ClauseGeneratorPage() {
           <section className={styles.panel}>
             <h2>어떤 조건을 계약에 넣고 싶나요?</h2>
             <p className={styles.panelLead}>서로 다른 요청은 항목을 나누어 입력해주세요. 계약정보가 없어도 초안을 만들 수 있습니다.</p>
+            <p className={styles.panelLead}>한 번에 최대 {MAX_REQUESTS}개까지 요청할 수 있어요 ({requests.length}/{MAX_REQUESTS}).</p>
             <div className={styles.requestList}>
               {requests.map((request, index) => (
                 <div className={styles.requestItem} key={request.id}>
@@ -241,7 +249,8 @@ export default function ClauseGeneratorPage() {
               ))}
             </div>
             {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>요청을 다시 확인해주세요</strong><span>{error}</span></div></div>}
-            <button className={styles.addButton} type="button" onClick={addRequest}><Plus size={16} aria-hidden="true" />요청 추가</button>
+            <button className={styles.addButton} disabled={requests.length >= MAX_REQUESTS} type="button" onClick={addRequest}><Plus size={16} aria-hidden="true" />요청 추가</button>
+            {requests.length >= MAX_REQUESTS && <p className={styles.panelLead}>요청은 한 번에 최대 {MAX_REQUESTS}개까지 보낼 수 있어요. 나머지는 생성 후 다시 요청해주세요.</p>}
           </section>
           <aside className={styles.sidePanel}>
             <h2>이렇게 적어보세요</h2>
@@ -259,6 +268,7 @@ export default function ClauseGeneratorPage() {
         <section className={styles.panel}>
           <h2>이 요청으로 특약을 만들까요?</h2>
           <p className={styles.panelLead}>빠진 요청이나 서로 모순되는 내용이 없는지 확인해주세요.</p>
+          {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>특약 생성에 실패했습니다</strong><span>{error}</span></div></div>}
           <div className={styles.summaryList}>
             {validRequests.map((request, index) => <div className={styles.summaryItem} key={`${index}-${request}`}><span>요청 {index + 1}</span><p>{request}</p></div>)}
           </div>
