@@ -1,0 +1,46 @@
+{
+  "schema_version": "precedent_bm25_hybrid_comparison.v1",
+  "created_at": "2026-11-13T05:44:09+00:00",
+  "dataset": {
+    "name": "precedent_retrieval_goldset_v01",
+    "query_count": 90,
+    "label_count": 549,
+    "relevant_threshold": 2,
+    "questions_sha256": "868311a930ee186ffea6c2a3b95115d53c6358048fc2172a96c80ec459085b1d",
+    "labels_sha256": "5ff33980293e5f05742dcc864badcf6cdbe7a01939067d13d25e0b8fb806252e"
+  },
+  "retrieval": {
+    "dense_model": "BAAI/bge-m3",
+    "dense_model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "vector_db_manifest_sha256": "063bbdd0fe0c6b2b2399672949342eec5429c31e5a0f7e2d1523b4e3052103cb",
+    "corpus_chunk_count": 24267,
+    "top_k": 20,
+    "device": "cpu",
+    "bm25": {
+      "tokenizer": "kiwi_content_morphemes_v1",
+      "k1": 1.5,
+      "b": 0.75
+    },
+    "weighted_rrf": {
+      "rrf_k": 60,
+      "weights": [
+        {"dense": 0.9, "bm25": 0.1},
+        {"dense": 0.8, "bm25": 0.2},
+        {"dense": 0.7, "bm25": 0.3},
+        {"dense": 0.5, "bm25": 0.5}
+      ]
+    }
+  },
+  "environment": {
+    "chromadb": "1.5.9",
+    "sentence_transformers": "3.3.1",
+    "transformers": "4.47.0",
+    "torch": "2.14.1",
+    "kiwipiepy": "0.23.2"
+  },
+  "timing": {
+    "dense_load_seconds": 6.19737,
+    "bm25_build_seconds": 215.494615
+  },
+  "paid_api_calls": 0
+}
