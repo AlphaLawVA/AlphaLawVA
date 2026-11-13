@@ -26,7 +26,8 @@ FONT_CANDIDATES = (
     Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
 )
 PAGE_W, PAGE_H = 595.0, 842.0
-MARGIN = 50.0
+MARGIN = 35.7  # 실제 등본 표의 왼쪽 위치(페이지 폭의 약 6%)
+RIGHT_MARGIN = 22.6  # 오른쪽(약 3.8%)
 FONT_SIZE = 8.5
 LINE_H = 11.5
 NOTICE = "합성 테스트 자료 - 실제 등기부가 아님"
@@ -95,9 +96,9 @@ SCENARIOS: dict[str, dict[str, Any]] = {
 }
 
 TITLE_COLS = ("표시번호", "접 수", "소재지번,건물명칭 및 번호", "건물 내 역", "등기원인 및 기타사항")
-TITLE_WIDTHS = (0.09, 0.12, 0.28, 0.27, 0.24)
+TITLE_WIDTHS = (0.092, 0.157, 0.255, 0.249, 0.246)  # 경계 0.143 0.285 0.515 0.74 (표 6%~96.2%)
 RIGHTS_COLS = ("순위번호", "등 기 목 적", "접 수", "등 기 원 인", "권리자 및 기타사항")
-RIGHTS_WIDTHS = (0.09, 0.17, 0.15, 0.15, 0.44)
+RIGHTS_WIDTHS = (0.094, 0.177, 0.145, 0.154, 0.430)  # 경계 0.145 0.305 0.436 0.575
 
 
 def _font_path() -> Path:
@@ -116,7 +117,7 @@ class Renderer:
         self.doc = fitz.open()
         self.page: fitz.Page | None = None
         self.y = 0.0
-        self.width = PAGE_W - 2 * MARGIN
+        self.width = PAGE_W - MARGIN - RIGHT_MARGIN
 
     def text_width(self, text: str, size: float) -> float:
         return self.font.text_length(text, fontsize=size)
