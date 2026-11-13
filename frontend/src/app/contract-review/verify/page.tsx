@@ -5,7 +5,7 @@ import styles from "../contract-review.module.css";
 
 export default function VerifyPage() {
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${styles.pageWide}`}>
       <div className={styles.heading}>
         <h1>계약서 검토</h1>
         <p>분석하기 전에 문서에서 읽은 정보가 정확한지 확인합니다.</p>
