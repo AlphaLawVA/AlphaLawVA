@@ -17,6 +17,7 @@ import csv
 import hashlib
 import json
 import math
+import sys
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -24,14 +25,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
-from ml.data_collection.statutes.law_api_common import PROJECT_ROOT
-from ml.evaluation.precedents.evaluate_precedent_embeddings import (
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from ml.evaluation.precedents.evaluate_precedent_embeddings import (  # noqa: E402
     GoldQuery,
     compute_metrics,
     load_gold_labels,
     load_questions,
 )
-from ml.rag.precedent_retriever import BgeM3PrecedentRetriever
+from ml.rag.precedent_retriever import BgeM3PrecedentRetriever  # noqa: E402
 
 
 LOCAL_DATA_ROOT = PROJECT_ROOT / "local_data"
