@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
@@ -57,6 +58,17 @@ class PrecedentRetriever(Protocol):
 logger = logging.getLogger(__name__)
 
 MAX_RERANK_PASSAGE_CHARS = 1500  # 리랭커 입력 길이(약 512토큰)에 맞춘 안전 절단. 2026-11-12 시험과 같은 값.
+
+# 민간임대주택·공공주택 특별법 계열은 임대사업자로 등록한 주택에만 적용되는데,
+# "임대차", "관리비", "수선" 같은 일반 임대차와 겹치는 낱말 때문에 일반 개인 간
+# 전월세에도 계속 후보로 올라온다(2026-11-13 조합2·5 테스트에서 확인). 계약서
+# 원문에 등록임대 관련 표현이 없으면 이 법령군은 후보에서 뺀다.
+_REGISTERED_RENTAL_BUSINESS_LAW = re.compile(
+    r"민간임대주택|공공주택\s*특별법|공공건설임대주택|주거약자"
+)
+_REGISTERED_RENTAL_BUSINESS_MARKER = re.compile(
+    r"임대사업자|등록임대|민간임대주택|공공임대주택|공공주택"
+)
 
 
 @dataclass(frozen=True)
@@ -189,6 +201,10 @@ class ContractReviewRagRetriever:
         query: ContractReviewRetrievalQuery,
     ) -> list[ContractReviewEvidence]:
         assert self._statute_retriever is not None
+        # 계약서 원문 자체가 등록임대 관련이면(드묾) 그 법령군도 그대로 둔다.
+        allow_registered_rental_business_law = bool(
+            _REGISTERED_RENTAL_BUSINESS_MARKER.search(query.query)
+        )
         return [
             ContractReviewEvidence(
                 item_id=query.item_id,
@@ -216,6 +232,8 @@ class ContractReviewRagRetriever:
                 query.query,
                 top_k=self._statute_top_k,
             )
+            if allow_registered_rental_business_law
+            or not _REGISTERED_RENTAL_BUSINESS_LAW.search(result.law_name or "")
         ]
 
     def _retrieve_precedents(

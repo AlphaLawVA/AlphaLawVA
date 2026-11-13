@@ -16,9 +16,9 @@ from ml.agent.contract_review_graph import ContractReviewRetrievalQuery
 from ml.rag.contract_review_retriever import ContractReviewRagRetriever
 
 
-def _statute(rank, similarity):
+def _statute(rank, similarity, law_name="주택임대차보호법"):
     return SimpleNamespace(
-        rank=rank, chunk_id=f"law:{rank}", law_id="1", law_name="주택임대차보호법",
+        rank=rank, chunk_id=f"law:{rank}", law_id="1", law_name=law_name,
         article_label=f"제{rank}조", article_title="t", text="법령", similarity=similarity,
         effective_date=None, source_node_id=None,
     )
@@ -72,6 +72,39 @@ class QuotaTest(unittest.TestCase):
     def test_statute_threshold_does_not_apply_to_precedents(self):
         evidence = self._retrieve([_precedent(1, 0.3)], min_similarity=0.9)
         self.assertEqual([e.source_type for e in evidence], ["precedent"])
+
+    def test_registered_rental_business_law_is_dropped_for_ordinary_lease(self):
+        retriever = ContractReviewRagRetriever(
+            statute_retriever=Fake([
+                _statute(1, 0.72, law_name="민간임대주택에 관한 특별법 시행규칙"),
+                _statute(2, 0.65, law_name="주택임대차보호법"),
+            ]),
+            precedent_retriever=Fake([]),
+            statute_top_k=4, precedent_top_k=4,
+        )
+        query = ContractReviewRetrievalQuery(
+            item_id="term-1", category="special_term", query="월세 계약 특약: 보일러 노후 고장 수리",
+        )
+        evidence = retriever.retrieve([query])
+        law_names = [e.metadata["law_name"] for e in evidence if e.source_type == "statute"]
+        self.assertNotIn("민간임대주택에 관한 특별법 시행규칙", law_names)
+        self.assertIn("주택임대차보호법", law_names)
+
+    def test_registered_rental_business_law_is_kept_when_contract_mentions_it(self):
+        retriever = ContractReviewRagRetriever(
+            statute_retriever=Fake([
+                _statute(1, 0.72, law_name="민간임대주택에 관한 특별법 시행규칙"),
+            ]),
+            precedent_retriever=Fake([]),
+            statute_top_k=4, precedent_top_k=4,
+        )
+        query = ContractReviewRetrievalQuery(
+            item_id="term-1", category="special_term",
+            query="월세 계약 특약: 민간임대주택 임대사업자 등록 주택의 관리비 정산",
+        )
+        evidence = retriever.retrieve([query])
+        law_names = [e.metadata["law_name"] for e in evidence if e.source_type == "statute"]
+        self.assertIn("민간임대주택에 관한 특별법 시행규칙", law_names)
 
 
 if __name__ == "__main__":
