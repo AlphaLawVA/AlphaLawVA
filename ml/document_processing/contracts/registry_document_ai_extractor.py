@@ -83,6 +83,10 @@ def _fit_dividers(
     return tuple(left + (divider - ref_left) * scale for divider in default)
 
 
+# 집합건물 표제부는 "1동의 건물의 표시"와 "전유부분의 건물의 표시"처럼 머리글이 있는 하위 표로 나뉜다.
+# 하위 표 사이의 제목 줄은 항목 본문에 섞이지 않게 뺀다.
+_SUBTABLE_TITLE = re.compile(r"^\(?(?:1동의건물의표시|전유부분의건물의표시|대지권의목적인토지의표시|대지권의표시)\)?$")
+
 _AMENDMENT_PURPOSE = re.compile(r"변경|말소|소멸|경정|이전")
 _OWNERSHIP_EXCLUDED = re.compile(r"압류|가처분|가등기|경매|예고|환매")
 _HOLDER_LABEL = re.compile(
@@ -207,14 +211,27 @@ def _split_tables(lines_tokens: list[Line]) -> dict[str, list[tuple[str, list[Li
                 for cy, items in _bands(scoped)
                 if any(word in compact(" ".join(i.text for i in items)) for word in _HEADER_WORDS)
             ]
-            header_ys = [cy for cy, _ in header_bands]
-            body_start = (max(header_ys) + 0.012) if header_ys else start + 0.014
-            body = [token for token in scoped if token.cy > body_start]
+            subtitle_ys = [
+                cy
+                for cy, items in _bands(scoped)
+                if _SUBTABLE_TITLE.match(compact(" ".join(i.text for i in items)))
+            ]
             default = _TITLE_COLUMNS if section == "title" else _RIGHTS_COLUMNS
-            dividers = _fit_dividers(
-                [token for _, items in header_bands for token in items], section, default
-            )
-            tables[section].extend(_entry_blocks(body, dividers))
+            # 머리글이 하나면 그 아래 전체를, 여러 개면 머리글마다 다음 머리글 전까지를 한 표로 읽는다.
+            segments = [
+                (cy + 0.012, header_bands[index + 1][0] if index + 1 < len(header_bands) else None, items)
+                for index, (cy, items) in enumerate(header_bands)
+            ] or [(start + 0.014, None, [])]
+            for body_start, next_cy, header_items in segments:
+                body = [
+                    token
+                    for token in scoped
+                    if token.cy > body_start
+                    and (next_cy is None or token.cy < next_cy - 0.012)
+                    and all(abs(token.cy - subtitle_y) >= 0.008 for subtitle_y in subtitle_ys)
+                ]
+                dividers = _fit_dividers(header_items, section, default)
+                tables[section].extend(_entry_blocks(body, dividers))
         if markers:
             current = markers[-1][1]
     return tables

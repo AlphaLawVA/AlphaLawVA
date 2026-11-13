@@ -94,6 +94,45 @@ def full_page():
     ]
 
 
+def apartment_page():
+    """집합건물 표제부: 머리글이 있는 하위 표가 둘(1동의 건물, 전유부분)이다."""
+
+    return [
+        ("[집합건물] 서울특별시 성동구 성수동1가 685 알파아파트 제101동 제12층 제1203호", 0.06, 0.23, 0.80),
+        ("【 표제부 】", 0.12, 0.26, 0.29),
+        ("표시번호", 0.068, 0.285, 0.12),
+        ("접수", 0.19, 0.285, 0.23),
+        ("소재지번,건물명칭 및 번호", 0.31, 0.285, 0.49),
+        ("건물내역", 0.59, 0.285, 0.66),
+        ("등기원인 및 기타사항", 0.75, 0.285, 0.932),
+        ("1", 0.10, 0.311, 0.11),
+        ("서울특별시 성동구 성수동1가 685", 0.30, 0.314, 0.50),
+        ("[도로명주소]", 0.30, 0.335, 0.40),
+        ("서울특별시 성동구 알파로 27", 0.30, 0.352, 0.50),
+        ("철근콘크리트조", 0.52, 0.314, 0.66),
+        ("( 전유부분의 건물의 표시 )", 0.07, 0.40, 0.28),
+        ("표시번호", 0.068, 0.43, 0.12),
+        ("접수", 0.19, 0.43, 0.23),
+        ("건물번호", 0.31, 0.43, 0.40),
+        ("건물내역", 0.59, 0.43, 0.66),
+        ("등기원인 및 기타사항", 0.75, 0.43, 0.932),
+        ("1", 0.10, 0.456, 0.11),
+        ("제12층 제1203호", 0.30, 0.459, 0.45),
+        ("철근콘크리트조 84.97㎡", 0.52, 0.459, 0.70),
+        ("【갑구 】", 0.12, 0.53, 0.29),
+        ("순위번호", 0.067, 0.556, 0.13),
+        ("등기목적", 0.19, 0.556, 0.26),
+        ("접수", 0.36, 0.556, 0.39),
+        ("등기원인", 0.47, 0.556, 0.55),
+        ("권리자 및 기타사항", 0.70, 0.556, 0.842),
+        ("1", 0.09, 0.582, 0.11),
+        ("소유권이전", 0.15, 0.582, 0.24),
+        ("소유자", 0.62, 0.582, 0.66),
+        ("박도윤", 0.665, 0.582, 0.71),
+        ("열람일시 : 2026년06월26일 14시17분29초", 0.06, 0.85, 0.5),
+    ]
+
+
 def moved(items, scale, offset):
     """모든 글자의 가로 위치를 확대·이동해 촬영 여백·크기가 다른 사진을 흉내 낸다."""
 
@@ -112,6 +151,25 @@ def values(result):
 
 
 class RegistryColumnFitTests(unittest.TestCase):
+    def test_apartment_title_reads_every_sub_table(self):
+        result = extract_registry_document_ai(document_ai_json([apartment_page()]))
+        texts = [item.original_text for item in result.property_description]
+        self.assertEqual(len(texts), 2)
+        self.assertIn("서울특별시 성동구 알파로 27", texts[0])
+        self.assertIn("제12층 제1203호", texts[1])
+        self.assertEqual(result.detail_address.value, "서울특별시 성동구 알파로 27")
+        self.assertNotIn("전유부분", "".join(texts))  # 하위 표 제목은 본문에 섞이지 않는다
+        self.assertEqual(result.owners[0].name.value, "박도윤")
+
+    def test_apartment_page_gives_the_same_values_when_moved(self):
+        base = extract_registry_document_ai(document_ai_json([apartment_page()]))
+        result = extract_registry_document_ai(document_ai_json([moved(apartment_page(), 0.9, 0.04)]))
+        self.assertEqual(
+            [item.original_text for item in result.property_description],
+            [item.original_text for item in base.property_description],
+        )
+        self.assertEqual(result.detail_address.value, base.detail_address.value)
+
     def test_reference_layout_is_unchanged(self):
         result = extract_registry_document_ai(document_ai_json([full_page()]))
         self.assertEqual(
