@@ -312,6 +312,9 @@ export const confirmedContractSnapshot: ConfirmedContractSnapshot = {
     { id: "deposit-korean", label: "보증금 한글 원문", value: "금 이억오천만원정", group: "금액·지급일정", priority: "priority", status: "automatic", source: { page: 1, label: "보증금 한글" } },
     { id: "down-payment", label: "계약금·지급일", value: "25,000,000 · 2026.10.05", group: "금액·지급일정", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "계약금" } },
     { id: "interim-payment", label: "중도금·지급일", value: "25,000,000 · 2026.10.20", group: "금액·지급일정", priority: "priority", status: "needs-confirmation", source: { page: 1, label: "중도금" } },
+    // 중도금을 1차·2차로 나눠 받는 계약(주로 매매)을 위한 두 번째 중도금 칸이다.
+    // 하나만 있으면 "없음"으로 표시되고, 값이 있으면 live 매핑에서 라벨이 "2차중도금"으로 바뀐다.
+    { id: "interim-payment-2", label: "2차중도금·지급일", value: "없음", group: "금액·지급일정", priority: "automatic", status: "automatic", source: { page: 1, label: "2차중도금" } },
     { id: "balance", label: "잔금·지급일", value: "200,000,000 · 2026.10.31", group: "금액·지급일정", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "잔금" } },
     { id: "maintenance-fee", label: "관리비", value: "월 120,000원", group: "금액·지급일정", priority: "automatic", status: "automatic", source: { page: 1, label: "관리비" } },
     { id: "lease-period", label: "임대차 시작·종료일", value: "2026.10.31 - 2028.10.30", group: "기간·인도", priority: "needs-confirmation", status: "needs-confirmation", required: true, source: { page: 1, label: "임대차 기간" } },

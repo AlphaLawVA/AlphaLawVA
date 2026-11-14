@@ -14,6 +14,7 @@ import unittest
 
 from ml.document_processing.contracts.privacy import (
     MASKED_ACCOUNT_NUMBER,
+    MASKED_CORPORATE_NUMBER,
     MASKED_PHONE_NUMBER,
     MASKED_RESIDENT_NUMBER,
     contains_resident_registration_number,
@@ -33,6 +34,17 @@ class PrivacyMaskingTests(unittest.TestCase):
         self.assertFalse(contains_resident_registration_number(masked))
         self.assertNotIn("1234567", masked)
         self.assertNotIn("2345678", masked)
+
+    def test_masks_corporate_registration_number_with_distinct_label(self):
+        # 법인등록번호는 자릿수 형태가 주민등록번호와 같아, 회사 이름 뒤에 오면
+        # 다른 문구로 치환해 사람의 주민등록번호와 혼동되지 않게 한다.
+        original = "채권자 가상금융 주식회사 110111-1111111"
+
+        masked = mask_resident_registration_numbers(original)
+
+        self.assertIn(MASKED_CORPORATE_NUMBER, masked)
+        self.assertNotIn(MASKED_RESIDENT_NUMBER, masked)
+        self.assertNotIn("1111111", masked)
 
     def test_does_not_mask_unrelated_contract_numbers(self):
         original = "보증금 250000000원, 계약일 2026-10-05"

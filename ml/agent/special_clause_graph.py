@@ -11,6 +11,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Protocol, TypedDict
@@ -24,6 +25,8 @@ from ml.agent.contract_review_graph import (
     ContractReviewEvidenceRetriever,
     ContractReviewRetrievalQuery,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -256,6 +259,11 @@ class SpecialClauseGraph:
                 state["evidence"],
             )
         except (RuntimeError, ValueError):
+            # 상위 서비스의 except는 이 안쪽에서 먼저 잡히면 닿지 않으므로, 원인 파악을
+            # 위해 여기서도 남긴다(요청 본문은 남기지 않는다).
+            logger.warning(
+                "특약 생성 단계가 실패해 unavailable로 응답합니다.", exc_info=True
+            )
             return {"generations": [], "generation_unavailable": True}
         return {"generations": generations, "generation_unavailable": False}
 

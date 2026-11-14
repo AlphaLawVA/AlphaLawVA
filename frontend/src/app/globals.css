@@ -15,6 +15,11 @@
   --success: #16834a;
   --success-bg: #edf8f0;
   --danger: #b3261e;
+  --status-caution: #e2620c;
+  --status-caution-bg: #ffdfc2;
+  --status-check: #c28f00;
+  --status-check-bg: #fff2ae;
+  --status-check-dot: #ffc700;
   --shadow: 0 16px 50px rgba(48, 42, 36, 0.08);
 }
 

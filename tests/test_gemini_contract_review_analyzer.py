@@ -123,6 +123,32 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
             with self.assertRaises(ValueError):  # 수정안 없는 check 항목은 서버 검증에서 거절된다
                 self.analyzer.analyze(self.queries, self.evidence)
 
+    def test_caution_item_is_accepted_and_requires_revision_and_negotiation(self):
+        item = {
+            "item_id": "term-1",
+            "summary": "보증금 반환에 영향을 줄 수 있는 쟁점이 있습니다.",
+            "review_status": "caution",
+            "revision": "보증금 반환 조건과 시점을 명확히 기재한다.",
+            "negotiation": "반환 시점과 조건을 상대방과 확인하세요.",
+            "evidence_source_ids": ["law:001248:article:0003"],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            result = self.analyzer.analyze(self.queries, self.evidence)
+        self.assertEqual(result[0].review_status, "caution")
+        self.assertTrue(result[0].revision)
+        self.assertTrue(result[0].negotiation)
+
+    def test_caution_item_without_revision_is_rejected(self):
+        item = {
+            "item_id": "term-1",
+            "summary": "보증금 반환에 영향을 줄 수 있는 쟁점이 있습니다.",
+            "review_status": "caution",
+            "evidence_source_ids": ["law:001248:article:0003"],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            with self.assertRaises(ValueError):  # 수정안 없는 caution 항목도 서버 검증에서 거절된다
+                self.analyzer.analyze(self.queries, self.evidence)
+
     def test_prompt_explains_summary_as_judgement_reason(self):
         from api.services.gemini_contract_review_analyzer import SYSTEM_PROMPT
 

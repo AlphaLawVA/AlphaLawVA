@@ -45,7 +45,7 @@ export type ContractEvidence = {
 export type ContractReviewAnalysis = {
   item_id: string;
   summary: string;
-  review_status: "safe" | "check";
+  review_status: "safe" | "caution" | "check";
   revision: string;
   negotiation: string;
   evidence_source_ids: string[];
@@ -272,7 +272,13 @@ function contractPayload(snapshot: DemoContractSnapshot) {
   };
   const price = { amount: parseMoney(valueOf(fields, "deposit", depositLabel), depositLabel), korean_text: optionalValue(fields, "deposit-korean") };
   const downPayment = parseInstallment(optionalValue(fields, "down-payment"), "계약금");
+  // 중도금을 1차·2차로 나눠 받는 계약(주로 매매)은 두 칸 모두 읽어 합친다.
+  // 하나만 쓰면 interim-payment-2는 "없음"이라 parseInstallment가 null을 준다.
   const intermediate = parseInstallment(optionalValue(fields, "interim-payment"), "중도금");
+  const intermediate2 = parseInstallment(optionalValue(fields, "interim-payment-2"), "2차중도금");
+  const intermediatePayments = [intermediate, intermediate2].filter(
+    (payment): payment is NonNullable<typeof payment> => payment !== null,
+  );
   const balance = parseInstallment(optionalValue(fields, "balance"), "잔금");
 
   if (contractType === "매매") {
@@ -281,7 +287,7 @@ function contractPayload(snapshot: DemoContractSnapshot) {
       contract_type: "sale",
       sale_price: price,
       down_payment: downPayment?.amount ?? null,
-      intermediate_payments: intermediate ? [intermediate] : [],
+      intermediate_payments: intermediatePayments,
       remaining_balance: balance?.amount ?? null,
       remaining_balance_date: balance?.due_date ?? null,
       handover_date: optionalValue(fields, "handover-date") ? parseDate(optionalValue(fields, "handover-date")!, "인도일") : null,
@@ -298,7 +304,7 @@ function contractPayload(snapshot: DemoContractSnapshot) {
     contract_type: contractType === "월세" ? "monthly_rent" : "jeonse",
     lease_deposit: price,
     down_payment: downPayment?.amount ?? null,
-    intermediate_payments: intermediate ? [intermediate] : [],
+    intermediate_payments: intermediatePayments,
     remaining_balance: balance?.amount ?? null,
     remaining_balance_date: balance?.due_date ?? null,
     start_date: period.start_date,

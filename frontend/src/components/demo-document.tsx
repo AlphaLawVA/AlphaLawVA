@@ -17,7 +17,7 @@ export function DemoDocument({ activeAnchor, kind, onSelectAnchor }: DemoDocumen
     const isImage = preview.mimeType.startsWith("image/");
     return <div className={styles.documentPages} aria-label={`${preview.name} 원문 미리보기`}>
       <div className={styles.originalDocumentLabel}>업로드한 원본 · {preview.name}</div>
-      {isImage ? <img alt={`${preview.name} 원본`} className={styles.uploadedDocumentImage} src={preview.url} /> : <iframe className={styles.uploadedDocumentPdf} src={preview.url} title={`${preview.name} 원본 PDF`} />}
+      {isImage ? <img alt={`${preview.name} 원본`} className={styles.uploadedDocumentImage} src={preview.url} /> : <iframe className={styles.uploadedDocumentPdf} src={`${preview.url}#view=FitH`} title={`${preview.name} 원본 PDF`} />}
     </div>;
   }
 

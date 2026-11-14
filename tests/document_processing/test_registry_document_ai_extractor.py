@@ -12,6 +12,7 @@ After:
 import unittest
 
 from ml.document_processing.contracts.registry_document_ai_extractor import (
+    _clean,
     extract_registry_document_ai,
 )
 
@@ -134,6 +135,23 @@ class RegistryDocumentAIExtractorTests(unittest.TestCase):
         self.assertIsNone(result.detail_address.value)
         self.assertTrue(any("owner_missing" in item for item in result.warnings))
         self.assertTrue(any("encumbrance_missing" in item for item in result.warnings))
+
+    def test_clean_relabels_corporate_number_masked_as_resident_in_same_row(self):
+        # load_lines는 토큰(단어) 하나만 보고 먼저 마스킹하므로, "주식회사"와 번호가
+        # 서로 다른 토큰이면 그때는 문맥을 몰라 주민등록번호로 마스킹된다. 토큰을
+        # 한 행으로 합친 뒤 _clean을 거치면 그 행 안의 "주식회사"를 보고 법인
+        # 번호로 바로잡아야 한다.
+        row = "근저당권자 가상은행 주식회사 [주민등록번호 마스킹]"
+
+        self.assertEqual(
+            _clean(row),
+            "근저당권자 가상은행 주식회사 [법인·사업자등록번호 마스킹]",
+        )
+
+    def test_clean_keeps_resident_label_without_corporate_indicator(self):
+        row = "채무자 홍길동 [주민등록번호 마스킹]"
+
+        self.assertEqual(_clean(row), row)
 
 
 if __name__ == "__main__":

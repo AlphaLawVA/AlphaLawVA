@@ -1,6 +1,6 @@
 export type DocumentMode = "contract" | "both" | "registry";
 
-export type ReviewStatus = "safe" | "check";
+export type ReviewStatus = "safe" | "caution" | "check";
 
 export type LegalBasis = {
   law: string;

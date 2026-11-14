@@ -17,6 +17,7 @@ import {
   mapRegistryOcrDraftToSnapshot,
 } from "@/lib/registry-ocr-api";
 import { saveContractOcrDraft } from "@/lib/contract-ocr-session";
+import { LiveProgress } from "@/components/live-progress";
 import styles from "../contract-review.module.css";
 
 const stages = [
@@ -149,7 +150,8 @@ export function AnalyzingDemo() {
         <h1>업로드한 문서를 읽고 있습니다</h1>
         <p>{isOcrFlow ? "Google Document AI가 문서를 인식하고 있습니다. 이 화면을 닫거나 새로고침하지 말고 잠시 기다려주세요." : "페이지 수와 글씨 상태에 따라 시간이 조금 더 걸릴 수 있습니다. 이 화면을 닫지 말고 잠시 기다려주세요."}</p>
         <div className={styles.progressHeader}><span>{stages[currentIndex].label}</span><strong>{progress}%</strong></div>
-        <div className={styles.progressTrack}><span style={{ width: `${progress}%` }} /></div>
+        <div className={`${styles.progressTrack} ${styles.progressTrackActive}`}><span style={{ width: `${progress}%` }} /></div>
+        <LiveProgress waitingHint="문서 인식에 시간이 걸리고 있습니다. 서버가 처리 중이니 닫지 말고 기다려주세요." />
         <ol className={styles.processingSteps}>
           {stages.map((stage, index) => {
             const done = progress === 100 || index < currentIndex;

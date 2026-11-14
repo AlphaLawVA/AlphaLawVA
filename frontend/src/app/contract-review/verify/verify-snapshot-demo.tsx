@@ -17,6 +17,7 @@ import {
 import { clearDocumentPreviews } from "@/lib/document-preview-store";
 import type { ConfirmedContractSnapshot, ConfirmedRegistrySnapshot, DocumentMode, FieldStatus, SnapshotField } from "@/lib/demo-types";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LiveProgress } from "@/components/live-progress";
 import styles from "../contract-review.module.css";
 
 type VerifyTab = "contract" | "registry";
@@ -130,7 +131,7 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
       { at: 92, label: "검토 결과 화면을 구성하고 있습니다" },
     ];
     const currentIndex = stages.reduce((index, stage, nextIndex) => reviewProgress >= stage.at ? nextIndex : index, 0);
-    return <main className={styles.processingPage}><section className={styles.processingPanel}><span className={styles.processingIcon}><ScanText size={30} aria-hidden="true" /></span><p className={styles.processingEyebrow}>계약서 검토 중</p><h1>확인한 계약정보를 검토하고 있습니다</h1><p>법령·판례 검색과 AI 검토가 끝날 때까지 이 화면을 닫거나 새로고침하지 마세요.</p><div className={styles.progressHeader}><span>{stages[currentIndex].label}</span><strong>{reviewProgress}%</strong></div><div className={styles.progressTrack}><span style={{ width: `${reviewProgress}%` }} /></div><ol className={styles.processingSteps}>{stages.map((stage, index) => { const done = index < currentIndex; return <li className={done ? styles.processingDone : ""} key={stage.label}><i>{done ? <Check size={14} /> : index + 1}</i><span>{stage.label}</span></li>; })}</ol></section></main>;
+    return <main className={styles.processingPage}><section className={styles.processingPanel}><span className={styles.processingIcon}><ScanText size={30} aria-hidden="true" /></span><p className={styles.processingEyebrow}>계약서 검토 중</p><h1>확인한 계약정보를 검토하고 있습니다</h1><p>법령·판례 검색과 AI 검토가 끝날 때까지 이 화면을 닫거나 새로고침하지 마세요.</p><div className={styles.progressHeader}><span>{stages[currentIndex].label}</span><strong>{reviewProgress}%</strong></div><div className={`${styles.progressTrack} ${styles.progressTrackActive}`}><span style={{ width: `${reviewProgress}%` }} /></div><LiveProgress waitingHint="법령 근거를 찾고 검토문을 만드는 데 시간이 걸리고 있습니다. 서버가 처리 중이니 닫지 말고 기다려주세요." /><ol className={styles.processingSteps}>{stages.map((stage, index) => { const done = index < currentIndex; return <li className={done ? styles.processingDone : ""} key={stage.label}><i>{done ? <Check size={14} /> : index + 1}</i><span>{stage.label}</span></li>; })}</ol></section></main>;
   }
 
   function updateField(id: string, value: string) {

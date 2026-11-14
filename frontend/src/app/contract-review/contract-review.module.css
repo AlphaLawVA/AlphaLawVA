@@ -273,9 +273,13 @@
   gap: 10px;
 }
 
+.pageWide {
+  width: min(1560px, calc(100% - 48px));
+}
+
 .verifyLayout {
   display: grid;
-  grid-template-columns: minmax(310px, 0.82fr) minmax(0, 1.18fr);
+  grid-template-columns: minmax(360px, 1.25fr) minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -284,7 +288,7 @@
   position: sticky;
   top: 94px;
   min-height: 700px;
-  padding: 22px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #e8e4da;
@@ -308,7 +312,8 @@
 
 .uploadedDocumentPdf {
   width: 100%;
-  min-height: 920px;
+  height: calc(100vh - 190px);
+  min-height: 680px;
   border: 1px solid #c9c3b7;
   background: white;
 }
@@ -942,9 +947,14 @@
   background: var(--success-bg);
 }
 
+.cautionBadge {
+  color: var(--status-caution);
+  background: var(--status-caution-bg);
+}
+
 .checkBadge {
-  color: var(--warning);
-  background: var(--warning-bg);
+  color: var(--status-check);
+  background: var(--status-check-bg);
 }
 
 .aiNotice {
@@ -1279,6 +1289,64 @@
   border-radius: inherit;
   background: var(--navy);
   transition: width 140ms linear;
+}
+
+/* 진행률이 상한에서 멈춰도 계속 움직이는 표시 */
+.progressTrackActive {
+  position: relative;
+}
+
+.progressTrackActive::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: progressSweep 1.4s linear infinite;
+}
+
+@keyframes progressSweep {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+
+.liveStatus {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.liveStatus em {
+  flex-basis: 100%;
+  color: var(--navy);
+  font-style: normal;
+  font-weight: 650;
+}
+
+.liveDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--navy);
+  animation: livePulse 1.1s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressTrackActive::after,
+  .liveDot {
+    animation: none;
+  }
 }
 
 .processingSteps {

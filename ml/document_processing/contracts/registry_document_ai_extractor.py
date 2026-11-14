@@ -29,6 +29,7 @@ from ml.document_processing.contracts.extraction_schema import (
     RESIDENT_REGISTRATION_NUMBER,
     RegistryExtraction,
 )
+from ml.document_processing.contracts.privacy import relabel_corporate_number
 
 _MASKED_REGISTRATION_NUMBER = "[등록번호 마스킹]"
 _SECTION_MARKERS = {"표제부": "title", "갑구": "gapgu", "을구": "eulgu"}
@@ -49,6 +50,44 @@ _WATERMARK = {"열람용", "열", "람", "용", "여"}
 _RIGHTS_COLUMNS = (0.145, 0.305, 0.436, 0.575)
 # 일반 건물 표제부: 표시번호 | 접수 | 소재지번 | 건물내역 | 등기원인 및 기타사항
 _TITLE_COLUMNS = (0.143, 0.285, 0.515, 0.74)
+# 표 머리글의 맨 왼쪽·맨 오른쪽 글자 위치(페이지 폭 기준). 실제 등본 1쪽에서 잰 값이다.
+# 사진 촬영 여백·크기가 달라도 이 값과 비교해 열 경계를 문서마다 맞춘다.
+_HEADER_EXTENT = {"title": (0.068, 0.932), "rights": (0.067, 0.842)}
+_MIN_HEADER_SPAN = 0.3  # 머리글이 이보다 좁게 읽히면 보정하지 않는다
+_SCALE_RANGE = (0.7, 1.4)  # 기준 대비 이 범위를 벗어나면 보정하지 않는다
+
+
+class _Block(list):
+    """표 항목 하나의 토큰 목록이다. 문서마다 보정한 열 경계를 함께 가진다."""
+
+    dividers: tuple[float, ...] = ()
+
+
+def _cols(block: list, default: tuple[float, ...]) -> tuple[float, ...]:
+    return getattr(block, "dividers", None) or default
+
+
+def _fit_dividers(
+    header_tokens: list, section: str, default: tuple[float, ...]
+) -> tuple[float, ...]:
+    """머리글 좌우 끝을 기준 위치와 비교해 고정 열 경계를 이 문서에 맞게 옮긴다."""
+
+    if not header_tokens:
+        return default
+    ref_left, ref_right = _HEADER_EXTENT["title" if section == "title" else "rights"]
+    left = min(token.box[0] for token in header_tokens)
+    right = max(token.box[2] for token in header_tokens)
+    span = right - left
+    scale = span / (ref_right - ref_left)
+    if span < _MIN_HEADER_SPAN or not _SCALE_RANGE[0] <= scale <= _SCALE_RANGE[1]:
+        return default
+    return tuple(left + (divider - ref_left) * scale for divider in default)
+
+
+# 집합건물 표제부는 "1동의 건물의 표시"와 "전유부분의 건물의 표시"처럼 머리글이 있는 하위 표로 나뉜다.
+# 하위 표 사이의 제목 줄은 항목 본문에 섞이지 않게 뺀다.
+_SUBTABLE_TITLE = re.compile(r"^\(?(?:1동의건물의표시|전유부분의건물의표시|대지권의목적인토지의표시|대지권의표시)\)?$")
+
 _AMENDMENT_PURPOSE = re.compile(r"변경|말소|소멸|경정|이전")
 _OWNERSHIP_EXCLUDED = re.compile(r"압류|가처분|가등기|경매|예고|환매")
 _HOLDER_LABEL = re.compile(
@@ -57,7 +96,12 @@ _HOLDER_LABEL = re.compile(
 
 
 def _clean(text: str) -> str:
-    return RESIDENT_REGISTRATION_NUMBER.sub(_MASKED_REGISTRATION_NUMBER, text)
+    # 토큰 단위로 Document AI 결과를 읽을 때는 load_lines가 번호를 토큰 하나만 보고
+    # 먼저 마스킹해 법인명 같은 주변 문맥을 못 본다. 이 행으로 토큰을 합친 뒤에는
+    # 문맥이 다시 보이므로, 그때 법인·단체 번호를 다시 구분해 라벨을 바로잡는다.
+    return relabel_corporate_number(
+        RESIDENT_REGISTRATION_NUMBER.sub(_MASKED_REGISTRATION_NUMBER, text)
+    )
 
 
 def _bands(tokens: list[Line]) -> list[tuple[float, list[Line]]]:
@@ -139,7 +183,8 @@ def _entry_blocks(
     for index, anchor in enumerate(numbers):
         top = anchor.cy - 0.010
         bottom = numbers[index + 1].cy - 0.010 if index + 1 < len(numbers) else 2.0
-        block = [token for token in tokens if top <= token.cy < bottom]
+        block = _Block(token for token in tokens if top <= token.cy < bottom)
+        block.dividers = dividers
         blocks.append((compact(anchor.text), block))
     return blocks
 
@@ -167,15 +212,32 @@ def _split_tables(lines_tokens: list[Line]) -> dict[str, list[tuple[str, list[Li
             end = points[index + 1][0] if index + 1 < len(points) else footer_y
             end = min(end, footer_y)
             scoped = [token for token in page_tokens if start <= token.cy < end]
-            header_ys = [
-                cy
+            header_bands = [
+                (cy, items)
                 for cy, items in _bands(scoped)
                 if any(word in compact(" ".join(i.text for i in items)) for word in _HEADER_WORDS)
             ]
-            body_start = (max(header_ys) + 0.012) if header_ys else start + 0.014
-            body = [token for token in scoped if token.cy > body_start]
-            dividers = _TITLE_COLUMNS if section == "title" else _RIGHTS_COLUMNS
-            tables[section].extend(_entry_blocks(body, dividers))
+            subtitle_ys = [
+                cy
+                for cy, items in _bands(scoped)
+                if _SUBTABLE_TITLE.match(compact(" ".join(i.text for i in items)))
+            ]
+            default = _TITLE_COLUMNS if section == "title" else _RIGHTS_COLUMNS
+            # 머리글이 하나면 그 아래 전체를, 여러 개면 머리글마다 다음 머리글 전까지를 한 표로 읽는다.
+            segments = [
+                (cy + 0.012, header_bands[index + 1][0] if index + 1 < len(header_bands) else None, items)
+                for index, (cy, items) in enumerate(header_bands)
+            ] or [(start + 0.014, None, [])]
+            for body_start, next_cy, header_items in segments:
+                body = [
+                    token
+                    for token in scoped
+                    if token.cy > body_start
+                    and (next_cy is None or token.cy < next_cy - 0.012)
+                    and all(abs(token.cy - subtitle_y) >= 0.008 for subtitle_y in subtitle_ys)
+                ]
+                dividers = _fit_dividers(header_items, section, default)
+                tables[section].extend(_entry_blocks(body, dividers))
         if markers:
             current = markers[-1][1]
     return tables
@@ -240,13 +302,16 @@ def _unique_property_number(lines: list[Line]):
     return field(match[0] if match else None, nearby if match else [])
 
 
-def _detail_address(blocks: list[tuple[str, list[Line]]]):
+_UNIT_NUMBER = re.compile(r"제\s*\d+\s*(?:동|층|호)")
+
+
+def _road_address(blocks: list[tuple[str, list[Line]]]):
     """표제부 소재지번 열의 [도로명주소] 표기 값을 읽는다."""
 
     for _, block in blocks:
         # 소재지번 열(2)과 건물내역 열(3)만 본다. 등기원인 열의 "도로명주소"는 제외한다.
         for column_index in (2, 3):
-            bands = _bands(_column(block, _TITLE_COLUMNS, column_index))
+            bands = _bands(_column(block, _cols(block, _TITLE_COLUMNS), column_index))
             for index, (cy, items) in enumerate(bands):
                 row = _row_text(items)
                 if "도로명주소" not in compact(row):
@@ -262,7 +327,34 @@ def _detail_address(blocks: list[tuple[str, list[Line]]]):
                     value = " ".join(_row_text(next_items) for _, next_items in following).strip()
                     used += [item for _, next_items in following for item in next_items]
                 if value:
-                    return _field(value, used)
+                    return value, used
+    return None, []
+
+
+def _detail_address(blocks: list[tuple[str, list[Line]]], lines: list[Line]):
+    """[도로명주소]와, 집합건물이면 맨 위 머리글 줄의 동·층·호를 함께 상세주소로 읽는다.
+
+    동·층·호는 표제부 표 안이 아니라 문서 맨 위 "[집합건물] 소재지 ... 동 ... 층
+    ... 호" 형식의 머리글 줄에만 나온다. 일반 건물은 동·층·호가 없어 도로명주소만
+    상세주소가 된다.
+    """
+
+    road_value, road_used = _road_address(blocks)
+    unit_line = next(
+        (
+            line
+            for line in lines
+            if re.match(r"^\[?\s*(?:집합)?건물\s*\]?\s*", line.text.strip())
+        ),
+        None,
+    )
+    unit_value = " ".join(_UNIT_NUMBER.findall(unit_line.text)) if unit_line else ""
+    if road_value and unit_value:
+        return _field(f"{road_value} {unit_value}", road_used + [unit_line])
+    if unit_value:
+        return _field(unit_value, [unit_line])
+    if road_value:
+        return _field(road_value, road_used)
     return field(None, [])
 
 
@@ -271,7 +363,7 @@ def _property_descriptions(blocks: list[tuple[str, list[Line]]]):
     for order, (_, block) in enumerate(blocks, 1):
         # 열 경계를 넘어 한 줄로 이어 붙지 않도록 열 단위로 위에서 아래로 읽는다.
         columns = (
-            "\n".join(_rows(_column(block, _TITLE_COLUMNS, index)))
+            "\n".join(_rows(_column(block, _cols(block, _TITLE_COLUMNS), index)))
             for index in range(len(_TITLE_COLUMNS) + 1)
         )
         text = "\n\n".join(column for column in columns if column.strip()).strip()
@@ -287,13 +379,13 @@ def _property_descriptions(blocks: list[tuple[str, list[Line]]]):
 
 
 def _purpose(block: list[Line]):
-    tokens = _column(block, _RIGHTS_COLUMNS, 1)
+    tokens = _column(block, _cols(block, _RIGHTS_COLUMNS), 1)
     value = "".join(_rows(tokens)).replace(" ", "").strip() or None
     return _field(value, tokens)
 
 
 def _cause(block: list[Line]):
-    tokens = _column(block, _RIGHTS_COLUMNS, 3)
+    tokens = _column(block, _cols(block, _RIGHTS_COLUMNS), 3)
     value = _DATE.sub("", " ".join(token.text for token in tokens)).strip() or None
     return _field(value, tokens) if value else None
 
@@ -315,24 +407,24 @@ def _name_after_label(row: str, labels: str) -> str | None:
 
 
 def _owner_from_block(block: list[Line]):
-    rights = _column(block, _RIGHTS_COLUMNS, 4)
+    rights = _column(block, _cols(block, _RIGHTS_COLUMNS), 4)
     rows = _rows(rights)
     row = next((item for item in rows if re.search(r"소유자|공유자", item)), None)
-    if row is None or _OWNERSHIP_EXCLUDED.search("".join(_rows(_column(block, _RIGHTS_COLUMNS, 1)))):
+    if row is None or _OWNERSHIP_EXCLUDED.search("".join(_rows(_column(block, _cols(block, _RIGHTS_COLUMNS), 1)))):
         return None
     name = _name_after_label(row, "소유자|공유자")
     share_match = re.search(r"(\d+\s*분의\s*\d+)", " ".join(rows))
     return {
         "name": _field(name, rights) if name else field(None, []),
         "ownership_share": _field(share_match[1], rights) if share_match else None,
-        "registration_date": _parse_date(_column(block, _RIGHTS_COLUMNS, 2)),
+        "registration_date": _parse_date(_column(block, _cols(block, _RIGHTS_COLUMNS), 2)),
         "registration_cause": _cause(block),
         "status": "unknown",
     }
 
 
 def _encumbrance(section: str, number: str, block: list[Line]):
-    rights = _column(block, _RIGHTS_COLUMNS, 4)
+    rights = _column(block, _cols(block, _RIGHTS_COLUMNS), 4)
     rows = _rows(rights)
     amount_match = re.search(r"채권최고액(?:금)?([0-9,]+)원", compact(" ".join(rows)))
     amount = int(amount_match[1].replace(",", "")) if amount_match else None
@@ -349,7 +441,7 @@ def _encumbrance(section: str, number: str, block: list[Line]):
         "section": section,
         "rank_number": _field(number, [rank_token]),
         "registration_purpose": _purpose(block),
-        "registration_date": _parse_date(_column(block, _RIGHTS_COLUMNS, 2)),
+        "registration_date": _parse_date(_column(block, _cols(block, _RIGHTS_COLUMNS), 2)),
         "holder": _field(holder, rights) if holder else None,
         "debtor": _field(debtor, rights) if debtor else None,
         "maximum_claim_amount": _field(amount, rights) if amount is not None else None,
@@ -405,7 +497,7 @@ def extract_registry_document_ai(document: dict) -> RegistryExtraction:
             "issued_at": _issued_at(lines),
             "unique_property_number": _unique_property_number(lines),
             "address": _document_address(lines),
-            "detail_address": _detail_address(tables["title"]),
+            "detail_address": _detail_address(tables["title"], lines),
             "property_description": _property_descriptions(tables["title"]),
             "owners": owners,
             "encumbrances": encumbrances,

@@ -20,8 +20,19 @@ RESIDENT_NUMBER_PATTERN = re.compile(
     r"(?<!\d)(\d{6})\s*-?\s*([1-8]\d{6})(?!\d)"
 )
 MASKED_RESIDENT_NUMBER = "[주민등록번호 마스킹]"
+MASKED_CORPORATE_NUMBER = "[법인·사업자등록번호 마스킹]"
 MASKED_PHONE_NUMBER = "[전화번호 마스킹]"
 MASKED_ACCOUNT_NUMBER = "[계좌번호 마스킹]"
+
+# 법인등록번호도 뒷자리 첫 숫자가 1~8이라 주민등록번호와 숫자 형태만으로는 구분할
+# 수 없다. 번호 주변(한 줄·행 단위)에 법인·단체를 나타내는 말이 있으면 주민등록번호가
+# 아니라 법인·사업자등록번호로 본다. 등기부 등 단어(토큰) 단위로 먼저 마스킹한 뒤
+# 줄로 합치는 호출부에서는 이 패턴을 다시 써서 합쳐진 줄 기준으로 재판정한다
+# (registry_document_ai_extractor.relabel_corporate_number 참고).
+CORPORATE_INDICATOR_PATTERN = re.compile(
+    r"주식회사|㈜|유한회사|합자회사|합명회사|재단법인|사단법인|협동조합|농업협동조합|"
+    r"수산업협동조합|새마을금고|신용협동조합|공사|공단|은행|보증보험"
+)
 
 PHONE_NUMBER_PATTERN = re.compile(
     r"(?<!\d)(?:0(?:2|[3-6]\d|10))\s*-?\s*\d{3,4}\s*-?\s*\d{4}(?!\d)"
@@ -34,8 +45,32 @@ ACCOUNT_NUMBER_PATTERN = re.compile(
 
 
 def mask_resident_registration_numbers(text: str) -> str:
-    """주민등록번호 전체를 복원 불가능한 고정 문구로 치환한다."""
-    return RESIDENT_NUMBER_PATTERN.sub(MASKED_RESIDENT_NUMBER, text)
+    """주민등록번호 전체를 복원 불가능한 고정 문구로 치환한다.
+
+    법인·단체 이름 뒤에 붙은 법인등록번호는 자릿수가 같아 같은 패턴에 걸리므로,
+    번호 앞에 법인·단체를 나타내는 말이 있으면 다른 문구로 치환한다.
+    """
+
+    def _replace(match: re.Match[str]) -> str:
+        prefix = text[: match.start()]
+        if CORPORATE_INDICATOR_PATTERN.search(prefix[-20:]):
+            return MASKED_CORPORATE_NUMBER
+        return MASKED_RESIDENT_NUMBER
+
+    return RESIDENT_NUMBER_PATTERN.sub(_replace, text)
+
+
+def relabel_corporate_number(text: str) -> str:
+    """단어(토큰) 단위로 먼저 마스킹해 문맥이 끊긴 탓에 주민등록번호로 잘못 마스킹된
+
+    법인·단체 번호를 되살린다. 등본처럼 토큰 단위로 OCR·마스킹한 뒤 한 줄·행으로
+    합치는 호출부는 합친 뒤 이 함수를 불러, 그 줄에 법인·단체를 나타내는 말이 있으면
+    해당 줄 안의 [주민등록번호 마스킹]을 [법인·사업자등록번호 마스킹]으로 바꾼다.
+    """
+
+    if MASKED_RESIDENT_NUMBER not in text or not CORPORATE_INDICATOR_PATTERN.search(text):
+        return text
+    return text.replace(MASKED_RESIDENT_NUMBER, MASKED_CORPORATE_NUMBER)
 
 
 def contains_resident_registration_number(text: str) -> bool:
