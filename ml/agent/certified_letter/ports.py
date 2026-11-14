@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Protocol, Sequence
 
 from ml.agent.certified_letter.state import (
+    ContractPartyRole,
     LetterDraftData,
     NormalizedCertifiedLetterRequest,
     PrecedentEvidenceData,
@@ -25,7 +26,12 @@ from ml.agent.certified_letter.state import (
 
 
 class ScopeClassifierPort(Protocol):
-    def classify_scope(self, purpose: str, facts: str) -> ScopeClassification: ...
+    def classify_scope(
+        self,
+        sender_role: ContractPartyRole,
+        purpose: str,
+        facts: str,
+    ) -> ScopeClassification: ...
 
 
 class StatuteSearchPort(Protocol):
