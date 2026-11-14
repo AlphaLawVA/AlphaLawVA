@@ -24,8 +24,14 @@ from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewRetrievalQuery,
 )
+from ml.rag.precedent_eligibility import (
+    create_eligibility_filtered_precedent_retriever_from_env,
+)
 from ml.rag.precedent_retriever import BgeM3PrecedentRetriever, PrecedentSearchResult
-from ml.rag.reranker import CrossEncoderReranker, load_cross_encoder
+from ml.rag.reranker import (
+    SHARED_CROSS_ENCODER_MODEL_LOADER,
+    CrossEncoderReranker,
+)
 from ml.rag.statute_retriever import (
     BgeM3StatuteRetriever,
     StatuteSearchResult,
@@ -116,7 +122,12 @@ class ContractReviewRagRetriever:
         statute_reranker: Any | None = None,
         precedent_reranker: Any | None = None,
     ) -> None:
-        if min(statute_top_k, precedent_top_k, evidence_top_k, precedent_evidence_top_k) < 1:
+        if min(
+            statute_top_k,
+            precedent_top_k,
+            evidence_top_k,
+            precedent_evidence_top_k,
+        ) < 1:
             raise ValueError("검색 결과 수는 1 이상이어야 합니다.")
         if not -1 <= min_similarity <= 1 or (
             precedent_min_similarity is not None and not -1 <= precedent_min_similarity <= 1
@@ -294,26 +305,6 @@ class SharedBgeM3ModelLoader:
 _SHARED_BGE_MODEL_LOADER = SharedBgeM3ModelLoader(load_bge_model)
 
 
-class SharedCrossEncoderModelLoader:
-    """계약서 검토·특약 생성의 법령·판례 리랭커가 같은 KURE 가중치를 재사용하게 한다."""
-
-    def __init__(self, loader: Callable[..., Any]) -> None:
-        self._loader = loader
-        self._model: Any | None = None
-        self._lock = RLock()
-
-    def __call__(self, model_path: Any, *, max_length: int, device: str, trust_remote_code: bool) -> Any:
-        with self._lock:
-            if self._model is None:
-                self._model = self._loader(
-                    model_path, max_length=max_length, device=device, trust_remote_code=trust_remote_code
-                )
-            return self._model
-
-
-_SHARED_CROSS_ENCODER_MODEL_LOADER = SharedCrossEncoderModelLoader(load_cross_encoder)
-
-
 DEFAULT_RERANKER_NAME = "kure-reranker-nano"
 DEFAULT_RERANKER_CANDIDATES = 10  # 리랭커에 넘기는 dense 후보 수(2026-11-12 시험: 후보 10개로 Recall@3 +15%p)
 
@@ -340,12 +331,14 @@ def _create_statute_reranker_from_env() -> CrossEncoderReranker | None:
         max_length=int(os.getenv("RAG_STATUTE_RERANKER_MAX_LENGTH", "512")),
         batch_size=int(os.getenv("RAG_STATUTE_RERANKER_BATCH_SIZE", "16")),
         device=os.getenv("RAG_STATUTE_RERANKER_DEVICE", "auto").strip() or "auto",
-        model_loader=_SHARED_CROSS_ENCODER_MODEL_LOADER,
+        model_loader=SHARED_CROSS_ENCODER_MODEL_LOADER,
     )
 
 
 def _create_rag_retriever_from_env(
     enabled_variable: str,
+    *,
+    precedent_evidence_top_k: int,
 ) -> ContractReviewRagRetriever | None:
     """명시적으로 활성화한 기능에서만 지연 로딩 RAG 검색기를 만든다."""
 
@@ -359,13 +352,15 @@ def _create_rag_retriever_from_env(
         os.getenv("RAG_STATUTE_RERANKER_CANDIDATES", str(DEFAULT_RERANKER_CANDIDATES))
     )
     widened = max(candidates, 3) if reranker is not None else 3
+    precedent_retriever = create_eligibility_filtered_precedent_retriever_from_env(
+        BgeM3PrecedentRetriever(model_loader=_SHARED_BGE_MODEL_LOADER)
+    )
     return ContractReviewRagRetriever(
         statute_retriever=BgeM3StatuteRetriever(model_loader=_SHARED_BGE_MODEL_LOADER),
-        precedent_retriever=BgeM3PrecedentRetriever(
-            model_loader=_SHARED_BGE_MODEL_LOADER
-        ),
+        precedent_retriever=precedent_retriever,
         statute_top_k=widened,
         precedent_top_k=widened,
+        precedent_evidence_top_k=precedent_evidence_top_k,
         statute_reranker=reranker,
         precedent_reranker=reranker,
     )
@@ -374,10 +369,16 @@ def _create_rag_retriever_from_env(
 def create_contract_review_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
     """계약서 검토용 RAG 검색기를 환경 설정에 따라 만든다."""
 
-    return _create_rag_retriever_from_env("CONTRACT_REVIEW_RAG_ENABLED")
+    return _create_rag_retriever_from_env(
+        "CONTRACT_REVIEW_RAG_ENABLED",
+        precedent_evidence_top_k=ContractReviewRagRetriever.DEFAULT_PRECEDENT_EVIDENCE_TOP_K,
+    )
 
 
 def create_special_clause_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
     """특약 생성용 RAG 검색기를 환경 설정에 따라 만든다."""
 
-    return _create_rag_retriever_from_env("SPECIAL_CLAUSE_RAG_ENABLED")
+    return _create_rag_retriever_from_env(
+        "SPECIAL_CLAUSE_RAG_ENABLED",
+        precedent_evidence_top_k=3,
+    )

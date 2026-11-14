@@ -29,12 +29,26 @@ class FakeEvidenceRetriever:
                 rank=1,
                 similarity=0.9,
                 metadata={},
-            )
+            ),
+            ContractReviewEvidence(
+                item_id=queries[0].item_id,
+                source_type="precedent",
+                source_id="precedent:100",
+                title="임대차 관련 판례",
+                text="판례 원문",
+                rank=1,
+                similarity=0.85,
+                metadata={},
+            ),
         ]
 
 
 class FakeGenerator:
+    def __init__(self):
+        self.evidence = []
+
     def generate(self, queries, evidence):
+        self.evidence = list(evidence)
         return [
             SpecialClauseGeneration(
                 item_id=queries[0].item_id,
@@ -62,10 +76,11 @@ class SpecialClauseGraphTests(unittest.TestCase):
         self.assertIn("연락처 또는 계좌번호", query)
 
     def test_returns_evidence_bound_generation(self):
+        generator = FakeGenerator()
         result = SpecialClauseGraph().prepare(
             ["임대인이 계약 중 추가 담보권을 설정하지 못하게 하고 싶어요."],
             evidence_retriever=FakeEvidenceRetriever(),
-            generator=FakeGenerator(),
+            generator=generator,
         )
 
         self.assertFalse(result.generation_unavailable)
@@ -73,6 +88,14 @@ class SpecialClauseGraphTests(unittest.TestCase):
         self.assertEqual(
             result.generations[0].evidence_source_ids,
             ["law:001248:article:0003"],
+        )
+        self.assertEqual(
+            [entry.source_type for entry in generator.evidence],
+            ["statute"],
+        )
+        self.assertEqual(
+            [entry.source_type for entry in result.evidence],
+            ["statute", "precedent"],
         )
 
 

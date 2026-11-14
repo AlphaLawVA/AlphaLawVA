@@ -86,7 +86,17 @@ class FakeSpecialClauseEvidenceRetriever:
                 rank=1,
                 similarity=0.9,
                 metadata={},
-            )
+            ),
+            ContractReviewEvidence(
+                item_id=queries[0].item_id,
+                source_type="precedent",
+                source_id="precedent:100",
+                title="임대차 관련 판례",
+                text="판례 원문",
+                rank=1,
+                similarity=0.8,
+                metadata={},
+            ),
         ]
 
 
@@ -324,6 +334,10 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(
             response.items[0].evidence_source_ids,
             ["law:001248:article:0003"],
+        )
+        self.assertEqual(
+            [evidence.source_type for evidence in response.evidence],
+            ["statute", "precedent"],
         )
 
 

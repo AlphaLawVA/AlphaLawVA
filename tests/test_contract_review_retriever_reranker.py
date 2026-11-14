@@ -19,7 +19,7 @@ from unittest.mock import patch
 from ml.agent.contract_review_graph import ContractReviewRetrievalQuery
 from ml.rag import contract_review_retriever as module
 from ml.rag.contract_review_retriever import ContractReviewRagRetriever
-from ml.rag.reranker import CrossEncoderReranker
+from ml.rag.reranker import SHARED_CROSS_ENCODER_MODEL_LOADER, CrossEncoderReranker
 
 
 def _statute(rank, similarity):
@@ -177,10 +177,10 @@ class RerankerEnvTest(unittest.TestCase):
             loader.calls += 1
             return SimpleNamespace()
 
-        original_model = module._SHARED_CROSS_ENCODER_MODEL_LOADER._model
-        module._SHARED_CROSS_ENCODER_MODEL_LOADER._model = None
+        original_models = SHARED_CROSS_ENCODER_MODEL_LOADER._models
+        SHARED_CROSS_ENCODER_MODEL_LOADER._models = {}
         try:
-            with patch.object(module._SHARED_CROSS_ENCODER_MODEL_LOADER, "_loader", fake_loader):
+            with patch.object(SHARED_CROSS_ENCODER_MODEL_LOADER, "_loader", fake_loader):
                 with tempfile.TemporaryDirectory() as directory:
                     env = {"RAG_STATUTE_RERANKER_DIR": directory}
                     with patch.dict(os.environ, env, clear=False):
@@ -190,7 +190,7 @@ class RerankerEnvTest(unittest.TestCase):
                         contract_review_reranker.load()
                         special_clause_reranker.load()
         finally:
-            module._SHARED_CROSS_ENCODER_MODEL_LOADER._model = original_model
+            SHARED_CROSS_ENCODER_MODEL_LOADER._models = original_models
         self.assertEqual(loader.calls, 1)
 
     def test_retriever_factory_widens_candidates_only_with_reranker(self):
@@ -204,6 +204,7 @@ class RerankerEnvTest(unittest.TestCase):
         self.assertEqual(with_reranker._statute_top_k, 10)
         self.assertIsNotNone(with_reranker._statute_reranker)
         self.assertEqual(with_reranker._precedent_top_k, 10)
+        self.assertEqual(with_reranker._precedent_evidence_top_k, 3)
         # 법령·판례 리랭커는 같은 KURE-Reranker-nano 인스턴스를 공유한다.
         self.assertIs(with_reranker._precedent_reranker, with_reranker._statute_reranker)
         self.assertEqual(without._statute_top_k, 3)

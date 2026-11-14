@@ -92,7 +92,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
             PROJECT_ROOT / "statute-db",
         )
         self.assertEqual(
-            arguments["precedent_search"].retriever.db_dir,
+            arguments["precedent_search"].retriever.delegate.db_dir,
             PROJECT_ROOT
             / "local-fixtures/precedents/vector_dbs/precedents_bge-m3_v1",
         )
@@ -104,11 +104,11 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
         self.assertFalse(arguments["precedent_search"].retriever.is_loaded)
         self.assertIs(
             arguments["statute_search"].retriever._model_loader,
-            arguments["precedent_search"].retriever._model_loader,
+            arguments["precedent_search"].retriever.delegate._model_loader,
         )
         self.assertIsInstance(
             arguments["statute_reranker"],
-            DenseSimilarityReranker,
+            CrossEncoderReranker,
         )
         self.assertIsInstance(
             arguments["precedent_reranker"],
@@ -118,7 +118,16 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
         self.assertEqual(
             arguments["precedent_reranker"].model_path,
             PROJECT_ROOT
-            / "local-fixtures/models/rerankers/bge-reranker-v2-m3",
+            / "local-fixtures/models/rerankers/kure-reranker-nano",
+        )
+        self.assertEqual(
+            arguments["statute_reranker"].model_path,
+            PROJECT_ROOT
+            / "local-fixtures/models/rerankers/kure-reranker-nano",
+        )
+        self.assertIs(
+            arguments["statute_reranker"]._model_loader,
+            arguments["precedent_reranker"]._model_loader,
         )
         self.assertIsInstance(
             arguments["model"].usage_manifest_path,
@@ -244,7 +253,7 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
             runtime_root / "data/statutes/vectorstores/bge_m3",
         )
         self.assertEqual(
-            arguments["precedent_search"].retriever.db_dir,
+            arguments["precedent_search"].retriever.delegate.db_dir,
             runtime_root
             / "local_data/precedents/vector_dbs/precedents_bge-m3_v1",
         )

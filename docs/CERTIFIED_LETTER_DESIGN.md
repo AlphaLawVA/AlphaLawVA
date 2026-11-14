@@ -249,14 +249,15 @@ Stage 2 runtime configuration uses the following provisional alpha choices:
   thinking, a 64-token limit, and a three-value structured JSON decision;
 - generation: the same `gemini-3.5-flash-lite` adapter and shared session cost
   guard, with Claude remaining the intended production candidate;
-- statute ranking: the approved BGE-M3 dense score until a statute-specific
-  reranker comparison is completed;
-- precedent ranking: local `bge-reranker-v2-m3`, selected for the alpha because
-  the existing ten-scenario comparison improved Precision@3 from 0.8000 to
-  0.8333 and MRR@5 from 0.7450 to 0.7750, while its latency remains acceptable
-  for the slower certified-letter workflow;
+- statute ranking: retrieve 10 BGE-M3 candidates, keep candidates with dense
+  similarity at least 0.35, rerank them with local `kure-reranker-nano`, and
+  return at most 3 statutes;
+- precedent ranking: search only the versioned 691-case real-estate allowlist,
+  apply local `kure-reranker-nano` without a dense similarity cutoff, and return
+  at most 3 similar precedents;
 - model loading: one shared BGE-M3 encoder instance for statute and precedent
-  queries, with all embedding and reranker models loaded lazily.
+  queries, while identical KURE configurations share one lazily loaded model
+  across contract review, special-clause generation, and certified letters.
 
 The Gemini adapter records model, prompt version, token usage, retries, result
 status, and estimated cost without storing the raw prompt, request, or draft.
@@ -271,14 +272,15 @@ addresses, and phone numbers are removed. Results from multiple deterministic
 queries are deduplicated by statute article or precedent ID; all matched chunks
 for a repeated precedent are retained for a later replaceable reranker.
 
-Stage 5 model comparison is intentionally deferred. The runtime exposes
+Stage 5 keeps the runtime replaceable while using the team-selected KURE model
+for both evidence types. The runtime exposes
 independent `CERTIFIED_LETTER_STATUTE_RERANKER` and
 `CERTIFIED_LETTER_PRECEDENT_RERANKER` selections. `dense` uses the retrieval
 score baseline; any other safe model name resolves to a local directory under
 `local_data/models/rerankers/`, or an explicit role-specific `*_DIR` may be
-provided. This allows a future same-dataset experiment to install the selected
-statute and precedent cross-encoders without changing graph or API code. An
-uncompared model must not be described as the final choice.
+provided. This allows a future same-dataset experiment to replace either
+cross-encoder without changing graph or API code. If reranking fails at
+runtime, the workflow falls back to the already filtered dense order.
 
 Stage 6 prompt `certified_letter_v0_5` incorporates the useful drafting
 structure from SuperLawVA's legacy `generate_letter` prompt while removing
