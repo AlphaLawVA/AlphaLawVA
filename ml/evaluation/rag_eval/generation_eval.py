@@ -20,7 +20,7 @@ import os
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Collection, Mapping, Sequence
 
 from api.services import gemini_contract_review_analyzer as review_module
 from api.services import gemini_special_clause_generator as clause_module
@@ -193,13 +193,22 @@ def retrieval_quality(
     original: Sequence[HarnessCase],
     evidence: Mapping[str, Mapping[str, list[ContractReviewEvidence]]],
 ) -> dict[str, Any]:
-    """하네스에서 사람이 고른 근거를 약한 정답으로 보고 context recall·precision을 계산한다."""
+    """하네스에서 사람이 고른 근거를 약한 정답으로 보고 context recall·precision을 계산한다.
+
+    정답(evidence_ids)이 법령만 있어서, 판례까지 검색했을 때 판례를 gold에 없다는
+    이유로 틀린 것으로 세면 context_precision이 억울하게 낮아진다. 그래서 법령끼리만
+    비교하고, 판례는 이 지표에서 제외한다(판례 gold가 따로 생기기 전까지의 임시 범위).
+    """
 
     recalls, precisions, empty, total = [], [], 0, 0
     for case in original:
         for item in case.items:
-            gold = {e.source_id for e in item.evidence}
-            retrieved = [e.source_id for e in evidence[case.id][item.query_item.item_id]]
+            gold = {e.source_id for e in item.evidence if e.source_type == "statute"}
+            retrieved = [
+                e.source_id
+                for e in evidence[case.id][item.query_item.item_id]
+                if e.source_type == "statute"
+            ]
             total += 1
             empty += not retrieved
             recalls.append(len(gold & set(retrieved)) / len(gold) if gold else 0.0)
@@ -209,7 +218,11 @@ def retrieval_quality(
         "context_recall": sum(recalls) / len(recalls),
         "context_precision": sum(precisions) / len(precisions),
         "empty_evidence_items": empty,
-        "note": "정답은 하네스 담당자가 고른 근거(약한 정답)이며, 다른 적절한 조문을 틀린 것으로 셀 수 있다.",
+        "note": (
+            "정답은 하네스 담당자가 고른 법령 근거(약한 정답)이며, 다른 적절한 조문을 틀린 "
+            "것으로 셀 수 있다. 판례 gold는 아직 없어서 이 지표는 법령만 보고, 판례 검색 "
+            "품질은 포함하지 않는다."
+        ),
     }
 
 
@@ -255,12 +268,22 @@ def summarize(
     records: Sequence[Mapping[str, Any]],
     judged: Mapping[str, Mapping[str, Mapping[str, Any]]],
     expected_items: int,
+    needs_review_case_ids: Collection[str] = frozenset(),
 ) -> dict[str, Any]:
+    """케이스·항목 단위 결과를 집계한다.
+
+    needs_review_case_ids로 표시된 케이스(예: 기대 상태를 단정할 수 없어 사람 검토가
+    필요한 사례)는 faithfulness/relevancy 등 다른 지표 계산에는 그대로 포함하되,
+    결과에 몇 건인지 별도로 남겨 "확정된 기대 상태" 건수와 섞이지 않게 한다.
+    """
+
     fails: Counter = Counter()
     warns: Counter = Counter()
-    failed_items = warned_items = returned = 0
+    failed_items = warned_items = returned = needs_review_items = 0
     faith, relevancy, unsupported = [], [], 0
     for record in records:
+        if record["case_id"] in needs_review_case_ids:
+            needs_review_items += 1
         if record["item_id"] == "(case)":
             fails["model_responded"] += 1
             failed_items += 1
@@ -292,6 +315,7 @@ def summarize(
         "answer_relevancy": mean(relevancy),
         "judged_items": len(faith),
         "unsupported_claims": unsupported,
+        "needs_review_items": needs_review_items,
     }
 
 
@@ -333,6 +357,8 @@ def render_summary(config: Mapping[str, Any], summary: Mapping[str, Any], retrie
         f"- 항목 반환 {summary['returned_items']}/{summary['expected_items']} / 실패 항목 {summary['failed_items']} / 경고 항목 {summary['warned_items']}",
         f"- faithfulness {pct(summary['faithfulness'])} / answer relevancy {pct(summary['answer_relevancy'])}"
         f" (판정 {summary['judged_items']}항목, 근거 없는 주장 {summary['unsupported_claims']}건)",
+        f"- 그중 기대 동작을 단정하지 않고 사람 검토가 필요한 항목 {summary['needs_review_items']}건"
+        " (다른 지표 계산에는 포함, 기대 상태 확정 건수로는 집계하지 않음)",
         "",
         "| 규칙 | 실패 | 경고 |",
         "|---|---:|---:|",
@@ -343,7 +369,7 @@ def render_summary(config: Mapping[str, Any], summary: Mapping[str, Any], retrie
         "",
         "## 한계",
         "- 판정 LLM 점수는 사람 표본 검토로 확인해야 한다(review_sheet 참고).",
-        "- 25케이스라 작은 차이는 우연일 수 있다. 결과는 후보 비교이며 최종 결정이 아니다.",
+        f"- 케이스 {config['case_count']}개라 작은 차이는 우연일 수 있다. 결과는 후보 비교이며 최종 결정이 아니다.",
         "- 서비스의 1회 재작성 노드는 거치지 않고 분석기·생성기를 한 번 호출한 결과를 채점한다.",
     ]
     return "\n".join(lines) + "\n"
@@ -530,7 +556,8 @@ def run_generation_eval(
 
     # 근거가 0건이라 호출하지 못한 항목도 반환 실패로 센다(expected_items 기준).
     expected = sum(len(case.items) for case in cases)
-    summary = summarize(records, judged, expected)
+    needs_review_case_ids = {case.id for case in cases if "needs_review" in case.tags}
+    summary = summarize(records, judged, expected, needs_review_case_ids)
     retrieval = retrieval_quality(cases, evidence)
     gen_rows = _read_usage(usage_path)
     usage = usage_cost(gen_rows + judge_usage_rows)
@@ -645,7 +672,10 @@ def rejudge_run(
             raise GenerationEvalError(f"실제 비용 ${spent:.4f}가 한도 ${max_cost_usd}를 넘어 중단했습니다.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    summary = summarize(records, judged, sum(len(case.items) for case in cases))
+    needs_review_case_ids = {case.id for case in cases if "needs_review" in case.tags}
+    summary = summarize(
+        records, judged, sum(len(case.items) for case in cases), needs_review_case_ids
+    )
     retrieval = retrieval_quality(original_cases, evidence)
     config = {
         **source_config,
@@ -717,6 +747,7 @@ def main() -> None:
     parser.add_argument("--max-cost-usd", type=float, default=0.5)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--cases", type=Path, default=None, help="평가 케이스 JSON(기본 cases_v01)")
+    parser.add_argument("--pool", type=Path, default=None, help="근거 조문 풀 JSON(기본 evidence_pool_v01)")
     parser.add_argument("--resume-from", type=Path, default=None,
                         help="이전 실행에서 오류 없이 끝난 케이스는 재사용하고 나머지만 다시 호출")
     parser.add_argument("--rejudge-from", type=Path, default=None,
@@ -745,7 +776,7 @@ def main() -> None:
         print(json.dumps(result["summary"], ensure_ascii=False))
         return
 
-    cases = load_cases(args.cases)
+    cases = load_cases(args.cases, args.pool)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_dir = args.output_dir or DEFAULT_OUTPUT_ROOT / run_id
     if args.evidence_cache:
