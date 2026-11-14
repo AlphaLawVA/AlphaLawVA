@@ -25,7 +25,7 @@ from ml.agent.contract_review_graph import (
     ContractReviewRetrievalQuery,
 )
 from ml.rag.precedent_retriever import BgeM3PrecedentRetriever, PrecedentSearchResult
-from ml.rag.reranker import CrossEncoderReranker
+from ml.rag.reranker import CrossEncoderReranker, load_cross_encoder
 from ml.rag.statute_retriever import (
     BgeM3StatuteRetriever,
     StatuteSearchResult,
@@ -114,6 +114,7 @@ class ContractReviewRagRetriever:
         precedent_evidence_top_k: int = DEFAULT_PRECEDENT_EVIDENCE_TOP_K,
         precedent_min_similarity: float | None = DEFAULT_PRECEDENT_MIN_SIMILARITY,
         statute_reranker: Any | None = None,
+        precedent_reranker: Any | None = None,
     ) -> None:
         if min(statute_top_k, precedent_top_k, evidence_top_k, precedent_evidence_top_k) < 1:
             raise ValueError("검색 결과 수는 1 이상이어야 합니다.")
@@ -130,6 +131,7 @@ class ContractReviewRagRetriever:
         self._precedent_evidence_top_k = precedent_evidence_top_k
         self._precedent_min_similarity = precedent_min_similarity
         self._statute_reranker = statute_reranker
+        self._precedent_reranker = precedent_reranker
         self._lock = RLock()
 
     def retrieve(
@@ -156,7 +158,7 @@ class ContractReviewRagRetriever:
     ) -> list[ContractReviewEvidence]:
         """법령과 판례를 종류별 기준·개수로 골라 항목별로 보존한다.
 
-        법령은 리랭커가 있으면 최소 유사도를 넘은 후보를 질문과 함께 다시 정렬해 상위를 고른다.
+        리랭커가 있으면(법령·판례 각각) 기준을 넘은 후보를 질문과 함께 다시 정렬해 상위를 고른다.
         """
 
         def relevant(source_type: str, minimum: float | None) -> list[ContractReviewEvidence]:
@@ -171,30 +173,37 @@ class ContractReviewRagRetriever:
             )
 
         statutes = relevant("statute", self._min_similarity)
-        statutes = self._rerank_statutes(statutes, query_text)[: self._evidence_top_k]
+        statutes = self._rerank(
+            self._statute_reranker, statutes, query_text, "법령 리랭커 실패, dense 유사도 순서를 사용합니다."
+        )[: self._evidence_top_k]
         precedents = relevant("precedent", self._precedent_min_similarity)
-        return statutes + precedents[: self._precedent_evidence_top_k]
+        precedents = self._rerank(
+            self._precedent_reranker, precedents, query_text, "판례 리랭커 실패, dense 유사도 순서를 사용합니다."
+        )[: self._precedent_evidence_top_k]
+        return statutes + precedents
 
-    def _rerank_statutes(
-        self,
-        statutes: list[ContractReviewEvidence],
+    @staticmethod
+    def _rerank(
+        reranker: Any | None,
+        evidence: list[ContractReviewEvidence],
         query_text: str | None,
+        failure_message: str,
     ) -> list[ContractReviewEvidence]:
-        """리랭커로 법령 후보를 재정렬한다. 실패하면 dense 유사도 순서를 그대로 쓴다."""
+        """리랭커로 후보를 재정렬한다. 실패하면 dense 유사도 순서를 그대로 쓴다."""
 
-        if self._statute_reranker is None or not query_text or len(statutes) < 2:
-            return statutes
-        by_id = {evidence.source_id: evidence for evidence in statutes}
+        if reranker is None or not query_text or len(evidence) < 2:
+            return evidence
+        by_id = {item.source_id: item for item in evidence}
         try:
-            ranked = self._statute_reranker.rerank(
+            ranked = reranker.rerank(
                 query_text,
-                [_rerank_view(evidence) for evidence in statutes],
-                top_k=len(statutes),
+                [_rerank_view(item) for item in evidence],
+                top_k=len(evidence),
             )
             return [by_id[view.source_id] for view in ranked]
         except Exception:  # noqa: BLE001 - 리랭커 장애로 검토·생성이 멈추지 않게 한다.
-            logger.warning("법령 리랭커 실패, dense 유사도 순서를 사용합니다.", exc_info=True)
-            return statutes
+            logger.warning(failure_message, exc_info=True)
+            return evidence
 
     def _retrieve_statutes(
         self,
@@ -285,6 +294,26 @@ class SharedBgeM3ModelLoader:
 _SHARED_BGE_MODEL_LOADER = SharedBgeM3ModelLoader(load_bge_model)
 
 
+class SharedCrossEncoderModelLoader:
+    """계약서 검토·특약 생성의 법령·판례 리랭커가 같은 KURE 가중치를 재사용하게 한다."""
+
+    def __init__(self, loader: Callable[..., Any]) -> None:
+        self._loader = loader
+        self._model: Any | None = None
+        self._lock = RLock()
+
+    def __call__(self, model_path: Any, *, max_length: int, device: str, trust_remote_code: bool) -> Any:
+        with self._lock:
+            if self._model is None:
+                self._model = self._loader(
+                    model_path, max_length=max_length, device=device, trust_remote_code=trust_remote_code
+                )
+            return self._model
+
+
+_SHARED_CROSS_ENCODER_MODEL_LOADER = SharedCrossEncoderModelLoader(load_cross_encoder)
+
+
 DEFAULT_RERANKER_NAME = "kure-reranker-nano"
 DEFAULT_RERANKER_CANDIDATES = 10  # 리랭커에 넘기는 dense 후보 수(2026-11-12 시험: 후보 10개로 Recall@3 +15%p)
 
@@ -311,6 +340,7 @@ def _create_statute_reranker_from_env() -> CrossEncoderReranker | None:
         max_length=int(os.getenv("RAG_STATUTE_RERANKER_MAX_LENGTH", "512")),
         batch_size=int(os.getenv("RAG_STATUTE_RERANKER_BATCH_SIZE", "16")),
         device=os.getenv("RAG_STATUTE_RERANKER_DEVICE", "auto").strip() or "auto",
+        model_loader=_SHARED_CROSS_ENCODER_MODEL_LOADER,
     )
 
 
@@ -323,17 +353,21 @@ def _create_rag_retriever_from_env(
     if enabled not in {"1", "true", "yes"}:
         return None
 
+    # 법령·판례 모두 같은 KURE-Reranker-nano로 확정돼(2026-11-14) 리랭커 인스턴스 하나를 공유한다.
     reranker = _create_statute_reranker_from_env()
     candidates = int(
         os.getenv("RAG_STATUTE_RERANKER_CANDIDATES", str(DEFAULT_RERANKER_CANDIDATES))
     )
+    widened = max(candidates, 3) if reranker is not None else 3
     return ContractReviewRagRetriever(
         statute_retriever=BgeM3StatuteRetriever(model_loader=_SHARED_BGE_MODEL_LOADER),
         precedent_retriever=BgeM3PrecedentRetriever(
             model_loader=_SHARED_BGE_MODEL_LOADER
         ),
-        statute_top_k=max(candidates, 3) if reranker is not None else 3,
+        statute_top_k=widened,
+        precedent_top_k=widened,
         statute_reranker=reranker,
+        precedent_reranker=reranker,
     )
 
 

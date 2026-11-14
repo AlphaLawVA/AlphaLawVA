@@ -56,15 +56,27 @@ class BrokenReranker:
         raise RuntimeError("모델 오류")
 
 
+def _precedent(rank, similarity):
+    return SimpleNamespace(
+        rank=rank, precedent_id=f"prec:{rank}", case_no=f"case{rank}", case_name="사건",
+        text=f"판례{rank}", similarity=similarity, court_name=None, decision_date=None,
+        decision_year=None, case_type=None, judgment_type=None,
+    )
+
+
 QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="special_term", query="질문")
 STATUTES = [_statute(i, 0.8 - i * 0.03) for i in range(1, 11)]  # 유사도 0.77 ~ 0.50, 모두 기준(0.35) 이상
+PRECEDENTS = [_precedent(i, -0.1 + i * 0.01) for i in range(1, 11)]  # 음수 포함, 판례는 최소 유사도가 없다
 
 
-def _retriever(reranker=None, statute_top_k=10, source=None):
+def _retriever(reranker=None, statute_top_k=10, source=None, precedent_reranker=None, precedent_top_k=10, precedent_source=None):
     return ContractReviewRagRetriever(
         statute_retriever=source or Fake(STATUTES),
         statute_top_k=statute_top_k,
         statute_reranker=reranker,
+        precedent_retriever=precedent_source,
+        precedent_top_k=precedent_top_k,
+        precedent_reranker=precedent_reranker,
     )
 
 
@@ -99,6 +111,39 @@ class RerankerSelectionTest(unittest.TestCase):
         self.assertEqual([e.source_id for e in evidence], ["law:1", "law:2", "law:3"])
 
 
+class PrecedentRerankerSelectionTest(unittest.TestCase):
+    """판례도 법령과 같은 리랭커 경로를 타는지 검증한다(2026-11-14부터 판례에도 KURE 리랭커 적용)."""
+
+    def test_without_reranker_dense_order_is_kept(self):
+        evidence = _retriever(precedent_source=Fake(PRECEDENTS)).retrieve([QUERY])
+        precedents = [e for e in evidence if e.source_type == "precedent"]
+        self.assertEqual([e.source_id for e in precedents], ["prec:10", "prec:9"])
+
+    def test_reranker_reorders_candidates_before_taking_top_two(self):
+        reranker = FakeReranker()
+        evidence = _retriever(
+            precedent_source=Fake(PRECEDENTS), precedent_reranker=reranker
+        ).retrieve([QUERY])
+        precedents = [e for e in evidence if e.source_type == "precedent"]
+        self.assertEqual([e.source_id for e in precedents], ["prec:10", "prec:9"])
+        self.assertEqual(reranker.calls[0][0], "질문")
+        self.assertEqual(len(reranker.calls[0][1]), 10)
+
+    def test_negative_similarity_candidates_still_reach_the_reranker(self):
+        # 판례는 최소 유사도가 없으므로 음수 유사도도 그대로 리랭커에 들어가야 한다.
+        reranker = FakeReranker()
+        _retriever(precedent_source=Fake(PRECEDENTS), precedent_reranker=reranker).retrieve([QUERY])
+        self.assertEqual(reranker.calls[0][1], [f"prec:{i}" for i in range(10, 0, -1)])
+
+    def test_reranker_failure_falls_back_to_dense_order(self):
+        with self.assertLogs("ml.rag.contract_review_retriever", level="WARNING"):
+            evidence = _retriever(
+                precedent_source=Fake(PRECEDENTS), precedent_reranker=BrokenReranker()
+            ).retrieve([QUERY])
+        precedents = [e for e in evidence if e.source_type == "precedent"]
+        self.assertEqual([e.source_id for e in precedents], ["prec:10", "prec:9"])
+
+
 class RerankerEnvTest(unittest.TestCase):
     def test_enabled_by_default_when_model_directory_exists(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -123,6 +168,31 @@ class RerankerEnvTest(unittest.TestCase):
             with self.assertLogs("ml.rag.contract_review_retriever", level="WARNING"):
                 self.assertIsNone(module._create_statute_reranker_from_env())
 
+    def test_statute_and_precedent_rerankers_share_one_model_load(self):
+        """계약서 검토·특약 생성 양쪽에서 만든 리랭커도 KURE 가중치는 한 번만 로딩해야 한다."""
+
+        loader = SimpleNamespace(calls=0)
+
+        def fake_loader(model_path, *, max_length, device, trust_remote_code):
+            loader.calls += 1
+            return SimpleNamespace()
+
+        original_model = module._SHARED_CROSS_ENCODER_MODEL_LOADER._model
+        module._SHARED_CROSS_ENCODER_MODEL_LOADER._model = None
+        try:
+            with patch.object(module._SHARED_CROSS_ENCODER_MODEL_LOADER, "_loader", fake_loader):
+                with tempfile.TemporaryDirectory() as directory:
+                    env = {"RAG_STATUTE_RERANKER_DIR": directory}
+                    with patch.dict(os.environ, env, clear=False):
+                        os.environ.pop("RAG_STATUTE_RERANKER_ENABLED", None)
+                        contract_review_reranker = module._create_statute_reranker_from_env()
+                        special_clause_reranker = module._create_statute_reranker_from_env()
+                        contract_review_reranker.load()
+                        special_clause_reranker.load()
+        finally:
+            module._SHARED_CROSS_ENCODER_MODEL_LOADER._model = original_model
+        self.assertEqual(loader.calls, 1)
+
     def test_retriever_factory_widens_candidates_only_with_reranker(self):
         with tempfile.TemporaryDirectory() as directory:
             env = {"SPECIAL_CLAUSE_RAG_ENABLED": "true", "RAG_STATUTE_RERANKER_DIR": directory}
@@ -133,8 +203,13 @@ class RerankerEnvTest(unittest.TestCase):
                 without = module.create_special_clause_rag_retriever_from_env()
         self.assertEqual(with_reranker._statute_top_k, 10)
         self.assertIsNotNone(with_reranker._statute_reranker)
+        self.assertEqual(with_reranker._precedent_top_k, 10)
+        # 법령·판례 리랭커는 같은 KURE-Reranker-nano 인스턴스를 공유한다.
+        self.assertIs(with_reranker._precedent_reranker, with_reranker._statute_reranker)
         self.assertEqual(without._statute_top_k, 3)
         self.assertIsNone(without._statute_reranker)
+        self.assertEqual(without._precedent_top_k, 3)
+        self.assertIsNone(without._precedent_reranker)
 
 
 if __name__ == "__main__":
