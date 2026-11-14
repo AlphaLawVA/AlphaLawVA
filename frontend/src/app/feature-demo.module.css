@@ -103,6 +103,13 @@
   font-weight: 750;
 }
 
+.fieldGuide {
+  margin: -2px 0 9px;
+  color: var(--text-subtle);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .field input,
 .field textarea,
 .field select,

@@ -23,8 +23,9 @@ import styles from "../feature-demo.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
 
-const samplePurpose = "계약 종료 후 보증금을 반환받고 싶습니다.";
-const sampleFacts = "임대차계약이 종료되었지만 임대인이 보증금을 아직 반환하지 않았습니다.";
+const purposeExample = "예: 계약 종료 후 보증금 전액을 반환받고 싶습니다.";
+const factsExample =
+  "예: 계약서에 기재된 종료일이 지났지만 보증금을 돌려받지 못했습니다. 임대인에게 반환을 요청했지만 아직 지급되지 않았습니다.";
 
 export default function CertifiedLetterPage() {
   const router = useRouter();
@@ -32,8 +33,8 @@ export default function CertifiedLetterPage() {
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(8);
   const [senderRole, setSenderRole] = useState<"lessee" | "lessor">("lessee");
-  const [purpose, setPurpose] = useState(samplePurpose);
-  const [facts, setFacts] = useState(sampleFacts);
+  const [purpose, setPurpose] = useState("");
+  const [facts, setFacts] = useState("");
   const [requestedDeadline, setRequestedDeadline] = useState("");
   const [confirmedSnapshot, setConfirmedSnapshot] = useState<ConfirmedContractSnapshot>(certifiedLetterContractSnapshot);
   const [draftResult, setDraftResult] = useState<CertifiedLetterResult | null>(null);
@@ -164,8 +165,8 @@ export default function CertifiedLetterPage() {
     setSaveError("");
     setConfirmedSnapshot(certifiedLetterContractSnapshot);
     setSenderRole("lessee");
-    setPurpose(samplePurpose);
-    setFacts(sampleFacts);
+    setPurpose("");
+    setFacts("");
     setRequestedDeadline("");
     setError("");
     setFileError("");
@@ -243,11 +244,23 @@ export default function CertifiedLetterPage() {
         <div className={styles.split}>
           <section className={styles.panel}>
             <h2>요청과 사실관계를 알려주세요</h2>
-            <p className={styles.panelLead}>계약서에서 확인되지 않는 현재 상황과 요구만 추가로 입력합니다.</p>
+            <p className={styles.panelLead}>계약서에 없는 현재 상황과 요구사항을 추가로 입력해 주세요. 법률 용어를 몰라도 괜찮습니다. 원하는 결과와 실제 있었던 일을 나누어 적어주세요.</p>
             <div className={styles.field}><label htmlFor="sender-role">내용증명 발신자</label><select id="sender-role" value={senderRole} onChange={(event) => setSenderRole(event.target.value as "lessee" | "lessor")}><option value="lessee">임차인</option><option value="lessor">임대인</option></select></div>
-            <div className={styles.field}><label htmlFor="letter-purpose">내용증명으로 달성하려는 목적</label><textarea id="letter-purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} /></div>
-            <div className={styles.field}><label htmlFor="letter-facts">확인된 구체적인 사실</label><textarea id="letter-facts" value={facts} onChange={(event) => setFacts(event.target.value)} /><p className={styles.searchGuide}>추측이나 평가보다 날짜, 금액, 상대방의 행동처럼 직접 확인한 내용을 적어주세요.</p></div>
-            <div className={styles.field}><label htmlFor="requested-deadline">희망 이행 기한 (선택)</label><input id="requested-deadline" type="date" value={requestedDeadline} onChange={(event) => setRequestedDeadline(event.target.value)} /></div>
+            <div className={styles.field}>
+              <label htmlFor="letter-purpose">상대방에게 무엇을 요구하고 싶나요?</label>
+              <p className={styles.fieldGuide} id="letter-purpose-guide">보증금 반환, 수리, 계약 해지 등 내용증명을 통해 원하는 결과를 간단히 적어주세요.</p>
+              <textarea aria-describedby="letter-purpose-guide" id="letter-purpose" placeholder={purposeExample} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="letter-facts">어떤 일이 있었는지 알려주세요.</label>
+              <p className={styles.fieldGuide} id="letter-facts-guide">계약일, 문제 발생 시점, 상대방에게 요청한 내용과 현재 상황을 확인된 사실 중심으로 적어주세요.</p>
+              <textarea aria-describedby="letter-facts-guide" id="letter-facts" placeholder={factsExample} value={facts} onChange={(event) => setFacts(event.target.value)} />
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="requested-deadline">희망 이행 기한 (선택)</label>
+              <p className={styles.fieldGuide} id="requested-deadline-guide">상대방이 언제까지 이행하기를 원하는지 선택해 주세요. 정해진 날짜가 없다면 비워두어도 됩니다.</p>
+              <input aria-describedby="requested-deadline-guide" id="requested-deadline" type="date" value={requestedDeadline} onChange={(event) => setRequestedDeadline(event.target.value)} />
+            </div>
             {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>입력 내용을 확인해주세요</strong><span>{error}</span></div></div>}
             <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={() => void generateLetter()}><FileText size={17} />초안 만들기</button></div>
           </section>
