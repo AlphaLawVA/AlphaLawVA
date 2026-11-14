@@ -148,7 +148,7 @@ class SpecialClauseService:
                 )
             )
         all_terminal = all(item.status != "pending_generation" for item in items)
-        # 초안이 생성된 경우 응답에는 초안이 실제로 인용한 근거만 싣는다(무관한 검색 결과는 뺀다).
+        # 법령은 초안이 실제로 사용한 근거만, 판례는 생성과 분리한 관련 판례를 반환한다.
         cited = {
             (f"request-{item.request_index}", source_id)
             for item in items
@@ -158,6 +158,7 @@ class SpecialClauseService:
             entry
             for entry in result.evidence
             if generation_status != GenerationStatus.GENERATED
+            or entry.source_type == "precedent"
             or (entry.item_id, entry.source_id) in cited
         ]
         response = SpecialClauseDraftResponse(

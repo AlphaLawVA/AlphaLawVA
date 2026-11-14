@@ -256,7 +256,7 @@ class SpecialClauseGraph:
         try:
             generations = generator.generate(
                 state["retrieval_queries"],
-                state["evidence"],
+                SpecialClauseGraph._generation_evidence(state["evidence"]),
             )
         except (RuntimeError, ValueError):
             # 상위 서비스의 except는 이 안쪽에서 먼저 잡히면 닿지 않으므로, 원인 파악을
@@ -275,7 +275,7 @@ class SpecialClauseGraph:
 
         queries = {query.item_id: query for query in state["retrieval_queries"]}
         evidence: dict[str, dict[str, str]] = {}
-        for entry in state["evidence"]:
+        for entry in SpecialClauseGraph._generation_evidence(state["evidence"]):
             evidence.setdefault(entry.item_id, {})[entry.source_id] = (
                 entry.title + "\n" + entry.text
             )
@@ -321,7 +321,11 @@ class SpecialClauseGraph:
         issues = state["generation_issues"]
         generator = state["generator"]
         queries = [q for q in state["retrieval_queries"] if q.item_id in issues]
-        evidence = [e for e in state["evidence"] if e.item_id in issues]
+        evidence = [
+            entry
+            for entry in SpecialClauseGraph._generation_evidence(state["evidence"])
+            if entry.item_id in issues
+        ]
         try:
             repaired = generator.generate(queries, evidence, feedback=issues)
         except (RuntimeError, ValueError):
@@ -355,3 +359,11 @@ class SpecialClauseGraph:
             "연락처 또는 계좌번호",
             redacted,
         )
+
+    @staticmethod
+    def _generation_evidence(
+        evidence: list[ContractReviewEvidence],
+    ) -> list[ContractReviewEvidence]:
+        """특약 생성 모델에는 법령 근거만 전달하고 판례는 참고 결과로 분리한다."""
+
+        return [entry for entry in evidence if entry.source_type == "statute"]
