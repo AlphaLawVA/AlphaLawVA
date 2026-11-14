@@ -338,8 +338,8 @@ function GenerationDetailBody({ detail }: { detail: SavedGenerationDetail }) {
           {review.analysis.map((item) => (
             <div key={item.item_id}>
               <p>{item.summary}</p>
-              <p>수정 제안: {item.revision}</p>
-              <p>협의 안내: {item.negotiation}</p>
+              {item.revision && <p>수정 제안: {item.revision}</p>}
+              {item.negotiation && <p>협의 안내: {item.negotiation}</p>}
             </div>
           ))}
         </section>

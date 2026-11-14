@@ -83,7 +83,7 @@ function liveRegistryReviews(result: ContractReviewResult): RegistryReview[] {
         value: item.original_text ?? "",
         status: analysis?.review_status ?? "check",
         summary: item.message,
-        action: analysis ? `${analysis.summary} ${analysis.negotiation}` : undefined,
+        action: analysis ? `${analysis.summary} ${analysis.negotiation}`.trim() : undefined,
       };
     }
     return {
@@ -222,14 +222,18 @@ export function ResultDemo() {
               <h3>이렇게 판단한 이유</h3>
               <p>{selectedClause.reason}</p>
             </section>
-            <section className={styles.detailSection}>
-              <h3>수정 결과</h3>
-              <p className={styles.revisionBox}>{selectedClause.revision}</p>
-            </section>
-            <section className={styles.detailSection}>
-              <h3>협상 전략 및 법적 영향</h3>
-              <p>{selectedClause.negotiation}</p>
-            </section>
+            {selectedClause.revision && (
+              <section className={styles.detailSection}>
+                <h3>수정 결과</h3>
+                <p className={styles.revisionBox}>{selectedClause.revision}</p>
+              </section>
+            )}
+            {selectedClause.negotiation && (
+              <section className={styles.detailSection}>
+                <h3>협상 전략 및 법적 영향</h3>
+                <p>{selectedClause.negotiation}</p>
+              </section>
+            )}
             <details>
               <summary>관련 법령 {selectedClause.statutes.length}건</summary>
               <div className={styles.evidenceList}>

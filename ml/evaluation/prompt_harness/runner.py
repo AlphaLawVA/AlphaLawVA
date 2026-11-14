@@ -82,6 +82,7 @@ class HarnessSummary:
     clause_prompt_version: str | None = None
     clause_prompt_sha256: str | None = None
     usage: dict[str, float] = field(default_factory=dict)
+    cases_version: str = "cases_v01"
 
 
 def load_pool(path: Path | None = None) -> dict[str, dict[str, str]]:
@@ -321,7 +322,7 @@ def _write_outputs(output_dir: Path, summary: HarnessSummary, records, cases) ->
         "run_id": summary.run_id,
         "mode": summary.mode,
         "model": summary.model,
-        "cases_version": "cases_v01",
+        "cases_version": summary.cases_version,
         "review_prompt_version": summary.review_prompt_version,
         "review_prompt_sha256": summary.review_prompt_sha256,
         "clause_prompt_version": summary.clause_prompt_version,
@@ -432,6 +433,7 @@ def run_harness(
     clause_version = clause_module.PROMPT_VERSION + ("+file" if clause_prompt_file else "")
     effective_model = model or review_module.DEFAULT_GEMINI_MODEL
     summary = HarnessSummary(run_id=run_id, mode=mode, model=effective_model if mode == "live" else "fake")
+    summary.cases_version = (cases_path or DEFAULT_CASES_PATH).stem
     if target in {"all", "review"}:
         summary.review_prompt_version = review_version
         summary.review_prompt_sha256 = _sha256(review_prompt)
@@ -506,6 +508,7 @@ def main() -> None:
     parser.add_argument("--confirm-live", action="store_true", help="유료 모델 호출을 허용합니다.")
     parser.add_argument("--max-calls", type=int, default=DEFAULT_MAX_LIVE_CALLS)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--cases", type=Path, default=None, help="평가 케이스 JSON(기본 cases_v01)")
     args = parser.parse_args()
     summary = run_harness(
         mode=args.mode,
@@ -516,6 +519,7 @@ def main() -> None:
         clause_prompt_file=args.clause_prompt_file,
         confirm_live=args.confirm_live,
         max_calls=args.max_calls,
+        cases_path=args.cases,
     )
     print(
         f"실행 {summary.run_id}: 항목 {summary.total_items}개, 실패 {summary.failed_items}개, "

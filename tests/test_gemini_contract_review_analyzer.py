@@ -80,6 +80,55 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
         self.assertEqual(result[0].review_status, "check")
         self.assertEqual(result[0].evidence_source_ids, ["law:001248:article:0003"])
 
+    def _response(self, item: dict) -> dict:
+        return {
+            "candidates": [{"content": {"parts": [{"text": json.dumps({"items": [item]}, ensure_ascii=False)}]}}],
+            "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5},
+        }
+
+    def test_safe_item_drops_revision_and_negotiation(self):
+        item = {
+            "item_id": "term-1",
+            "summary": "제공된 조문과 취지가 같아 따로 확인할 쟁점이 없습니다.",
+            "review_status": "safe",
+            "revision": "모델이 채운 수정안은 버려야 합니다.",
+            "negotiation": "모델이 채운 협상 안내도 버립니다.",
+            "evidence_source_ids": ["law:001248:article:0003"],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            result = self.analyzer.analyze(self.queries, self.evidence)
+        self.assertEqual(result[0].review_status, "safe")
+        self.assertEqual(result[0].revision, "")
+        self.assertEqual(result[0].negotiation, "")
+
+    def test_safe_item_may_omit_revision_and_negotiation(self):
+        item = {
+            "item_id": "term-1",
+            "summary": "제공된 조문과 취지가 같아 따로 확인할 쟁점이 없습니다.",
+            "review_status": "safe",
+            "evidence_source_ids": ["law:001248:article:0003"],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            result = self.analyzer.analyze(self.queries, self.evidence)
+        self.assertEqual(result[0].revision, "")
+
+    def test_check_item_still_requires_revision_and_negotiation(self):
+        item = {
+            "item_id": "term-1",
+            "summary": "적용 범위가 모호해 확인이 필요합니다.",
+            "review_status": "check",
+            "evidence_source_ids": ["law:001248:article:0003"],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            with self.assertRaises(ValueError):  # 수정안 없는 check 항목은 서버 검증에서 거절된다
+                self.analyzer.analyze(self.queries, self.evidence)
+
+    def test_prompt_explains_summary_as_judgement_reason(self):
+        from api.services.gemini_contract_review_analyzer import SYSTEM_PROMPT
+
+        self.assertIn("왜", SYSTEM_PROMPT)
+        self.assertIn("safe이면 revision과 negotiation은 반드시 빈 문자열", SYSTEM_PROMPT)
+
     def test_drops_only_the_item_that_cites_unprovided_evidence(self):
         self.queries.append(
             ContractReviewRetrievalQuery(
@@ -186,7 +235,7 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
         self.assertEqual(record["error_type"], "ValueError")
         self.assertIn("알 수 없는 검토 항목", record["error_message"])
 
-    def test_keeps_highest_similarity_evidence_without_source_balance(self):
+    def test_selects_statutes_and_precedents_by_separate_quota(self):
         evidence = [
             *self.evidence,
             ContractReviewEvidence(
@@ -225,7 +274,7 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
 
         self.assertEqual(
             [item["source_type"] for item in payload["items"][0]["evidence"]],
-            ["statute", "statute", "statute"],
+            ["statute", "statute", "statute", "precedent"],
         )
 
 

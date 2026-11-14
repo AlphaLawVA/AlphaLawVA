@@ -18,7 +18,7 @@ from typing import Protocol, TypedDict
 from langgraph.graph import END, StateGraph
 
 from ml.agent.output_validation import find_output_issues
-from ml.agent.special_clause_scope import ScopeDecision, classify_request_scope
+from ml.agent.special_clause_scope import ScopeDecision, classify_request_scope, is_too_short
 from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewEvidenceRetriever,
@@ -159,39 +159,50 @@ class SpecialClauseGraph:
     def _check_scope(state: SpecialClauseGraphState) -> dict[str, dict[str, str]]:
         """요청마다 범위 안·정보 부족·범위 밖을 분류한다.
 
-        너무 짧은 요청은 모델을 부르지 않고 정보 부족으로 본다. 나머지는 모델이 판정하고,
-        모델을 쓸 수 없거나 응답 형식이 어긋나면 키워드 규칙으로 대신 판정한다.
+        너무 짧은 요청은 모델을 부르지 않고 정보 부족으로 본다. 분류기(LLM)가 설정되어 있으면
+        나머지는 모델만 판정한다. 모델 호출이 실패하면 한 번 다시 시도하고, 그래도 실패하면
+        키워드로 막지 않고 범위 안으로 통과시켜 초안 단계로 넘긴다(생성기가 무관한 요청을 거른다).
+        분류기가 아예 설정되지 않은 환경(개발·오프라인)에서만 키워드 규칙을 예비로 쓴다.
         """
 
         requests = state["requests"]
-        decisions = {
-            f"request-{index}": classify_request_scope(request)
-            for index, request in enumerate(requests, start=1)
-        }
-        keyword_decisions = {key: value.value for key, value in decisions.items()}
         classifier = state["scope_classifier"]
         if classifier is None:
-            return {"scope_decisions": keyword_decisions}
+            return {
+                "scope_decisions": {
+                    f"request-{index}": classify_request_scope(request).value
+                    for index, request in enumerate(requests, start=1)
+                }
+            }
 
+        decisions = {
+            f"request-{index}": (
+                ScopeDecision.NEEDS_INFORMATION if is_too_short(request) else ScopeDecision.IN_SCOPE
+            ).value
+            for index, request in enumerate(requests, start=1)
+        }
         pending = [
             (index, request)
             for index, request in enumerate(requests, start=1)
-            if decisions[f"request-{index}"] != ScopeDecision.NEEDS_INFORMATION
+            if decisions[f"request-{index}"] != ScopeDecision.NEEDS_INFORMATION.value
         ]
         if not pending:
-            return {"scope_decisions": keyword_decisions}
-        try:
-            answers = classifier.classify(
-                [SpecialClauseGraph._redact_request(request) for _, request in pending]
-            )
-        except (RuntimeError, ValueError):
-            return {"scope_decisions": keyword_decisions}
-        if len(answers) != len(pending):
-            return {"scope_decisions": keyword_decisions}
-        merged = dict(keyword_decisions)
+            return {"scope_decisions": decisions}
+        redacted = [SpecialClauseGraph._redact_request(request) for _, request in pending]
+        answers: list[str] | None = None
+        for _ in range(2):  # 일시적 오류에 대비해 한 번 더 시도한다.
+            try:
+                result = classifier.classify(redacted)
+            except (RuntimeError, ValueError):
+                continue
+            if len(result) == len(pending):
+                answers = list(result)
+                break
+        if answers is None:
+            return {"scope_decisions": decisions}
         for (index, _), answer in zip(pending, answers):
-            merged[f"request-{index}"] = ScopeDecision(answer).value
-        return {"scope_decisions": merged}
+            decisions[f"request-{index}"] = ScopeDecision(answer).value
+        return {"scope_decisions": decisions}
 
     @staticmethod
     def _route_after_scope(state: SpecialClauseGraphState) -> str:
@@ -236,7 +247,8 @@ class SpecialClauseGraph:
         state: SpecialClauseGraphState,
     ) -> dict[str, list[SpecialClauseGeneration] | bool]:
         generator = state["generator"]
-        if generator is None or not state["evidence"]:
+        # 분류기를 통과한 요청은 근거가 없어도 초안을 만든다(법령은 초안의 전제가 아니라 참고 자료다).
+        if generator is None:
             return {"generations": [], "generation_unavailable": False}
         try:
             generations = generator.generate(

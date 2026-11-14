@@ -89,13 +89,14 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "추가 입력 요청이 비어"):
             self._generate([_item(status="needs_input", needs_input=[])])
 
-    def test_draft_with_open_questions_is_treated_as_needs_input(self) -> None:
+    def test_draft_with_open_questions_keeps_draft_and_questions(self) -> None:
+        # 초안과 함께 남은 질문은 '추가로 정하면 좋은 항목'이므로 초안을 숨기지 않는다.
         result = self._generate([_item(needs_input=["금지 기한을 알려주세요."])])
 
-        self.assertEqual(result[0].status, "needs_input")
-        self.assertIsNone(result[0].draft_text)
-        self.assertIsNone(result[0].reason)
-        self.assertIsNone(result[0].strategy)
+        self.assertEqual(result[0].status, "draft_ready")
+        self.assertTrue(result[0].draft_text)
+        self.assertTrue(result[0].reason)
+        self.assertTrue(result[0].strategy)
         self.assertEqual(result[0].needs_input, ["금지 기한을 알려주세요."])
 
     def test_draft_ready_keeps_empty_questions(self) -> None:
@@ -129,9 +130,31 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
 
         self.assertEqual([item.item_id for item in result], ["request-2"])
 
-    def test_missing_evidence_ids_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "근거가 비어"):
-            self._generate([_item(evidence_source_ids=[])])
+    def test_prompt_keeps_requested_core_intent(self) -> None:
+        from api.services.gemini_special_clause_generator import PROMPT_VERSION, SYSTEM_PROMPT
+
+        self.assertEqual(PROMPT_VERSION, "special_clause_result_v0.9")
+        self.assertIn("핵심 내용", SYSTEM_PROMPT)
+        self.assertIn("조건부로 바꾸지 않고", SYSTEM_PROMPT)
+
+    def test_empty_evidence_ids_are_allowed_for_agreement_only_clause(self) -> None:
+        # 법령 근거가 없어도 합의 사항 특약은 초안을 만든다.
+        result = self._generate([_item(evidence_source_ids=[])])
+        self.assertEqual(result[0].status, "draft_ready")
+        self.assertEqual(result[0].evidence_source_ids, [])
+
+    def test_non_list_evidence_ids_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "근거 형식"):
+            self._generate([_item(evidence_source_ids="not-a-list")])
+
+    def test_unprovided_evidence_ids_are_still_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "제공되지 않은 근거"):
+            self._generate([_item(evidence_source_ids=["invented"])])
+
+    def test_item_without_any_evidence_is_still_sent_to_model(self) -> None:
+        payload = self.generator._build_payload(self.queries, [])
+        self.assertEqual(len(payload["items"]), len(self.queries))
+        self.assertEqual(payload["items"][0]["evidence"], [])
 
     def test_too_many_questions_are_rejected(self) -> None:
         questions = [f"질문 {index}번 내용" for index in range(6)]

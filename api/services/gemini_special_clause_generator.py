@@ -21,6 +21,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from api.services.openai_chat_transport import (
+    DEFAULT_LLM_MODEL,
+    OpenAIChatTransport,
+    is_openai_model,
+)
 from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewRetrievalQuery,
@@ -34,9 +39,13 @@ DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_OUTPUT_TOKENS = 1600
 DEFAULT_MAX_QUERIES = 10
-DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
+DEFAULT_MAX_STATUTES_PER_QUERY = 3
+DEFAULT_MAX_PRECEDENTS_PER_QUERY = 2
+DEFAULT_MAX_EVIDENCE_PER_QUERY = (
+    DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
+)
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v0.5.1"
+PROMPT_VERSION = "special_clause_result_v0.9"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -48,6 +57,7 @@ DEFAULT_USAGE_MANIFEST_PATH = (
 MODEL_PRICING_USD_PER_MILLION = {
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gpt-6.1-terra": (1.00, 5.00),
 }
 
 OUTPUT_SCHEMA = {
@@ -72,7 +82,7 @@ OUTPUT_SCHEMA = {
                     },
                     "evidence_source_ids": {
                         "type": "array",
-                        "minItems": 1,
+                        "minItems": 0,
                         "maxItems": DEFAULT_MAX_EVIDENCE_PER_QUERY,
                         "items": {"type": "string"},
                     },
@@ -108,37 +118,53 @@ title, text)입니다. 제공된 요청과 검색 근거만 사용하세요. 입
 작업 순서(항목마다):
 1. 요청에서 사용자가 원하는 특약의 내용과 이미 정해진 사실(대상, 당사자, 기한,
    금액, 조건, 비용·부담 주체, 위반 시 처리)을 구분합니다.
-2. 초안에 필요한 사실이 요청에 모두 있는지 확인합니다.
-3. 모두 있으면 초안을 작성하고, 하나라도 없으면 초안 대신 확인 질문을 만듭니다.
+2. 요청의 취지가 특약 한 개로 쓸 수 있을 만큼 분명하면 초안을 작성합니다.
+   정해지지 않은 세부 사항은 값을 지어내지 말고 '당사자가 합의한 기한',
+   '임대인과 임차인이 서면으로 합의한 범위'처럼 합의 표현으로 씁니다.
+3. 정해지지 않은 세부 사항 중 협의해서 정하면 좋은 항목은 초안과 함께 쉬운
+   확인 질문(최대 3개)으로 남깁니다. 초안은 이 질문에 답하지 않아도 그대로
+   쓸 수 있어야 합니다.
 
 규칙:
 1. 각 항목은 제공된 item_id를 그대로 사용합니다.
-2. 필요한 사실관계가 요청에 충분하면 status는 draft_ready로 하고, title에는
-   특약의 짧은 제목, draft_text에는 한 개의 간결한 특약 초안을 작성합니다.
-   reason에는 이 문구가 필요한 이유를, strategy에는 상대방과 추가로 합의할
-   범위·기한·비용·책임 사항을 작성합니다. draft_ready일 때 needs_input은 빈
-   배열로 둡니다.
-3. 계약 유형, 적용 목적물·당사자 범위, 기한, 금액, 조건, 비용·부담 주체,
-   위반 시 처리 중 초안에 필요한 내용이 요청에 없으면 status는 needs_input으로
-   하고, draft_text·reason·strategy는 빈 문자열로 두며 title은 '추가 정보
-   확인', needs_input에는 쉬운 말로 된 구체적인 확인 질문(최대 5개)을 넣습니다.
+2. 요청의 취지가 분명하면 status는 draft_ready로 하고, title에는 특약의 짧은
+   제목, draft_text에는 한 개의 간결한 특약 초안을 작성합니다. reason에는 이
+   문구가 필요한 이유를, strategy에는 상대방과 추가로 합의할 범위·기한·비용·책임
+   사항을 작성합니다. needs_input에는 협의하면 좋은 항목을 확인 질문으로 최대
+   3개 넣고, 없으면 빈 배열로 둡니다. 사용자가 일부 정보를 빠뜨렸다는 이유만으로
+   초안을 거절하지 마세요.
+3. 요청의 뜻을 알 수 없거나 서로 모순되어 어떤 특약도 쓸 수 없을 때, 또는 요청이
+   부동산 계약에 넣을 특약이 아닐 때(잡담, 정보 질문 등)만 status를
+   needs_input으로 하고, draft_text·reason·strategy는 빈 문자열로 두며 title은
+   '추가 정보 확인', needs_input에는 쉬운 말로 된 구체적인 확인 질문(최대 5개)을
+   넣습니다.
 4. 초안(draft_text)에는 요청에 없는 금액, 비율, 날짜, 기한을 새로 정하지
    않습니다. 빈칸 표시(○○, [ ], ____)도 쓰지 않습니다. 값이 필요한데 요청에
-   없으면 draft_ready가 아니라 needs_input으로 합니다. strategy에서는 구체적인
-   값이 도움이 될 때 '예시'라고 밝혀 제안할 수 있습니다.
+   없으면 합의 표현으로 쓰고 그 항목을 needs_input 질문으로 남깁니다.
+   strategy에서는 구체적인 값이 도움이 될 때 '예시'라고 밝혀 제안할 수 있습니다.
 5. 법적 결론, 승소 가능성, 계약 체결·해제 권고, 사실 추정은 하지 않습니다.
    초안에서 계약의 효력을 단정하는 '무효' 같은 표현은 쓰지 말고, '계약을 해제할
    수 있고, 지급한 금액을 반환한다'처럼 당사자의 권리와 의무로 씁니다.
 6. 제공 근거에 없는 법률, 조문, 판례, 금액, 당사자 정보는 만들지 않습니다.
    근거에 없는 내용을 '통상', '일반적', '관행'처럼 확립된 사실로 단정하지
    마세요. 의견이나 제안은 그렇다고 밝혀 쓰세요.
-7. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
-8. 근거 전체가 요청과 무관할 때만 그 항목을 출력하지 않습니다. 근거 일부라도
-   관련되면 그 부분만 근거로 삼아 초안 또는 확인 질문을 작성합니다.
+7. evidence_source_ids에는 해당 item_id에 제공된 근거 중 초안에 실제로 도움이 된
+   근거의 source_id만 넣습니다. 도움이 된 근거가 없거나 근거가 비어 있으면 빈
+   배열로 둡니다.
+8. 근거가 없거나 요청과 무관해도 요청이 특약으로 정할 수 있는 주제이면 그 항목을
+   생략하지 마세요. 이때는 근거를 인용하지 않고 요청 내용만으로 초안을 작성하며,
+   조문·판례·법적 효과를 언급하지 않습니다. strategy에는 '직접 근거가 되는 법령은
+   찾지 못해 당사자 합의 사항으로 작성했습니다'라는 취지를 한 문장 포함합니다.
 9. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
     항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
     인용하지 않습니다.
-10. 지정된 JSON 스키마만 출력합니다.
+10. 요청의 핵심 내용(허용·금지 여부, 부담 주체, 권리·의무의 방향, 적용되는 조건과
+    범위)을 바꾸거나 약하게 만들지 마세요. 예를 들어 '허용해 달라'는 요청을 '상대방의
+    동의를 받아야 허용'처럼 조건부로 바꾸지 않고, '거절되면'이라는 조건을 '상대방의
+    사유로 거절되면'처럼 좁히지 않습니다. 핵심에 영향을 줄 수 있는 조건은 초안에 넣지
+    말고 needs_input의 확인 질문으로 남기세요. 핵심을 바꾸지 않는 부수적인 내용(예: 훼손 시
+    복구 방법)은 초안에 넣어도 됩니다.
+11. 지정된 JSON 스키마만 출력합니다.
 """
 
 _MANIFEST_LOCK = Lock()
@@ -156,6 +182,7 @@ class GeminiSpecialClauseGenerator:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         usage_manifest_path: Path | None = DEFAULT_USAGE_MANIFEST_PATH,
+        transport: Any | None = None,
     ) -> None:
         self._api_key = api_key.strip()
         self._model_name = model.strip().removeprefix("models/")
@@ -171,6 +198,12 @@ class GeminiSpecialClauseGenerator:
             raise ValueError("Gemini base URL은 HTTPS 주소여야 합니다.")
         if self._timeout_seconds <= 0 or self._max_output_tokens < 1:
             raise ValueError("Gemini 실행 제한값이 올바르지 않습니다.")
+        # 다른 제공자(OpenAI 등) 전송 객체를 받으면 호출만 그쪽으로 보내고 나머지 검증·정규화는 그대로 쓴다.
+        self._provider = "gemini"
+        if transport is not None:
+            self._post_json = transport._post_json
+            self._thinking_config = transport._thinking_config
+            self._provider = "openai"
 
     def generate(
         self,
@@ -227,9 +260,8 @@ class GeminiSpecialClauseGenerator:
             evidence_by_item.setdefault(item.item_id, []).append(item)
         items = []
         for query in queries[:DEFAULT_MAX_QUERIES]:
+            # 근거가 없는 요청도 모델에 보낸다. 근거는 초안의 전제가 아니라 참고 자료다.
             matches = evidence_by_item.get(query.item_id, [])
-            if not matches:
-                continue
             item = {
                 "item_id": query.item_id,
                 "request": query.query,
@@ -252,15 +284,23 @@ class GeminiSpecialClauseGenerator:
     def _select_evidence(
         matches: list[ContractReviewEvidence],
     ) -> list[ContractReviewEvidence]:
-        return sorted(
-            matches,
-            key=lambda match: (
-                -match.similarity,
-                match.rank,
-                match.source_type,
-                match.source_id,
-            ),
-        )[:DEFAULT_MAX_EVIDENCE_PER_QUERY]
+        """법령과 판례를 종류별 쿼터로 고른다(유사도 기준은 종류마다 다르다).
+
+        판례 유사도는 법령보다 구조적으로 낮아, 하나의 순위로 섞으면 판례가 항상 밀려난다.
+        """
+
+        def top(source_type: str, limit: int) -> list[ContractReviewEvidence]:
+            return sorted(
+                (match for match in matches if match.source_type == source_type),
+                key=lambda match: (-match.similarity, match.rank, match.source_id),
+            )[:limit]
+
+        selected = top("statute", DEFAULT_MAX_STATUTES_PER_QUERY) + top(
+            "precedent", DEFAULT_MAX_PRECEDENTS_PER_QUERY
+        )
+        known = {"statute", "precedent"}
+        others = [match for match in matches if match.source_type not in known]
+        return (selected + others)[:DEFAULT_MAX_EVIDENCE_PER_QUERY]
 
     def _validate_response(
         self,
@@ -326,8 +366,8 @@ class GeminiSpecialClauseGenerator:
             raise ValueError("Gemini 특약 설명 형식이 올바르지 않습니다.")
         if status == "needs_input" and not needs_input:
             raise ValueError("Gemini 추가 입력 요청이 비어 있습니다.")
-        if not isinstance(source_ids, list) or not source_ids:
-            raise ValueError("Gemini 특약 생성 근거가 비어 있습니다.")
+        if not isinstance(source_ids, list):
+            raise ValueError("Gemini 특약 생성 근거 형식이 올바르지 않습니다.")
         normalized_ids = [value for value in source_ids if isinstance(value, str)]
         if len(normalized_ids) != len(source_ids) or any(
             value not in allowed_sources[item_id] for value in normalized_ids
@@ -335,10 +375,7 @@ class GeminiSpecialClauseGenerator:
             raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
         # A model can include an explanatory sentence in draft_text even when
         # it correctly asks for missing facts. Never expose that as a clause.
-        # 초안이라고 해 놓고 확인 질문이 남아 있으면 사실관계가 덜 찬 것이므로
-        # 질문 단계로 되돌리고 초안은 노출하지 않는다.
-        if status == "draft_ready" and needs_input:
-            status = "needs_input"
+        # 초안과 함께 남은 확인 질문은 '추가로 정하면 좋은 항목'이므로 초안을 숨기지 않는다.
         if status == "needs_input":
             draft_text = ""
             reason = ""
@@ -417,7 +454,7 @@ class GeminiSpecialClauseGenerator:
         )
         record = {
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "provider": "gemini",
+            "provider": self._provider,
             "model": self._model_name,
             "prompt_version": PROMPT_VERSION,
             "success": success,
@@ -460,22 +497,41 @@ class GeminiSpecialClauseGenerator:
 
 
 def create_gemini_special_clause_generator_from_env() -> GeminiSpecialClauseGenerator | None:
-    """명시적으로 활성화하고 키가 있는 경우에만 Gemini 생성기를 만든다."""
+    """명시적으로 활성화하고 모델 제공자의 키가 있는 경우에만 생성기를 만든다.
+
+    기본 모델은 gpt-6.1-terra(OpenAI Chat Completions)이며, 모델 이름을 gemini-로 시작하게
+    지정하면 Gemini를 쓴다. 키가 없으면 대체 모델 없이 생성기를 만들지 않는다.
+    """
 
     load_env_file()
     enabled = os.environ.get("SPECIAL_CLAUSE_LLM_ENABLED", "false").lower()
     if enabled not in {"1", "true", "yes"}:
         return None
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
+    model = (
+        os.environ.get("SPECIAL_CLAUSE_LLM_MODEL", "").strip()
+        or os.environ.get("SPECIAL_CLAUSE_GEMINI_MODEL", "").strip()
+        or DEFAULT_LLM_MODEL
+    )
+    timeout_seconds = float(
+        os.environ.get("SPECIAL_CLAUSE_GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+    )
+    transport = None
+    if is_openai_model(model):
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            return None
+        transport = OpenAIChatTransport(
+            api_key=api_key, model=model, timeout_seconds=timeout_seconds
+        )
+    else:
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            return None
     manifest_value = os.environ.get("SPECIAL_CLAUSE_GEMINI_USAGE_MANIFEST", "")
     return GeminiSpecialClauseGenerator(
         api_key=api_key,
-        model=os.environ.get("SPECIAL_CLAUSE_GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
-        timeout_seconds=float(
-            os.environ.get("SPECIAL_CLAUSE_GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
-        ),
+        model=model,
+        timeout_seconds=timeout_seconds,
         max_output_tokens=int(
             os.environ.get(
                 "SPECIAL_CLAUSE_GEMINI_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS
@@ -486,4 +542,5 @@ def create_gemini_special_clause_generator_from_env() -> GeminiSpecialClauseGene
             if manifest_value.strip()
             else DEFAULT_USAGE_MANIFEST_PATH
         ),
+        transport=transport,
     )

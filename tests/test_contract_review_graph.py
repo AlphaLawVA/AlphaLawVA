@@ -264,6 +264,7 @@ class ContractReviewGraphTests(unittest.TestCase):
             statute_retriever=FakeStatuteRetriever(),
             precedent_retriever=FakePrecedentRetriever(),
             min_similarity=0.85,
+            precedent_min_similarity=0.85,  # 판례는 별도 기준을 쓰므로 함께 올려야 걸러진다
         )
 
         result = ContractReviewGraph().prepare(

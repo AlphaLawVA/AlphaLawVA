@@ -22,6 +22,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from api.services.openai_chat_transport import (
+    DEFAULT_LLM_MODEL,
+    OpenAIChatTransport,
+    is_openai_model,
+)
 from ml.agent.contract_review_graph import (
     ContractReviewAnalysis,
     ContractReviewEvidence,
@@ -35,9 +40,13 @@ DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_OUTPUT_TOKENS = 1800
 DEFAULT_MAX_QUERIES = 12
-DEFAULT_MAX_EVIDENCE_PER_QUERY = 3
+DEFAULT_MAX_STATUTES_PER_QUERY = 3
+DEFAULT_MAX_PRECEDENTS_PER_QUERY = 2
+DEFAULT_MAX_EVIDENCE_PER_QUERY = (
+    DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
+)
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "contract_review_result_v0.5.1"
+PROMPT_VERSION = "contract_review_result_v0.6"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -49,6 +58,7 @@ DEFAULT_USAGE_MANIFEST_PATH = (
 MODEL_PRICING_USD_PER_MILLION = {
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gpt-6.1-terra": (1.00, 5.00),
 }
 
 OUTPUT_SCHEMA = {
@@ -63,8 +73,8 @@ OUTPUT_SCHEMA = {
                     "item_id": {"type": "string"},
                     "summary": {"type": "string", "minLength": 2, "maxLength": 500},
                     "review_status": {"type": "string", "enum": ["safe", "check"]},
-                    "revision": {"type": "string", "minLength": 2, "maxLength": 1000},
-                    "negotiation": {"type": "string", "minLength": 2, "maxLength": 700},
+                    "revision": {"type": "string", "maxLength": 1000},
+                    "negotiation": {"type": "string", "maxLength": 700},
                     "evidence_source_ids": {
                         "type": "array",
                         "minItems": 1,
@@ -76,8 +86,6 @@ OUTPUT_SCHEMA = {
                     "item_id",
                     "summary",
                     "review_status",
-                    "revision",
-                    "negotiation",
                     "evidence_source_ids",
                 ],
                 "additionalProperties": False,
@@ -106,17 +114,23 @@ title, text)입니다. 제공된 질의와 근거만 사용하세요. 입력에 
 
 규칙:
 1. 각 항목은 제공된 item_id를 그대로 사용합니다.
-2. summary에는 기존 화면의 '이렇게 판단한 이유'에 표시할 내용을 쉬운 말로 한두
-   문장 작성합니다. 특약의 존재 여부를 다시 묻지 마세요.
+2. summary는 화면의 '이렇게 판단한 이유'에 그대로 표시됩니다. 이 항목을 왜
+   그렇게 판단했는지를 근거와 연결해 쉬운 말로 한두 문장 작성합니다.
+   - safe이면: 어떤 근거와 맞고 확인할 쟁점이 없어서 문제없다고 봤는지 씁니다.
+   - check이면: 무엇이 왜 확인이 필요한지(모호한 범위, 빠진 조건, 근거와 다른
+     점 등)를 씁니다.
+   특약의 존재 여부를 다시 묻지 마세요.
 3. review_status는 문구를 그대로 사용해도 확인할 쟁점이 없고 직접 근거가
    충분할 때만 safe로 하며, 그 외에는 check로 합니다.
-4. revision에는 원문의 취지를 임의로 바꾸지 않는 범위에서 범위, 기한, 조건,
-   비용·부담 주체, 위반 시 처리 또는 반환 시점을 명확히 한 사용자 협의용 수정
-   초안을 작성합니다. 원문과 근거에 없는 금액, 비율, 날짜, 기한을 정해야 하면
-   '당사자가 합의한 비율'처럼 표현하거나, 구체적인 값이 도움이 될 때는 문장에
-   '예시'라고 밝혀 제안합니다. 근거가 있는 값처럼 쓰지 마세요.
-5. negotiation에는 상대방과 추가로 합의하거나 사실관계를 확인할 항목을 한두
-   문장으로 작성합니다.
+4. review_status가 safe이면 revision과 negotiation은 반드시 빈 문자열로 둡니다.
+   고칠 곳이 없는 항목에 수정안을 만들지 마세요.
+5. review_status가 check이면 revision에는 원문의 취지를 임의로 바꾸지 않는
+   범위에서 범위, 기한, 조건, 비용·부담 주체, 위반 시 처리 또는 반환 시점을
+   명확히 한 사용자 협의용 수정 초안을 작성합니다. 원문과 근거에 없는 금액,
+   비율, 날짜, 기한을 정해야 하면 '당사자가 합의한 비율'처럼 표현하거나,
+   구체적인 값이 도움이 될 때는 문장에 '예시'라고 밝혀 제안합니다. 근거가 있는
+   값처럼 쓰지 마세요. negotiation에는 상대방과 추가로 합의하거나 사실관계를
+   확인할 항목을 한두 문장으로 작성합니다.
 6. 법적 결론, 승소 가능성, 계약 체결·해제 권고, 사실 추정은 하지 않습니다.
    계약의 효력을 단정하는 '무효' 같은 표현은 쓰지 말고, 사용자가 무엇을
    확인해야 하는지로 바꿔 씁니다.
@@ -146,6 +160,7 @@ class GeminiContractReviewAnalyzer:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         usage_manifest_path: Path | None = DEFAULT_USAGE_MANIFEST_PATH,
+        transport: Any | None = None,
     ) -> None:
         self._api_key = api_key.strip()
         self._model_name = model.strip().removeprefix("models/")
@@ -161,6 +176,12 @@ class GeminiContractReviewAnalyzer:
             raise ValueError("Gemini base URL은 HTTPS 주소여야 합니다.")
         if self._timeout_seconds <= 0 or self._max_output_tokens < 1:
             raise ValueError("Gemini 실행 제한값이 올바르지 않습니다.")
+        # 다른 제공자(OpenAI 등) 전송 객체를 받으면 호출만 그쪽으로 보내고 나머지 검증·정규화는 그대로 쓴다.
+        self._provider = "gemini"
+        if transport is not None:
+            self._post_json = transport._post_json
+            self._thinking_config = transport._thinking_config
+            self._provider = "openai"
 
     def analyze(
         self,
@@ -248,17 +269,23 @@ class GeminiContractReviewAnalyzer:
     def _select_evidence(
         matches: list[ContractReviewEvidence],
     ) -> list[ContractReviewEvidence]:
-        """출처 유형과 무관하게 관련도가 높은 근거만 모델에 전달한다."""
+        """법령과 판례를 종류별 쿼터로 고른다(유사도 기준은 종류마다 다르다).
 
-        return sorted(
-            matches,
-            key=lambda match: (
-                -match.similarity,
-                match.rank,
-                match.source_type,
-                match.source_id,
-            ),
-        )[:DEFAULT_MAX_EVIDENCE_PER_QUERY]
+        판례 유사도는 법령보다 구조적으로 낮아, 하나의 순위로 섞으면 판례가 항상 밀려난다.
+        """
+
+        def top(source_type: str, limit: int) -> list[ContractReviewEvidence]:
+            return sorted(
+                (match for match in matches if match.source_type == source_type),
+                key=lambda match: (-match.similarity, match.rank, match.source_id),
+            )[:limit]
+
+        selected = top("statute", DEFAULT_MAX_STATUTES_PER_QUERY) + top(
+            "precedent", DEFAULT_MAX_PRECEDENTS_PER_QUERY
+        )
+        known = {"statute", "precedent"}
+        others = [match for match in matches if match.source_type not in known]
+        return (selected + others)[:DEFAULT_MAX_EVIDENCE_PER_QUERY]
 
     def _validate_response(
         self,
@@ -312,10 +339,15 @@ class GeminiContractReviewAnalyzer:
             raise ValueError("Gemini 검토 요약 형식이 올바르지 않습니다.")
         if review_status not in {"safe", "check"}:
             raise ValueError("Gemini 검토 상태 형식이 올바르지 않습니다.")
-        if len(revision) < 2 or len(revision) > 1000:
-            raise ValueError("Gemini 수정 초안 형식이 올바르지 않습니다.")
-        if len(negotiation) < 2 or len(negotiation) > 700:
-            raise ValueError("Gemini 협상 안내 형식이 올바르지 않습니다.")
+        if review_status == "safe":
+            # 문제 없는 항목은 수정안·협상 안내를 보여주지 않는다(모델이 채워도 버린다).
+            revision = ""
+            negotiation = ""
+        else:
+            if len(revision) < 2 or len(revision) > 1000:
+                raise ValueError("Gemini 수정 초안 형식이 올바르지 않습니다.")
+            if len(negotiation) < 2 or len(negotiation) > 700:
+                raise ValueError("Gemini 협상 안내 형식이 올바르지 않습니다.")
         if not isinstance(source_ids, list) or not source_ids:
             raise ValueError("Gemini 검토 근거가 비어 있습니다.")
         normalized_ids = [value for value in source_ids if isinstance(value, str)]
@@ -396,7 +428,7 @@ class GeminiContractReviewAnalyzer:
         )
         record = {
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "provider": "gemini",
+            "provider": self._provider,
             "model": self._model_name,
             "prompt_version": PROMPT_VERSION,
             "success": success,
@@ -432,22 +464,41 @@ class GeminiContractReviewAnalyzer:
 
 
 def create_gemini_contract_review_analyzer_from_env() -> GeminiContractReviewAnalyzer | None:
-    """명시적으로 활성화하고 키가 있는 경우에만 Gemini 분석기를 생성한다."""
+    """명시적으로 활성화하고 모델 제공자의 키가 있는 경우에만 생성기를 만든다.
+
+    기본 모델은 gpt-6.1-terra(OpenAI Chat Completions)이며, 모델 이름을 gemini-로 시작하게
+    지정하면 Gemini를 쓴다. 키가 없으면 대체 모델 없이 생성기를 만들지 않는다.
+    """
 
     load_env_file()
     enabled = os.environ.get("CONTRACT_REVIEW_LLM_ENABLED", "false").lower()
     if enabled not in {"1", "true", "yes"}:
         return None
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
+    model = (
+        os.environ.get("CONTRACT_REVIEW_LLM_MODEL", "").strip()
+        or os.environ.get("CONTRACT_REVIEW_GEMINI_MODEL", "").strip()
+        or DEFAULT_LLM_MODEL
+    )
+    timeout_seconds = float(
+        os.environ.get("CONTRACT_REVIEW_GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+    )
+    transport = None
+    if is_openai_model(model):
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            return None
+        transport = OpenAIChatTransport(
+            api_key=api_key, model=model, timeout_seconds=timeout_seconds
+        )
+    else:
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            return None
     manifest_value = os.environ.get("CONTRACT_REVIEW_GEMINI_USAGE_MANIFEST", "")
     return GeminiContractReviewAnalyzer(
         api_key=api_key,
-        model=os.environ.get("CONTRACT_REVIEW_GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
-        timeout_seconds=float(
-            os.environ.get("CONTRACT_REVIEW_GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
-        ),
+        model=model,
+        timeout_seconds=timeout_seconds,
         max_output_tokens=int(
             os.environ.get(
                 "CONTRACT_REVIEW_GEMINI_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS
@@ -458,4 +509,5 @@ def create_gemini_contract_review_analyzer_from_env() -> GeminiContractReviewAna
             if manifest_value.strip()
             else DEFAULT_USAGE_MANIFEST_PATH
         ),
+        transport=transport,
     )

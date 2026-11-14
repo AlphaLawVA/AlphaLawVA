@@ -61,10 +61,11 @@ def run_scope_eval(
     api_key: str | None = None,
     max_calls: int = DEFAULT_MAX_LIVE_CALLS,
     model: str | None = None,
+    cases_path: Path | None = None,
 ) -> ScopeEvalSummary:
     if mode not in {"fake", "live"}:
         raise HarnessConfigError("mode는 fake|live여야 합니다.")
-    cases = load_scope_cases()
+    cases = load_scope_cases(cases_path)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_dir = output_dir or DEFAULT_OUTPUT_ROOT / f"scope_{run_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -153,15 +154,30 @@ def main() -> None:
     parser.add_argument("--max-calls", type=int, default=DEFAULT_MAX_LIVE_CALLS)
     parser.add_argument("--model", default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--cases", type=Path, default=None, help="분류 케이스 JSON(기본 scope_cases_v01)")
+    parser.add_argument("--prompt-file", type=Path, default=None, help="분류 프롬프트를 파일로 교체")
     args = parser.parse_args()
-    summary = run_scope_eval(
+    from unittest.mock import patch
+
+    from api.services import gemini_special_clause_scope as scope_module
+
+    prompt = args.prompt_file.read_text(encoding="utf-8") if args.prompt_file else scope_module.SCOPE_SYSTEM_PROMPT
+    with patch.object(scope_module, "SCOPE_SYSTEM_PROMPT", prompt):
+        summary = _run_with_args(args)
+    print(f"적합성 분류 {summary.correct}/{summary.total} 정답, 오분류 {len(summary.mistakes)}건")
+    for mistake in summary.mistakes:
+        print("  오분류:", mistake)
+
+
+def _run_with_args(args: argparse.Namespace) -> ScopeEvalSummary:
+    return run_scope_eval(
         mode=args.mode,
         output_dir=args.output_dir,
         confirm_live=args.confirm_live,
         max_calls=args.max_calls,
         model=args.model,
+        cases_path=args.cases,
     )
-    print(f"적합성 분류 {summary.correct}/{summary.total} 정답, 오분류 {len(summary.mistakes)}건")
 
 
 if __name__ == "__main__":

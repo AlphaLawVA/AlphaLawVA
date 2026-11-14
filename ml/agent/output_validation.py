@@ -167,15 +167,18 @@ def evaluate_item(context: ItemContext, item: dict) -> list[CheckResult]:
     add("no_invented_period", "warn", not periods, ", ".join(periods))
 
     source_ids = item.get("evidence_source_ids")
+    # 특약은 근거 없이도 초안을 만들 수 있어 빈 목록을 허용한다(검토는 근거가 필수).
+    allow_empty = context.kind == "clause"
     valid_ids = (
         isinstance(source_ids, list)
-        and bool(source_ids)
+        and (bool(source_ids) or allow_empty)
         and all(value in context.evidence for value in source_ids)
     )
     add("evidence_ids_valid", "fail", valid_ids, "" if valid_ids else str(source_ids))
 
     if context.kind == "review":
-        required = _REVIEW_FIELDS
+        # safe 항목은 설명(summary)만 필요하고 수정안·협상 안내는 비어 있어야 한다.
+        required = _REVIEW_FIELDS if status != "safe" else ("summary",)
         limits = _REVIEW_LIMITS
         needs_fields = True
     else:
@@ -202,7 +205,7 @@ def evaluate_item(context: ItemContext, item: dict) -> list[CheckResult]:
 
     # 수정안·초안이 원문(요청)의 핵심 수치를 그대로 유지하는지 본다. 바꾸자는 제안은
     # 협의 안내에 있어야 하므로 빠지면 경고로 알린다.
-    if context.kind == "review" and context.category == "special_term":
+    if context.kind == "review" and context.category == "special_term" and status != "safe":
         target = str(item.get("revision") or "")
     elif context.kind == "clause" and status == "draft_ready":
         target = str(item.get("draft_text") or "")
@@ -225,7 +228,7 @@ def evaluate_item(context: ItemContext, item: dict) -> list[CheckResult]:
         if status == "needs_input":
             add("needs_input_has_questions", "fail", has_questions)
         if status == "draft_ready":
-            add("draft_ready_with_open_questions", "warn", not has_questions)
+            # 초안과 함께 남기는 확인 질문은 허용한다(추가로 정하면 좋은 항목).
             placeholders = _PLACEHOLDER.findall(str(item.get("draft_text") or ""))
             add("no_placeholder_in_ready", "fail", not placeholders, ", ".join(placeholders))
     return results

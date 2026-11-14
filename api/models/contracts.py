@@ -89,8 +89,9 @@ class ContractReviewAnalysisItem(ContractApiModel):
     item_id: str = Field(min_length=1)
     summary: str = Field(min_length=2, max_length=500)
     review_status: str = Field(pattern="^(safe|check)$")
-    revision: str = Field(min_length=2, max_length=1000)
-    negotiation: str = Field(min_length=2, max_length=700)
+    # review_status가 safe이면 수정안·협상 안내는 빈 문자열이다.
+    revision: str = Field(default="", max_length=1000)
+    negotiation: str = Field(default="", max_length=700)
     evidence_source_ids: list[str] = Field(min_length=1, max_length=6)
 
 
@@ -122,7 +123,7 @@ class SpecialClauseDraftItem(ContractApiModel):
     reason: str | None = Field(default=None, min_length=2, max_length=700)
     strategy: str | None = Field(default=None, min_length=2, max_length=700)
     needs_input: list[str] = Field(default_factory=list, max_length=5)
-    evidence_source_ids: list[str] = Field(default_factory=list, max_length=3)
+    evidence_source_ids: list[str] = Field(default_factory=list, max_length=5)
 
 
 class SpecialClauseDraftResponse(ContractApiModel):
