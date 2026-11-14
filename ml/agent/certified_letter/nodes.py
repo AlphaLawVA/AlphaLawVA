@@ -77,6 +77,7 @@ class CertifiedLetterNodes:
     ) -> CertifiedLetterGraphState:
         request = state["normalized_request"]
         classification = self.dependencies.scope_classifier.classify_scope(
+            request.sender_role,
             request.purpose,
             request.facts,
         )

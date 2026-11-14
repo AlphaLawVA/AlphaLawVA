@@ -1,0 +1,331 @@
+# openai.py
+"""
+Description: OpenAI Responses API의 구조화 출력을 내용증명 생성 포트에 연결한다.
+계약·분쟁 원문은 저장하지 않고 호출 메타데이터와 토큰 사용량만 기록한다.
+Author: choeminju
+Date: 2026-11-13
+Before:
+    - 내용증명 생성과 질문 분기를 하나의 Gemini 모델이 함께 처리하는 상태.
+After:
+    - GPT-6.1 Terra가 내용증명 생성·재작성을 담당하고 구조화 결과를 검증함.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import Lock
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+from ml.agent.certified_letter.gemini import LETTER_DRAFT_SCHEMA
+from ml.agent.certified_letter.prompts import PromptBundle
+from ml.agent.certified_letter.state import DraftPartyData, LetterDraftData
+
+
+DEFAULT_OPENAI_MODEL = "gpt-6.1-terra"
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_TIMEOUT_SECONDS = 120.0
+DEFAULT_MAX_OUTPUT_TOKENS = 4096
+DEFAULT_REASONING_EFFORT = "medium"
+MODEL_PRICING_USD_PER_MILLION = {
+    "gpt-6.1-terra": (1.00, 5.00),
+}
+SUPPORTED_REASONING_EFFORTS = {
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+}
+
+_USAGE_LOCK = Lock()
+
+
+class OpenAIStructuredLetterModel:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str = DEFAULT_OPENAI_MODEL,
+        base_url: str = DEFAULT_OPENAI_BASE_URL,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+        usage_manifest_path: Path | None = None,
+        max_session_cost_usd: float | None = None,
+    ) -> None:
+        normalized_key = api_key.strip()
+        normalized_model = model.strip()
+        normalized_base_url = base_url.strip().rstrip("/")
+        normalized_effort = reasoning_effort.strip().lower()
+        if not normalized_key:
+            raise ValueError("OpenAI API 키는 비어 있을 수 없습니다.")
+        if not normalized_model:
+            raise ValueError("OpenAI 모델명은 비어 있을 수 없습니다.")
+        if not normalized_base_url.startswith("https://"):
+            raise ValueError("OpenAI base URL은 HTTPS 주소여야 합니다.")
+        if timeout_seconds <= 0:
+            raise ValueError("OpenAI timeout은 0보다 커야 합니다.")
+        if max_output_tokens < 1:
+            raise ValueError("OpenAI 출력 토큰 수는 1 이상이어야 합니다.")
+        if normalized_effort not in SUPPORTED_REASONING_EFFORTS:
+            raise ValueError("OpenAI reasoning effort 설정이 올바르지 않습니다.")
+        if max_session_cost_usd is not None and max_session_cost_usd <= 0:
+            raise ValueError("OpenAI 세션 비용 상한은 0보다 커야 합니다.")
+        if (
+            max_session_cost_usd is not None
+            and normalized_model not in MODEL_PRICING_USD_PER_MILLION
+        ):
+            raise ValueError("비용 정보가 없는 OpenAI 모델에는 상한을 적용할 수 없습니다.")
+
+        self._api_key = normalized_key
+        self.model_name = normalized_model
+        self.base_url = normalized_base_url
+        self.timeout_seconds = timeout_seconds
+        self.max_output_tokens = max_output_tokens
+        self.reasoning_effort = normalized_effort
+        self.usage_manifest_path = usage_manifest_path
+        self.max_session_cost_usd = max_session_cost_usd
+        self._session_estimated_cost_usd = 0.0
+
+    @property
+    def session_estimated_cost_usd(self) -> float:
+        return round(self._session_estimated_cost_usd, 8)
+
+    def invoke(self, prompt: PromptBundle) -> LetterDraftData:
+        self._ensure_session_budget(prompt)
+        request_payload = {
+            "model": self.model_name,
+            "instructions": prompt.system,
+            "input": prompt.user,
+            "reasoning": {"effort": self.reasoning_effort},
+            "max_output_tokens": self.max_output_tokens,
+            "store": False,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "certified_letter_draft",
+                    "description": "구조화된 한국어 내용증명 초안",
+                    "strict": True,
+                    "schema": LETTER_DRAFT_SCHEMA,
+                }
+            },
+        }
+        usage = self._empty_usage()
+        try:
+            response_payload = self._post_json(request_payload)
+            usage = self._extract_usage(response_payload)
+            parsed = json.loads(self._extract_text(response_payload))
+            draft = self._parse_draft(parsed)
+        except Exception as error:
+            self._record_usage(
+                prompt,
+                usage,
+                success=False,
+                error_type=type(error).__name__,
+            )
+            raise
+
+        self._record_usage(prompt, usage, success=True)
+        return draft
+
+    def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
+        request = Request(
+            f"{self.base_url}/responses",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                body = response.read().decode("utf-8")
+        except HTTPError as error:
+            raise RuntimeError(
+                f"OpenAI 내용증명 모델 호출 실패: HTTP {error.code}"
+            ) from error
+        except (URLError, TimeoutError) as error:
+            raise RuntimeError("OpenAI 내용증명 모델을 호출할 수 없습니다.") from error
+
+        try:
+            parsed = json.loads(body)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("OpenAI 응답을 해석할 수 없습니다.") from error
+        if not isinstance(parsed, dict):
+            raise RuntimeError("OpenAI 응답 객체 형식이 올바르지 않습니다.")
+        return parsed
+
+    @staticmethod
+    def _extract_text(response_payload: dict[str, Any]) -> str:
+        if response_payload.get("status") == "incomplete":
+            raise RuntimeError("OpenAI 내용증명 응답이 토큰 제한 전에 완료되지 않았습니다.")
+        texts: list[str] = []
+        for output in response_payload.get("output") or []:
+            if output.get("type") != "message":
+                continue
+            for content in output.get("content") or []:
+                if content.get("type") == "refusal":
+                    raise RuntimeError("OpenAI가 내용증명 생성을 거부했습니다.")
+                if content.get("type") == "output_text" and content.get("text"):
+                    texts.append(str(content["text"]))
+        if not texts:
+            raise RuntimeError("OpenAI 응답에 output_text가 없습니다.")
+        return "\n".join(texts)
+
+    @staticmethod
+    def _extract_usage(response_payload: dict[str, Any]) -> dict[str, int]:
+        usage = response_payload.get("usage") or {}
+        input_tokens = int(usage.get("input_tokens") or 0)
+        output_tokens = int(usage.get("output_tokens") or 0)
+        total_tokens = int(usage.get("total_tokens") or 0)
+        if not total_tokens:
+            total_tokens = input_tokens + output_tokens
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+        }
+
+    @classmethod
+    def _parse_draft(cls, value: Any) -> LetterDraftData:
+        if not isinstance(value, dict):
+            raise ValueError("OpenAI 내용증명 응답은 객체여야 합니다.")
+        expected_keys = {
+            "title",
+            "sender",
+            "recipient",
+            "body",
+            "strategy_summary",
+            "follow_up_actions",
+            "warnings",
+        }
+        if set(value) != expected_keys:
+            raise ValueError("OpenAI 내용증명 응답 필드가 스키마와 일치하지 않습니다.")
+        return LetterDraftData(
+            title=cls._required_text(value["title"], "title", maximum=200),
+            sender=cls._parse_party(value["sender"], "sender"),
+            recipient=cls._parse_party(value["recipient"], "recipient"),
+            body=cls._required_text(value["body"], "body", maximum=12_000),
+            strategy_summary=cls._required_text(
+                value["strategy_summary"],
+                "strategy_summary",
+                maximum=2_000,
+            ),
+            follow_up_actions=cls._string_tuple(
+                value["follow_up_actions"],
+                "follow_up_actions",
+            ),
+            warnings=cls._string_tuple(value["warnings"], "warnings"),
+        )
+
+    @classmethod
+    def _parse_party(cls, value: Any, field: str) -> DraftPartyData:
+        if not isinstance(value, dict) or set(value) != {
+            "name",
+            "address",
+            "detail_address",
+        }:
+            raise ValueError(f"OpenAI {field} 필드가 올바르지 않습니다.")
+        detail_address = value["detail_address"]
+        if detail_address is not None:
+            detail_address = cls._required_text(
+                detail_address,
+                f"{field}.detail_address",
+                maximum=300,
+            )
+        return DraftPartyData(
+            name=cls._required_text(value["name"], f"{field}.name", maximum=100),
+            address=cls._required_text(
+                value["address"],
+                f"{field}.address",
+                maximum=300,
+            ),
+            detail_address=detail_address,
+        )
+
+    @classmethod
+    def _string_tuple(cls, value: Any, field: str) -> tuple[str, ...]:
+        if not isinstance(value, list) or len(value) > 8:
+            raise ValueError(f"OpenAI {field} 필드가 올바르지 않습니다.")
+        return tuple(
+            cls._required_text(item, field, maximum=500) for item in value
+        )
+
+    @staticmethod
+    def _required_text(value: Any, field: str, *, maximum: int) -> str:
+        if not isinstance(value, str):
+            raise ValueError(f"OpenAI {field} 필드는 문자열이어야 합니다.")
+        normalized = value.strip()
+        if not normalized or len(normalized) > maximum:
+            raise ValueError(f"OpenAI {field} 필드 길이가 올바르지 않습니다.")
+        return normalized
+
+    def _record_usage(
+        self,
+        prompt: PromptBundle,
+        usage: dict[str, int],
+        *,
+        success: bool,
+        error_type: str | None = None,
+    ) -> None:
+        estimated_cost = self._estimated_cost(usage)
+        self._session_estimated_cost_usd += estimated_cost
+        if self.usage_manifest_path is None:
+            return
+        record: dict[str, str | int | float | bool] = {
+            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "provider": "openai",
+            "model": self.model_name,
+            "prompt_version": prompt.version,
+            "request_kind": "draft",
+            "success": success,
+            "input_tokens": usage["input_tokens"],
+            "output_tokens": usage["output_tokens"],
+            "total_tokens": usage["total_tokens"],
+            "estimated_cost_usd": round(estimated_cost, 8),
+            "retry_count": 0,
+        }
+        if error_type:
+            record["error_type"] = error_type
+        with _USAGE_LOCK:
+            self.usage_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.usage_manifest_path.open("a", encoding="utf-8") as file:
+                file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def _ensure_session_budget(self, prompt: PromptBundle) -> None:
+        if self.max_session_cost_usd is None:
+            return
+        input_price, output_price = MODEL_PRICING_USD_PER_MILLION[self.model_name]
+        conservative_input_tokens = len(
+            f"{prompt.system}\n{prompt.user}".encode("utf-8")
+        ) + 1024
+        conservative_next_cost = (
+            conservative_input_tokens * input_price
+            + self.max_output_tokens * output_price
+        ) / 1_000_000
+        if (
+            self._session_estimated_cost_usd + conservative_next_cost
+            > self.max_session_cost_usd
+        ):
+            raise RuntimeError("OpenAI 내용증명 세션 비용 상한을 초과할 수 있습니다.")
+
+    def _estimated_cost(self, usage: dict[str, int]) -> float:
+        input_price, output_price = MODEL_PRICING_USD_PER_MILLION.get(
+            self.model_name,
+            (0.0, 0.0),
+        )
+        return (
+            usage["input_tokens"] * input_price
+            + usage["output_tokens"] * output_price
+        ) / 1_000_000
+
+    @staticmethod
+    def _empty_usage() -> dict[str, int]:
+        return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}

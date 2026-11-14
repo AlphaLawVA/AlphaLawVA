@@ -25,6 +25,7 @@ from ml.agent.certified_letter.prompts import PromptBundle
 from ml.agent.certified_letter.scope import build_scope_prompt
 from ml.agent.certified_letter.state import (
     CertifiedLetterScopeDecision,
+    ContractPartyRole,
     DraftPartyData,
     LetterDraftData,
     ScopeClassification,
@@ -107,9 +108,9 @@ SCOPE_CLASSIFICATION_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "string",
-                "enum": ["purpose", "facts"],
+                "enum": ["sender_role", "purpose", "facts"],
             },
-            "maxItems": 2,
+            "maxItems": 3,
         },
     },
     "required": ["decision", "missing_fields"],
@@ -209,8 +210,13 @@ class GeminiStructuredLetterModel:
         )
         return draft
 
-    def classify_scope(self, purpose: str, facts: str) -> ScopeClassification:
-        prompt = build_scope_prompt(purpose, facts)
+    def classify_scope(
+        self,
+        sender_role: ContractPartyRole,
+        purpose: str,
+        facts: str,
+    ) -> ScopeClassification:
+        prompt = build_scope_prompt(sender_role, purpose, facts)
         self._ensure_session_budget(
             prompt,
             max_output_tokens=SCOPE_MAX_OUTPUT_TOKENS,
@@ -359,9 +365,12 @@ class GeminiStructuredLetterModel:
         missing_fields = value["missing_fields"]
         if (
             not isinstance(missing_fields, list)
-            or len(missing_fields) > 2
+            or len(missing_fields) > 3
             or len(set(missing_fields)) != len(missing_fields)
-            or any(item not in {"purpose", "facts"} for item in missing_fields)
+            or any(
+                item not in {"sender_role", "purpose", "facts"}
+                for item in missing_fields
+            )
         ):
             raise ValueError("Gemini 범위 분류 missing_fields가 올바르지 않습니다.")
         if decision is CertifiedLetterScopeDecision.NEEDS_INFORMATION:

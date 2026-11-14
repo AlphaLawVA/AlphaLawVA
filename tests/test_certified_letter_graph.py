@@ -26,6 +26,7 @@ from ml.agent.certified_letter.state import (
 
 def make_request(
     *,
+    sender_role: ContractPartyRole = ContractPartyRole.LESSEE,
     purpose: str = "보증금을 반환받고 싶습니다.",
     facts: str = (
         "임대인 홍길동에게 서울특별시 종로구 사직로 1로 보증금 반환을 "
@@ -34,7 +35,7 @@ def make_request(
     lessor_address: str = "서울특별시 종로구 사직로 1",
 ):
     return CertifiedLetterRequestData(
-        sender_role=ContractPartyRole.LESSEE,
+        sender_role=sender_role,
         purpose=purpose,
         facts=facts,
         requested_deadline=None,
@@ -139,8 +140,8 @@ class FakeScopeClassifier:
         self.result = ScopeClassification(decision, tuple(missing_fields))
         self.calls = []
 
-    def classify_scope(self, purpose, facts):
-        self.calls.append((purpose, facts))
+    def classify_scope(self, sender_role, purpose, facts):
+        self.calls.append((sender_role, purpose, facts))
         return self.result
 
 
@@ -245,6 +246,7 @@ class CertifiedLetterGraphTests(unittest.TestCase):
             dependencies.scope_classifier.calls,
             [
                 (
+                    ContractPartyRole.LESSEE,
                     "주말 저녁 메뉴를 추천해 주세요.",
                     "친구들과 먹을 저녁 음식 종류를 추천받고 싶습니다.",
                 )
@@ -276,6 +278,31 @@ class CertifiedLetterGraphTests(unittest.TestCase):
                 "내용증명으로 달성하려는 구체적인 목적",
                 "분쟁 경위와 상대방의 구체적인 행위",
             ),
+        )
+
+    def test_role_conflict_returns_sender_role_confirmation_label(self):
+        dependencies, statute_search, precedent_search, generator, _validator = (
+            make_dependencies(
+                scope_decision=CertifiedLetterScopeDecision.NEEDS_INFORMATION,
+                scope_missing_fields=("sender_role",),
+            )
+        )
+        graph = build_certified_letter_graph(dependencies)
+
+        result = graph.invoke(
+            {
+                "request": make_request(
+                    sender_role=ContractPartyRole.LESSOR,
+                    purpose="계약 종료 후 보증금을 반환받고 싶습니다.",
+                    facts="임대인이 보증금을 돌려주지 않고 있습니다.",
+                )
+            }
+        )
+
+        self.assertEqual(result["outcome"], "needs_information")
+        self.assertEqual(
+            result["missing_information"],
+            ("내용증명 발신인 역할과 요청 내용의 일치 여부",),
         )
         self.assertEqual(statute_search.calls, [])
         self.assertEqual(precedent_search.calls, [])
