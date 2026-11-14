@@ -10,6 +10,7 @@ import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryRevi
 import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
 import type { ContractEvidence, ContractReviewItem, ContractReviewResult } from "@/lib/contract-api";
+import { getPrecedentFullText, mergePrecedentFullText } from "@/lib/precedent-api";
 import styles from "../contract-review.module.css";
 
 type ResultTab = "clauses" | "registry";
@@ -139,6 +140,7 @@ export function ResultDemo() {
   const [tab, setTab] = useState<ResultTab>(initialTab);
   const [selectedId, setSelectedId] = useState(demoClauseReviews[0].id);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
+  const [fullTextLoading, setFullTextLoading] = useState(false);
   const liveResult = useSyncExternalStore(
     () => () => undefined,
     loadContractReviewResult,
@@ -162,6 +164,17 @@ export function ResultDemo() {
   const safeRegistryCount = registryReviews.filter((item) => item.status === "safe").length;
   const cautionRegistryCount = registryReviews.filter((item) => item.status === "caution").length;
   const checkRegistryCount = registryReviews.length - safeRegistryCount - cautionRegistryCount;
+
+  async function openPrecedentFullText() {
+    if (!precedentModal || fullTextLoading) return;
+    setFullTextLoading(true);
+    try {
+      const fullText = await getPrecedentFullText(precedentModal.precedent.precedentId);
+      setPrecedentModal((modal) => modal && { ...modal, precedent: mergePrecedentFullText(modal.precedent, fullText) });
+    } finally {
+      setFullTextLoading(false);
+    }
+  }
 
   return (
     <>
@@ -315,7 +328,15 @@ export function ResultDemo() {
         {liveResult && <SaveGenerationResultButton className={styles.secondaryButton} kind="contract_review" sourceId={liveResult.review_id} loginNext="/contract-review/result" />}
         <Link className={styles.secondaryButton} href="/contract-review">새 문서 검토</Link>
       </div>
-      {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
+      {precedentModal && (
+        <PrecedentModal
+          initialView={precedentModal.initialView}
+          onClose={() => setPrecedentModal(null)}
+          precedent={precedentModal.precedent}
+          onOpenFullText={openPrecedentFullText}
+          fullTextLoading={fullTextLoading}
+        />
+      )}
     </>
   );
 }
