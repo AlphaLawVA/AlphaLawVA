@@ -24,6 +24,8 @@ from api.models.contracts import (
     SpecialClauseDraftRequest,
     SpecialClauseDraftResponse,
 )
+from api.services.precedent_case_repository import PrecedentCaseRepository
+from api.services.precedent_evidence_enricher import enrich_precedent_evidence_metadata
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
 from ml.agent.special_clause_graph import (
     SpecialClauseGenerator,
@@ -56,11 +58,13 @@ class SpecialClauseService:
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         generator: SpecialClauseGenerator | None = None,
         scope_classifier: SpecialClauseScopeClassifier | None = None,
+        precedent_repository: PrecedentCaseRepository | None = None,
     ) -> None:
         self._graph = graph or SpecialClauseGraph()
         self._evidence_retriever = evidence_retriever
         self._generator = generator
         self._scope_classifier = scope_classifier
+        self._precedent_repository = precedent_repository or PrecedentCaseRepository()
         self._result_recorder: Callable[..., None] | None = None
 
     def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
@@ -178,7 +182,12 @@ class SpecialClauseService:
                     "text": item.text,
                     "rank": item.rank,
                     "similarity": item.similarity,
-                    "metadata": item.metadata,
+                    "metadata": enrich_precedent_evidence_metadata(
+                        source_type=item.source_type,
+                        source_id=item.source_id,
+                        metadata=item.metadata,
+                        repository=self._precedent_repository,
+                    ),
                 }
                 for item in returned_evidence
             ],

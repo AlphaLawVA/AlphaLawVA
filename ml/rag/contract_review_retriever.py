@@ -261,30 +261,45 @@ class ContractReviewRagRetriever:
         query: ContractReviewRetrievalQuery,
     ) -> list[ContractReviewEvidence]:
         assert self._precedent_retriever is not None
-        return [
-            ContractReviewEvidence(
-                item_id=query.item_id,
-                source_type="precedent",
-                source_id=result.precedent_id,
-                title=result.case_name or result.case_no or result.precedent_id,
-                text=result.text,
-                rank=result.rank,
-                similarity=result.similarity,
-                metadata={
-                    "case_no": result.case_no,
-                    "case_name": result.case_name,
-                    "court_name": result.court_name,
-                    "decision_date": result.decision_date,
-                    "decision_year": result.decision_year,
-                    "case_type": result.case_type,
-                    "judgment_type": result.judgment_type,
-                },
+        results = self._precedent_retriever.search(
+            query.query,
+            top_k=self._precedent_top_k,
+        )
+        evidence = []
+        for result in results:
+            matched_chunk = result.matched_chunks[0] if result.matched_chunks else None
+            evidence.append(
+                ContractReviewEvidence(
+                    item_id=query.item_id,
+                    source_type="precedent",
+                    source_id=result.precedent_id,
+                    title=result.case_name or result.case_no or result.precedent_id,
+                    text=result.text,
+                    rank=result.rank,
+                    similarity=result.similarity,
+                    metadata={
+                        "case_no": result.case_no,
+                        "case_name": result.case_name,
+                        "court_name": result.court_name,
+                        "decision_date": result.decision_date,
+                        "decision_year": result.decision_year,
+                        "case_type": result.case_type,
+                        "judgment_type": result.judgment_type,
+                        "matched_section": (
+                            matched_chunk.section if matched_chunk else None
+                        ),
+                        "matched_chunk_type": (
+                            matched_chunk.chunk_type if matched_chunk else None
+                        ),
+                        "matched_section_chunk_index": (
+                            matched_chunk.section_chunk_index
+                            if matched_chunk
+                            else None
+                        ),
+                    },
+                )
             )
-            for result in self._precedent_retriever.search(
-                query.query,
-                top_k=self._precedent_top_k,
-            )
-        ]
+        return evidence
 
 
 class SharedBgeM3ModelLoader:

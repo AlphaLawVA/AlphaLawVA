@@ -9,7 +9,7 @@ import { SaveGenerationResultButton } from "@/components/save-generation-result-
 import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
 import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
-import type { ContractEvidence, ContractReviewItem, ContractReviewResult } from "@/lib/contract-api";
+import { contractEvidenceToPrecedent, type ContractEvidence, type ContractReviewItem, type ContractReviewResult } from "@/lib/contract-api";
 import { getPrecedentFullText, mergePrecedentFullText } from "@/lib/precedent-api";
 import styles from "../contract-review.module.css";
 
@@ -51,16 +51,6 @@ function statuteBasis(evidence: ContractEvidence): LegalBasis {
   };
 }
 
-function precedentBasis(evidence: ContractEvidence): CaseBasis {
-  return {
-    title: evidence.title,
-    caseNumber: String(evidence.metadata.case_number ?? evidence.title),
-    precedentId: evidence.source_id,
-    summary: evidence.text,
-    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
-  };
-}
-
 function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
   return result.contract_items.map((item) => {
     const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
@@ -77,7 +67,7 @@ function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
       revision: analysis?.revision ?? "근거 기반 수정 초안을 생성하지 못했습니다. 원문을 직접 확인하세요.",
       negotiation: analysis?.negotiation ?? "적용 범위와 사실관계를 상대방과 확인하세요.",
       statutes: evidence.filter((entry) => entry.source_type === "statute").map(statuteBasis),
-      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(precedentBasis),
+      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(contractEvidenceToPrecedent),
     };
   });
 }

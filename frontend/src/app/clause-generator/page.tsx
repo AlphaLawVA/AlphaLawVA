@@ -7,7 +7,7 @@ import { SaveGenerationResultButton } from "@/components/save-generation-result-
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
-import { createSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
+import { contractEvidenceToPrecedent, createSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
 import { getPrecedentFullText, mergePrecedentFullText } from "@/lib/precedent-api";
 import styles from "../feature-demo.module.css";
 
@@ -94,19 +94,14 @@ function evidenceToLaw(evidence: ContractEvidence): LegalBasis {
   };
 }
 
-function evidenceToPrecedent(evidence: ContractEvidence): CaseBasis {
-  return {
-    title: evidence.title,
-    caseNumber: String(evidence.metadata.case_number ?? evidence.title),
-    precedentId: evidence.source_id,
-    summary: evidence.text,
-    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
-  };
-}
-
 function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
   return result.items.map((item) => {
-    const evidence = result.evidence.filter((entry) => item.evidence_source_ids.includes(entry.source_id));
+    const itemId = `request-${item.request_index}`;
+    const itemEvidence = result.evidence.filter((entry) => entry.item_id === itemId);
+    const citedStatutes = itemEvidence.filter(
+      (entry) => entry.source_type === "statute" && item.evidence_source_ids.includes(entry.source_id),
+    );
+    const relatedPrecedents = itemEvidence.filter((entry) => entry.source_type === "precedent");
     const needsInput = item.needs_input.join(" ");
     if (item.status === "out_of_scope") {
       return {
@@ -125,8 +120,8 @@ function generatedFromApi(result: SpecialClauseDraftResult): GeneratedClause[] {
       strategy: item.strategy ?? "내용을 보완해 다시 입력하시면 그에 맞춰 초안을 만들어 드립니다.",
       // 초안이 있으면 남은 확인 질문은 '함께 정해두면 좋은 내용'으로 따로 보여준다.
       followUps: item.draft_text ? item.needs_input : undefined,
-      statutes: evidence.filter((entry) => entry.source_type === "statute").map(evidenceToLaw),
-      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(evidenceToPrecedent),
+      statutes: citedStatutes.map(evidenceToLaw),
+      precedents: relatedPrecedents.map(contractEvidenceToPrecedent),
     };
   });
 }
