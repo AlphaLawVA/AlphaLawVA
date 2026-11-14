@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from ml.agent.certified_letter.normalizer import normalize_request
@@ -40,10 +41,14 @@ ISSUE_KEYWORDS = {
     "차임 또는 관리비": ("월세", "차임", "관리비", "연체"),
 }
 
-STATUTE_CANDIDATE_LIMIT = 20
-STATUTE_RESULT_LIMIT = 5
-PRECEDENT_CANDIDATE_LIMIT = 20
-PRECEDENT_RESULT_LIMIT = 5
+STATUTE_CANDIDATE_LIMIT = 10
+STATUTE_MIN_SIMILARITY = 0.35
+STATUTE_RESULT_LIMIT = 3
+PRECEDENT_CANDIDATE_LIMIT = 10
+PRECEDENT_RESULT_LIMIT = 3
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -191,11 +196,27 @@ class CertifiedLetterNodes:
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
         query = " ".join(state["statute_queries"])
-        selected = self.dependencies.statute_reranker.rerank(
-            query,
-            state.get("statute_candidates", ()),
-            top_k=STATUTE_RESULT_LIMIT,
+        candidates = tuple(
+            candidate
+            for candidate in state.get("statute_candidates", ())
+            if candidate.similarity >= STATUTE_MIN_SIMILARITY
         )
+        try:
+            selected = self.dependencies.statute_reranker.rerank(
+                query,
+                candidates,
+                top_k=STATUTE_RESULT_LIMIT,
+            )
+        except Exception:  # noqa: BLE001 - 리랭커 장애가 내용증명 생성을 막지 않게 한다.
+            logger.warning(
+                "내용증명 법령 리랭커 실패, dense 유사도 순서를 사용합니다.",
+                exc_info=True,
+            )
+            selected = sorted(
+                candidates,
+                key=lambda candidate: candidate.similarity,
+                reverse=True,
+            )[:STATUTE_RESULT_LIMIT]
         return {"selected_statutes": tuple(selected)}
 
     def retrieve_precedents(
@@ -213,11 +234,23 @@ class CertifiedLetterNodes:
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
         query = " ".join(state["precedent_queries"])
-        selected = self.dependencies.precedent_reranker.rerank(
-            query,
-            state.get("precedent_candidates", ()),
-            top_k=PRECEDENT_RESULT_LIMIT,
-        )
+        candidates = tuple(state.get("precedent_candidates", ()))
+        try:
+            selected = self.dependencies.precedent_reranker.rerank(
+                query,
+                candidates,
+                top_k=PRECEDENT_RESULT_LIMIT,
+            )
+        except Exception:  # noqa: BLE001 - 리랭커 장애가 내용증명 생성을 막지 않게 한다.
+            logger.warning(
+                "내용증명 판례 리랭커 실패, dense 유사도 순서를 사용합니다.",
+                exc_info=True,
+            )
+            selected = sorted(
+                candidates,
+                key=lambda candidate: candidate.similarity,
+                reverse=True,
+            )[:PRECEDENT_RESULT_LIMIT]
         return {"selected_precedents": tuple(selected)}
 
     def check_evidence(

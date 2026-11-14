@@ -38,8 +38,15 @@ from ml.agent.certified_letter.retrieval import (
     BgeM3PrecedentSearchAdapter,
     BgeM3StatuteSearchAdapter,
 )
+from ml.rag.precedent_eligibility import (
+    create_eligibility_filtered_precedent_retriever_from_env,
+)
 from ml.rag.precedent_retriever import BgeM3PrecedentRetriever
-from ml.rag.reranker import CrossEncoderReranker, DenseSimilarityReranker
+from ml.rag.reranker import (
+    SHARED_CROSS_ENCODER_MODEL_LOADER,
+    CrossEncoderReranker,
+    DenseSimilarityReranker,
+)
 from ml.rag.statute_retriever import (
     BgeM3StatuteRetriever,
     load_bge_model as load_statute_bge_model,
@@ -186,25 +193,27 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
             model_loader=shared_model_loader,
         )
     )
-    precedent_search = BgeM3PrecedentSearchAdapter(
+    precedent_retriever = create_eligibility_filtered_precedent_retriever_from_env(
         BgeM3PrecedentRetriever(
             db_dir=precedent_db,
             model_cache=model_cache,
             device=device,
             model_loader=shared_model_loader,
-        )
+        ),
+        base_dir=runtime_root,
     )
+    precedent_search = BgeM3PrecedentSearchAdapter(precedent_retriever)
     statute_reranker = _create_reranker(
         role="STATUTE",
         local_data_dir=local_data_dir,
         runtime_root=runtime_root,
-        default="dense",
+        default="kure-reranker-nano",
     )
     precedent_reranker = _create_reranker(
         role="PRECEDENT",
         local_data_dir=local_data_dir,
         runtime_root=runtime_root,
-        default="bge-reranker-v2-m3",
+        default="kure-reranker-nano",
     )
     graph = create_certified_letter_workflow(
         model=model,
@@ -259,6 +268,7 @@ def _create_reranker(
             "CERTIFIED_LETTER_RERANKER_TRUST_REMOTE_CODE",
             default=False,
         ),
+        model_loader=SHARED_CROSS_ENCODER_MODEL_LOADER,
     )
 
 

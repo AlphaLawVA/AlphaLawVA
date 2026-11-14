@@ -58,6 +58,10 @@ class FakeRetriever:
         self.calls.append((query, top_k))
         return self.results[:top_k]
 
+    def search_many(self, queries, *, top_k=10):
+        self.calls.append((tuple(queries), top_k))
+        return [self.results[:top_k] for _query in queries]
+
 
 class PrecedentSearchEligibilityTests(unittest.TestCase):
     def test_filters_candidates_and_reassigns_public_ranks(self):
@@ -86,6 +90,24 @@ class PrecedentSearchEligibilityTests(unittest.TestCase):
         results = retriever.search("질문", top_k=5)
 
         self.assertEqual([result.precedent_id for result in results], ["2"])
+
+    def test_filters_each_batch_for_certified_letter_search_many(self):
+        delegate = FakeRetriever(
+            [search_result(index, str(index)) for index in range(1, 9)]
+        )
+        retriever = EligibilityFilteredPrecedentRetriever(
+            delegate,
+            frozenset({"2", "5", "7"}),
+            candidate_multiplier=4,
+        )
+
+        results = retriever.search_many(["질문 1", "질문 2"], top_k=2)
+
+        self.assertEqual(delegate.calls, [(('질문 1', '질문 2'), 8)])
+        self.assertEqual(
+            [[result.precedent_id for result in batch] for batch in results],
+            [["2", "5"], ["2", "5"]],
+        )
 
     def test_loads_and_validates_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
