@@ -8,6 +8,7 @@ import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/moc
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
 import { createSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
+import { getPrecedentFullText, mergePrecedentFullText } from "@/lib/precedent-api";
 import styles from "../feature-demo.module.css";
 
 // 서버가 한 번에 받는 요청 개수 상한(api/models/contracts.py의
@@ -142,6 +143,7 @@ export default function ClauseGeneratorPage() {
   const [focusedRequestId, setFocusedRequestId] = useState<number | null>(null);
   const [draftResult, setDraftResult] = useState<SpecialClauseDraftResult | null>(null);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
+  const [fullTextLoading, setFullTextLoading] = useState(false);
   const validRequests = useMemo(() => requests.map((item) => item.value.trim()).filter(Boolean), [requests]);
   const generated = useMemo(
     () => draftResult ? generatedFromApi(draftResult) : validRequests.map(buildClause),
@@ -216,6 +218,17 @@ export default function ClauseGeneratorPage() {
     setSelected(0);
     setDraftResult(null);
     setStage("input");
+  }
+
+  async function openPrecedentFullText() {
+    if (!precedentModal || fullTextLoading) return;
+    setFullTextLoading(true);
+    try {
+      const fullText = await getPrecedentFullText(precedentModal.precedent.precedentId);
+      setPrecedentModal((modal) => modal && { ...modal, precedent: mergePrecedentFullText(modal.precedent, fullText) });
+    } finally {
+      setFullTextLoading(false);
+    }
   }
 
   return (
@@ -328,7 +341,15 @@ export default function ClauseGeneratorPage() {
         {stage === "result" && draftResult && <SaveGenerationResultButton className={styles.secondaryButton} kind="special_clause" sourceId={draftResult.draft_id} loginNext="/clause-generator" />}
         {stage === "result" && <button className={styles.primaryButton} type="button" onClick={startNewRequest}><Plus size={17} aria-hidden="true" />새 요청 작성</button>}
       </div>
-      {precedentModal && <PrecedentModal initialView={precedentModal.initialView} onClose={() => setPrecedentModal(null)} precedent={precedentModal.precedent} />}
+      {precedentModal && (
+        <PrecedentModal
+          initialView={precedentModal.initialView}
+          onClose={() => setPrecedentModal(null)}
+          precedent={precedentModal.precedent}
+          onOpenFullText={openPrecedentFullText}
+          fullTextLoading={fullTextLoading}
+        />
+      )}
     </main>
   );
 }
