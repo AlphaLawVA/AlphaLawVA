@@ -4,6 +4,11 @@
   padding: 58px 0 90px;
 }
 
+/* 계약서 검토의 OCR 확인 화면(2단 레이아웃)과 같은 너비를 쓰기 위한 확장 폭. */
+.pageWide {
+  width: min(1560px, calc(100% - 48px));
+}
+
 .header {
   margin-bottom: 30px;
 }

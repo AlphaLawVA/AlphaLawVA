@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Bookmark, Check, CheckCircle2, Download, FileText, Info, LoaderCircle, ScanText, Upload } from "lucide-react";
+import { LiveProgress } from "@/components/live-progress";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { UploadGuide } from "@/components/upload-guide";
+import { createContractOcrDraft, mapContractOcrDraftToSnapshot } from "@/lib/contract-ocr-api";
 import {
   buildCertifiedLetterContract,
   createCertifiedLetterDraft,
@@ -19,6 +21,8 @@ import { validateDemoFile } from "@/lib/demo-validation";
 import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
 import { createClient } from "@/lib/supabase/client";
 import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-demo";
+// 계약서 검토의 OCR 동의 문구·확인 화면과 디자인을 맞추기 위해 같은 스타일시트를 함께 쓴다.
+import reviewStyles from "../contract-review/contract-review.module.css";
 import styles from "../feature-demo.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
@@ -26,6 +30,14 @@ type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "re
 const purposeExample = "예: 계약 종료 후 보증금 전액을 반환받고 싶습니다.";
 const factsExample =
   "예: 계약서에 기재된 종료일이 지났지만 보증금을 돌려받지 못했습니다. 임대인에게 반환을 요청했지만 아직 지급되지 않았습니다.";
+
+// 계약서 검토의 OCR 분석 화면과 같은 단계 구성(copy 포함)을 그대로 쓴다.
+const ocrStages = [
+  { at: 12, label: "업로드한 문서 형식을 확인하고 있습니다" },
+  { at: 30, label: "Google Document AI가 글자와 표 영역을 인식하고 있습니다" },
+  { at: 85, label: "계약정보를 사용자 확인 항목으로 구조화하고 있습니다" },
+  { at: 100, label: "확인 화면을 준비하고 있습니다" },
+];
 
 export default function CertifiedLetterPage() {
   const router = useRouter();
@@ -46,6 +58,10 @@ export default function CertifiedLetterPage() {
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [contractType, setContractType] = useState<"jeonse" | "monthly_rent" | "sale">("jeonse");
+  const [providerConsent, setProviderConsent] = useState(false);
+  const [isRealOcr, setIsRealOcr] = useState(false);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const pollingTimer = useRef<number | null>(null);
   const mounted = useRef(true);
@@ -58,17 +74,25 @@ export default function CertifiedLetterPage() {
     };
   }, []);
 
+  // 샘플 계약서(실제 OCR 없음)일 때만 가짜 진행률로 바로 확인 화면까지 넘어간다.
   useEffect(() => {
-    if (stage !== "processing") return;
+    if (stage !== "processing" || isRealOcr) return;
     const timer = window.setInterval(() => setProgress((value) => Math.min(100, value + 5)), 120);
     return () => window.clearInterval(timer);
-  }, [stage]);
+  }, [stage, isRealOcr]);
 
   useEffect(() => {
-    if (stage !== "processing" || progress < 100) return;
+    if (stage !== "processing" || isRealOcr || progress < 100) return;
     const timer = window.setTimeout(() => setStage("verify"), 350);
     return () => window.clearTimeout(timer);
-  }, [progress, stage]);
+  }, [progress, stage, isRealOcr]);
+
+  // 실제 OCR 요청 중에는 응답이 올 때까지 92%에서 기다린다.
+  useEffect(() => {
+    if (stage !== "processing" || !isRealOcr) return;
+    const timer = window.setInterval(() => setProgress((value) => Math.min(92, value + 4)), 250);
+    return () => window.clearInterval(timer);
+  }, [stage, isRealOcr]);
 
   useEffect(() => {
     if (stage !== "generating") return;
@@ -143,13 +167,49 @@ export default function CertifiedLetterPage() {
 
   function selectFile(file?: File) {
     if (!file) return;
-    const validationError = validateDemoFile(file);
+    const validationError = validateDemoFile(file)
+      || (file.name.split(".").pop()?.toLowerCase() !== "pdf"
+        ? "현재 실시간 OCR은 3페이지 표준 계약서 PDF만 지원합니다."
+        : "");
     setFileError(validationError);
     setLoaded(!validationError);
     setFileName(validationError ? "" : file.name);
+    setContractFile(validationError ? null : file);
+    setProviderConsent(false);
     if (!validationError) {
       clearDocumentPreviews();
       setDocumentPreview("contract", file);
+    }
+  }
+
+  async function runContractOcr(file: File) {
+    try {
+      const draft = await createContractOcrDraft(file, contractType);
+      if (!mounted.current) return;
+      setConfirmedSnapshot(mapContractOcrDraftToSnapshot(draft));
+      setProgress(100);
+      window.setTimeout(() => {
+        if (mounted.current) setStage("verify");
+      }, 350);
+    } catch (ocrError) {
+      if (!mounted.current) return;
+      setFileError(ocrError instanceof Error ? ocrError.message : "계약정보를 읽지 못했습니다.");
+      setIsRealOcr(false);
+      setStage("upload");
+    }
+  }
+
+  function startReading() {
+    setFileError("");
+    if (contractFile) {
+      setIsRealOcr(true);
+      setProgress(12);
+      setStage("processing");
+      void runContractOcr(contractFile);
+    } else {
+      setIsRealOcr(false);
+      setProgress(8);
+      setStage("processing");
     }
   }
 
@@ -158,6 +218,10 @@ export default function CertifiedLetterPage() {
     clearDocumentPreviews();
     setLoaded(false);
     setFileName("");
+    setContractFile(null);
+    setContractType("jeonse");
+    setProviderConsent(false);
+    setIsRealOcr(false);
     setDraftResult(null);
     setGeneratedAt(null);
     setCompletedDraftId(null);
@@ -200,13 +264,17 @@ export default function CertifiedLetterPage() {
   }
 
   const stepIndex = stage === "upload" || stage === "processing" ? 0 : stage === "verify" ? 1 : stage === "request" ? 2 : 3;
+  const currentOcrStageIndex = Math.max(
+    0,
+    ocrStages.reduce((index, ocrStage, nextIndex) => (progress >= ocrStage.at ? nextIndex : index), 0),
+  );
   const relatedPrecedents = draftResult?.similar_precedents.map(mapCertifiedLetterPrecedent) ?? [];
   const generatedDate = generatedAt
     ? new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(generatedAt)
     : "";
 
   return (
-    <main className={styles.page}>
+    <main className={stage === "verify" ? `${styles.page} ${styles.pageWide}` : styles.page}>
       <header className={styles.header}>
         <p className={styles.eyebrow}>계약정보를 바탕으로 전달 내용을 문서화</p>
         <h1>내용증명 생성</h1>
@@ -224,21 +292,55 @@ export default function CertifiedLetterPage() {
             <div className={styles.letterDropzone}>
               <span><Upload size={24} /></span><strong>PDF 또는 이미지 파일</strong><p>PDF, JPG, PNG · 최대 20MB</p>
               <label className={styles.secondaryButton}><Upload size={17} />내 파일 선택<input className={styles.fileInput} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => selectFile(event.target.files?.[0])} /></label>
-              <button className={styles.textButton} type="button" onClick={() => { clearDocumentPreviews(); setLoaded(true); setFileName("전세_손글씨_샘플.pdf"); setFileError(""); }}><FileText size={16} />샘플 계약서 사용</button>
+              <button className={styles.textButton} type="button" onClick={() => { clearDocumentPreviews(); setLoaded(true); setFileName("전세_손글씨_샘플.pdf"); setFileError(""); setContractFile(null); setProviderConsent(false); }}><FileText size={16} />샘플 계약서 사용</button>
             </div>
             {fileError && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>파일을 읽을 수 없습니다</strong><span>{fileError}</span></div></div>}
             {loaded && <div className={styles.uploadedFile}><div><FileText size={17} /><span>{fileName || "전세_손글씨_샘플.pdf"}</span></div><CheckCircle2 size={18} /></div>}
-            <div className={styles.actions}><button className={styles.primaryButton} type="button" disabled={!loaded} onClick={() => { setProgress(8); setStage("processing"); }}><ScanText size={17} />계약정보 읽기</button></div>
+            {contractFile && (
+              <>
+                <div className={styles.field}>
+                  <label htmlFor="contract-type">계약 유형</label>
+                  <select id="contract-type" value={contractType} onChange={(event) => setContractType(event.target.value as typeof contractType)}>
+                    <option value="jeonse">전세</option>
+                    <option value="monthly_rent">월세</option>
+                    <option value="sale">매매</option>
+                  </select>
+                </div>
+                <label className={reviewStyles.consentRow}>
+                  <input checked={providerConsent} type="checkbox" onChange={(event) => setProviderConsent(event.target.checked)} />
+                  <span className={reviewStyles.consentCopy}>
+                    <strong>Google Document AI 전송에 동의합니다</strong>
+                    <span>OCR을 위해 선택한 계약서 PDF가 Google LLC의 미국 us 리전으로 전송됩니다.</span>
+                    <small>서버는 원본 파일과 OCR 원문을 처리 후 저장하지 않습니다. 동의하지 않으면 실시간 OCR을 사용할 수 없습니다.</small>
+                  </span>
+                </label>
+              </>
+            )}
+            <div className={styles.actions}><button className={styles.primaryButton} type="button" disabled={!loaded || (contractFile !== null && !providerConsent)} onClick={startReading}><ScanText size={17} />계약정보 읽기</button></div>
           </section>
           <UploadGuide purpose="letter" />
         </div>
       )}
 
       {stage === "processing" && (
-        <section className={styles.processingCard}><span><ScanText size={28} /></span><h2>계약정보를 읽고 있습니다</h2><p>당사자, 목적물, 금액과 주요 날짜를 구조화하고 있습니다.</p><div className={styles.progressHeader}><span>계약서 OCR 및 필드 추출</span><strong>{progress}%</strong></div><div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div></section>
+        <section className={reviewStyles.processingPanel} style={{ margin: "0 auto" }}>
+          <span className={reviewStyles.processingIcon}><ScanText size={30} aria-hidden="true" /></span>
+          <p className={reviewStyles.processingEyebrow}>문서 분석 중</p>
+          <h1>업로드한 문서를 읽고 있습니다</h1>
+          <p>{isRealOcr ? "Google Document AI가 문서를 인식하고 있습니다. 이 화면을 닫거나 새로고침하지 말고 잠시 기다려주세요." : "페이지 수와 글씨 상태에 따라 시간이 조금 더 걸릴 수 있습니다. 이 화면을 닫지 말고 잠시 기다려주세요."}</p>
+          <div className={reviewStyles.progressHeader}><span>{ocrStages[currentOcrStageIndex].label}</span><strong>{progress}%</strong></div>
+          <div className={`${reviewStyles.progressTrack} ${reviewStyles.progressTrackActive}`}><span style={{ width: `${progress}%` }} /></div>
+          <LiveProgress waitingHint="문서 인식에 시간이 걸리고 있습니다. 서버가 처리 중이니 닫지 말고 기다려주세요." />
+          <ol className={reviewStyles.processingSteps}>
+            {ocrStages.map((ocrStage, index) => {
+              const done = progress === 100 || index < currentOcrStageIndex;
+              return <li className={done ? reviewStyles.processingDone : ""} key={ocrStage.label}><i>{done ? <Check size={14} /> : index + 1}</i><span>{ocrStage.label}</span></li>;
+            })}
+          </ol>
+        </section>
       )}
 
-      {stage === "verify" && <VerifySnapshotDemo allowedContractTypes={["전세", "월세"]} initialContractSnapshot={confirmedSnapshot} modeOverride="contract" onBack={() => setStage("upload")} onComplete={(snapshot) => { setConfirmedSnapshot(snapshot); setStage("request"); }} submitLabel="요청 입력으로" />}
+      {stage === "verify" && <VerifySnapshotDemo allowedContractTypes={["전세", "월세", "매매"]} initialContractSnapshot={confirmedSnapshot} lockContractType={isRealOcr} modeOverride="contract" onBack={() => { setIsRealOcr(false); setStage("upload"); }} onComplete={(snapshot) => { setConfirmedSnapshot(snapshot); setStage("request"); }} submitLabel="요청 입력으로" />}
 
       {stage === "request" && (
         <div className={styles.split}>
