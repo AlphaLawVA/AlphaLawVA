@@ -17,7 +17,10 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import URLError
 
-from ml.agent.certified_letter.gemini import GeminiStructuredLetterModel
+from ml.agent.certified_letter.gemini import (
+    LETTER_DRAFT_SCHEMA,
+    GeminiStructuredLetterModel,
+)
 from ml.agent.certified_letter.prompts import PromptBundle
 from ml.agent.certified_letter.state import (
     CertifiedLetterScopeDecision,
@@ -63,6 +66,12 @@ def make_draft_payload():
 
 
 class GeminiStructuredLetterModelTests(unittest.TestCase):
+    def test_letter_schema_requires_exactly_three_follow_up_actions(self):
+        follow_up_schema = LETTER_DRAFT_SCHEMA["properties"]["follow_up_actions"]
+
+        self.assertEqual(follow_up_schema["minItems"], 3)
+        self.assertEqual(follow_up_schema["maxItems"], 3)
+
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.manifest_path = Path(self.temporary_directory.name) / "usage.jsonl"

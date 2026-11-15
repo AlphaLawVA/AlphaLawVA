@@ -4,6 +4,12 @@ const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
+export const CERTIFIED_LETTER_FOLLOW_UP_TITLES = [
+  "발송 전 확인",
+  "발송 및 기록 보관",
+  "기한 경과 후 대응",
+] as const;
+
 type ApiErrorPayload = {
   error?: {
     message?: string;

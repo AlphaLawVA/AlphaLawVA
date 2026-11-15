@@ -103,7 +103,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_5")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_6")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -142,6 +142,15 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertIn("4. 협의 제안 및 미이행 시 후속 조치", prompt.system)
         self.assertIn("계좌번호, 반복 독촉 이력", prompt.system)
         self.assertIn("문서 제목·발신인·수신인", prompt.system)
+
+    def test_prompt_requires_three_fixed_follow_up_stages(self):
+        prompt = build_generation_prompt(make_request(), [make_statute()])
+
+        self.assertIn("정확히 3개", prompt.system)
+        self.assertIn("발송 전 확인", prompt.system)
+        self.assertIn("발송 및 기록 보관", prompt.system)
+        self.assertIn("기한 경과 후 대응", prompt.system)
+        self.assertIn("1~3문장", prompt.system)
 
     def test_lessor_sender_is_resolved_before_prompt_generation(self):
         request = replace(make_request(), sender_role=ContractPartyRole.LESSOR)
