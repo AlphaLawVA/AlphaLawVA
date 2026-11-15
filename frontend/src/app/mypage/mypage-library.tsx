@@ -321,7 +321,6 @@ function GenerationDetailBody({ detail }: { detail: SavedGenerationDetail }) {
             <p>요청: {item.request_text}</p>
             {item.draft_text && <div className={styles.letterBody}>{item.draft_text}</div>}
             {item.needs_input.length > 0 && <ul>{item.needs_input.map((question) => <li key={question}>{question}</li>)}</ul>}
-            {item.reason && <p>이유: {item.reason}</p>}
             {item.strategy && <p>협의 안내: {item.strategy}</p>}
           </section>
         ))}
