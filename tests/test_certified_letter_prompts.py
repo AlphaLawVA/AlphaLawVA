@@ -103,7 +103,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_0")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_1")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -111,7 +111,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         )
         self.assertNotIn("precedent", prompt.user.lower())
         self.assertNotIn("판례", prompt.user)
-        self.assertIn("「완전한 법령명」 제N조", prompt.system)
+        self.assertIn("statute_evidence의 법령·조문만 인용", prompt.system)
         self.assertEqual(payload["document_parties"]["sender_role"], "lessee")
         self.assertEqual(payload["document_parties"]["sender"]["name"], "김민지")
         self.assertEqual(payload["document_parties"]["recipient"]["name"], "홍길동")
@@ -156,7 +156,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
             payload["contract_facts"]["special_terms"],
             ["임대인은 보증금반환보증 가입 서류 제출에 협조한다."],
         )
-        self.assertIn("직접 관련된 항목(금액·지급일·특약)", build_generation_prompt(request, []).system)
+        self.assertIn("관련 특약", build_generation_prompt(request, []).system)
 
     def test_prompt_requires_three_fixed_follow_up_stages(self):
         prompt = build_generation_prompt(make_request(), [make_statute()])
@@ -193,8 +193,8 @@ class CertifiedLetterPromptTests(unittest.TestCase):
     def test_prompt_separates_request_and_deadline_sections(self):
         prompt = build_generation_prompt(make_request(), [make_statute()])
 
-        self.assertIn("제3항에는 상대방이 해야 할 행위와 대상을 쓰고", prompt.system)
-        self.assertIn("제4항에만 기한과 미이행 시 후속 조치", prompt.system)
+        self.assertIn("제3항: 상대방이 해야 할 행위와 대상만", prompt.system)
+        self.assertIn("제4항: 기한과 미이행 시 후속 조치만", prompt.system)
 
     def test_repair_prompt_contains_only_reported_issues(self):
         issue = ValidationIssue(
