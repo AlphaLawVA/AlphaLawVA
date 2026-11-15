@@ -70,13 +70,14 @@ LETTER_DRAFT_SCHEMA = {
         },
         "strategy_summary": {
             "type": "string",
-            "description": "본문과 분리된 작성 전략 요약",
+            "description": "사용자의 목적과 확인된 사실을 초안에 어떻게 반영했는지 설명하는 2~3문장의 작성 방향",
         },
         "follow_up_actions": {
             "type": "array",
             "items": {"type": "string"},
-            "maxItems": 8,
-            "description": "발송 전후 확인할 후속 조치",
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "발송 전 확인, 발송 및 기록 보관, 기한 경과 후 대응 순서의 내용 3개",
         },
         "warnings": {
             "type": "array",

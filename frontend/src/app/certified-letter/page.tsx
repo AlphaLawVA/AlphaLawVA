@@ -6,6 +6,7 @@ import { AlertCircle, Bookmark, Check, CheckCircle2, Download, FileText, Info, L
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { UploadGuide } from "@/components/upload-guide";
 import {
+  CERTIFIED_LETTER_FOLLOW_UP_TITLES,
   buildCertifiedLetterContract,
   createCertifiedLetterDraft,
   getCertifiedLetterDraft,
@@ -302,7 +303,7 @@ export default function CertifiedLetterPage() {
           <div className={styles.draftNotice}><Info size={18} /><span>이 문서는 AI가 계약서와 입력 내용을 바탕으로 작성한 법률 검토 전 초안입니다. 발송 전 당사자·금액·날짜와 법령 근거를 다시 확인하세요.</span></div>
           <div className={styles.letterAnalysisGrid}>
             <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>{draftResult.strategy_summary}</p></section>
-            <section className={styles.panel}><h2>다음 단계</h2><div className={styles.exampleList}>{draftResult.follow_up_actions.map((step) => <p key={`${step.order}-${step.action}`}><b>{String(step.order).padStart(2, "0")}</b><span>{step.action}</span></p>)}</div></section>
+            <section className={styles.panel}><h2>다음 단계</h2><div className={styles.exampleList}>{draftResult.follow_up_actions.map((step) => <p key={`${step.order}-${step.action}`}><b>{String(step.order).padStart(2, "0")} {CERTIFIED_LETTER_FOLLOW_UP_TITLES[step.order - 1] ?? "다음 단계"}</b><span>{step.action}</span></p>)}</div></section>
           </div>
           <section className={styles.panel} style={{ marginTop: 18 }}>
             <h2>관련 근거</h2>
