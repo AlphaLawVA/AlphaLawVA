@@ -45,10 +45,12 @@ export default function CertifiedLetterPage() {
   const [stage, setStage] = useState<Stage>("upload");
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(8);
-  const [senderRole, setSenderRole] = useState<"lessee" | "lessor">("lessee");
+  const [senderRole, setSenderRole] = useState<"lessee" | "lessor" | "buyer" | "seller">("lessee");
   const [purpose, setPurpose] = useState("");
   const [facts, setFacts] = useState("");
   const [requestedDeadline, setRequestedDeadline] = useState("");
+  const [senderDeliveryAddress, setSenderDeliveryAddress] = useState("");
+  const [recipientDeliveryAddress, setRecipientDeliveryAddress] = useState("");
   const [confirmedSnapshot, setConfirmedSnapshot] = useState<ConfirmedContractSnapshot>(certifiedLetterContractSnapshot);
   const [draftResult, setDraftResult] = useState<CertifiedLetterResult | null>(null);
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
@@ -233,6 +235,8 @@ export default function CertifiedLetterPage() {
     setPurpose("");
     setFacts("");
     setRequestedDeadline("");
+    setSenderDeliveryAddress("");
+    setRecipientDeliveryAddress("");
     setError("");
     setFileError("");
     setGenerationStatus("queued");
@@ -341,14 +345,14 @@ export default function CertifiedLetterPage() {
         </section>
       )}
 
-      {stage === "verify" && <VerifySnapshotDemo allowedContractTypes={["전세", "월세", "매매"]} initialContractSnapshot={confirmedSnapshot} lockContractType={isRealOcr} modeOverride="contract" onBack={() => { setIsRealOcr(false); setStage("upload"); }} onComplete={(snapshot) => { setConfirmedSnapshot(snapshot); setStage("request"); }} submitLabel="요청 입력으로" />}
+      {stage === "verify" && <VerifySnapshotDemo allowedContractTypes={["전세", "월세", "매매"]} initialContractSnapshot={confirmedSnapshot} lockContractType={isRealOcr} modeOverride="contract" onBack={() => { setIsRealOcr(false); setStage("upload"); }} onComplete={(snapshot) => { setConfirmedSnapshot(snapshot); setSenderRole(snapshot.contractType === "매매" ? "buyer" : "lessee"); setStage("request"); }} submitLabel="요청 입력으로" />}
 
       {stage === "request" && (
         <div className={styles.split}>
           <section className={styles.panel}>
             <h2>요청과 사실관계를 알려주세요</h2>
             <p className={styles.panelLead}>계약서에 없는 현재 상황과 요구사항을 추가로 입력해 주세요. 법률 용어를 몰라도 괜찮습니다. 원하는 결과와 실제 있었던 일을 나누어 적어주세요.</p>
-            <div className={styles.field}><label htmlFor="sender-role">내용증명 발신자</label><select id="sender-role" value={senderRole} onChange={(event) => setSenderRole(event.target.value as "lessee" | "lessor")}><option value="lessee">임차인</option><option value="lessor">임대인</option></select></div>
+            <div className={styles.field}><label htmlFor="sender-role">내용증명 발신자</label><select id="sender-role" value={senderRole} onChange={(event) => setSenderRole(event.target.value as "lessee" | "lessor" | "buyer" | "seller")}>{confirmedSnapshot.contractType === "매매" ? <><option value="buyer">매수인</option><option value="seller">매도인</option></> : <><option value="lessee">임차인</option><option value="lessor">임대인</option></>}</select></div>
             <div className={styles.field}>
               <label htmlFor="letter-purpose">상대방에게 무엇을 요구하고 싶나요?</label>
               <p className={styles.fieldGuide} id="letter-purpose-guide">보증금 반환, 수리, 계약 해지 등 내용증명을 통해 원하는 결과를 간단히 적어주세요.</p>
@@ -383,16 +387,44 @@ export default function CertifiedLetterPage() {
 
       {stage === "result" && draftResult && (
         <>
+          <section className={styles.deliveryInfo} aria-labelledby="delivery-info-title">
+            <div>
+              <h2 id="delivery-info-title">발송 정보 입력</h2>
+              <p>내용증명에 적을 실제 발신·수신 주소를 입력해 주세요. 계약 목적물 주소와 다를 수 있으며, 입력한 주소는 문서와 PDF에만 반영됩니다.</p>
+            </div>
+            <div className={styles.deliveryAddressFields}>
+              <label htmlFor="sender-delivery-address">
+                <span>발신인 송달 주소</span>
+                <strong>{draftResult.document.sender.name}</strong>
+                <input
+                  id="sender-delivery-address"
+                  placeholder="예: 서울특별시 ○○구 ○○로 00, ○○동 ○○호"
+                  value={senderDeliveryAddress}
+                  onChange={(event) => setSenderDeliveryAddress(event.target.value)}
+                />
+              </label>
+              <label htmlFor="recipient-delivery-address">
+                <span>수신인 송달 주소</span>
+                <strong>{draftResult.document.recipient.name}</strong>
+                <input
+                  id="recipient-delivery-address"
+                  placeholder="예: 서울특별시 ○○구 ○○로 00, ○○동 ○○호"
+                  value={recipientDeliveryAddress}
+                  onChange={(event) => setRecipientDeliveryAddress(event.target.value)}
+                />
+              </label>
+            </div>
+          </section>
           <article className={styles.letterPaper}>
             <h2 className={styles.letterDocumentHeading}>내용증명</h2>
             <dl className={styles.letterParties}>
               <div>
                 <dt>발신인</dt>
-                <dd><strong>{draftResult.document.sender.name}</strong><span>{[draftResult.document.sender.address, draftResult.document.sender.detail_address].filter(Boolean).join(", ")}</span></dd>
+                <dd><strong>{draftResult.document.sender.name}</strong>{senderDeliveryAddress && <span>{senderDeliveryAddress}</span>}</dd>
               </div>
               <div>
                 <dt>수신인</dt>
-                <dd><strong>{draftResult.document.recipient.name}</strong><span>{[draftResult.document.recipient.address, draftResult.document.recipient.detail_address].filter(Boolean).join(", ")}</span></dd>
+                <dd><strong>{draftResult.document.recipient.name}</strong>{recipientDeliveryAddress && <span>{recipientDeliveryAddress}</span>}</dd>
               </div>
             </dl>
             <div className={styles.letterSubject}><span>제목</span><strong>{draftResult.document.title}</strong></div>

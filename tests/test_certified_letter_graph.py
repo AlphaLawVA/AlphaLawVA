@@ -398,7 +398,7 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(precedent_search.calls, [])
         self.assertEqual(generator.generate_calls, [])
 
-    def test_code_checks_delivery_fields_after_in_scope_decision(self):
+    def test_delivery_address_is_not_required_before_draft_generation(self):
         dependencies, statute_search, precedent_search, generator, _validator = (
             make_dependencies()
         )
@@ -407,14 +407,10 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         result = graph.invoke({"request": make_request(lessor_address="")})
 
         self.assertEqual(result["scope_decision"], "in_scope")
-        self.assertEqual(result["outcome"], "needs_information")
-        self.assertEqual(
-            result["missing_information"],
-            ("임대인의 송달 주소",),
-        )
-        self.assertEqual(statute_search.calls, [])
-        self.assertEqual(precedent_search.calls, [])
-        self.assertEqual(generator.generate_calls, [])
+        self.assertEqual(result["outcome"], "draft_ready")
+        self.assertNotEqual(statute_search.calls, [])
+        self.assertNotEqual(precedent_search.calls, [])
+        self.assertEqual(len(generator.generate_calls), 1)
 
     def test_in_scope_decision_continues_after_untrusted_instruction(self):
         dependencies, statute_search, _precedent_search, _generator, _validator = (

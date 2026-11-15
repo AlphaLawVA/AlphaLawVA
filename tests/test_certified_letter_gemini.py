@@ -192,7 +192,7 @@ class GeminiStructuredLetterModelTests(unittest.TestCase):
         )
         usage = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(usage["request_kind"], "scope")
-        self.assertEqual(usage["prompt_version"], "certified_letter_scope_v0_2")
+        self.assertEqual(usage["prompt_version"], "certified_letter_scope_v0_3")
 
     @patch("ml.agent.certified_letter.gemini.urlopen")
     def test_rejects_scope_decision_with_inconsistent_missing_fields(

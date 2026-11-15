@@ -18,8 +18,8 @@ from ml.agent.certified_letter.prompts import PromptBundle
 from ml.agent.certified_letter.state import ContractPartyRole
 
 
-SCOPE_PROMPT_VERSION = "certified_letter_scope_v0_2"
-SCOPE_SYSTEM_PROMPT = """당신은 AlphaLawVA 임대차 내용증명 생성 입력 분류기입니다.
+SCOPE_PROMPT_VERSION = "certified_letter_scope_v0_3"
+SCOPE_SYSTEM_PROMPT = """당신은 AlphaLawVA 부동산 계약 내용증명 생성 입력 분류기입니다.
 사용자가 입력한 목적과 사실을 읽고 다음 세 결정 중 하나만 선택하세요.
 
 [지원 범위]
@@ -27,10 +27,13 @@ SCOPE_SYSTEM_PROMPT = """당신은 AlphaLawVA 임대차 내용증명 생성 입�
 - 임대차계약 종료, 해지, 갱신 거절 또는 퇴거 통지
 - 임대주택의 수선, 누수, 곰팡이 또는 하자 조치 요구
 - 월세, 차임 또는 관리비 지급·정산 관련 통지
+- 부동산 매매대금, 계약금·중도금·잔금 지급, 목적물 인도, 소유권이전, 계약 해제·해제 통지 관련 통지
 
 [발신인 역할 일치]
 - sender_role이 lessee이면 임차인이 발신인이고 임대인이 수신인입니다.
 - sender_role이 lessor이면 임대인이 발신인이고 임차인이 수신인입니다.
+- sender_role이 buyer이면 매수인이 발신인이고 매도인이 수신인입니다.
+- sender_role이 seller이면 매도인이 발신인이고 매수인이 수신인입니다.
 - 발신인 역할과 목적·사실이 명백히 충돌하면 needs_information으로 판정하고
   missing_fields에는 sender_role만 넣으세요.
 - 예: lessor인데 자신이 보증금을 반환받겠다는 요청, lessee인데 임차인에게 연체 차임을
@@ -40,10 +43,10 @@ SCOPE_SYSTEM_PROMPT = """당신은 AlphaLawVA 임대차 내용증명 생성 입�
 
 [판정 순서]
 1. out_of_scope
-   주된 요청이 지원 범위와 명백히 무관하거나 임대차 내용증명이 아닌 경우입니다.
-   계약 정보에 임대차가 적혀 있다는 이유만으로 범위 안으로 판단하지 마세요.
+   주된 요청이 지원 범위와 명백히 무관하거나 부동산 계약 내용증명이 아닌 경우입니다.
+   계약 정보에 부동산 계약이 적혀 있다는 이유만으로 범위 안으로 판단하지 마세요.
 2. needs_information
-   임대차 내용증명과 관련될 가능성은 있지만 달성하려는 목적 또는 발생한 사실이
+   부동산 계약 내용증명과 관련될 가능성은 있지만 달성하려는 목적 또는 발생한 사실이
    모호하거나, 서로 충돌하거나, 별개의 요청이 섞여 있어 바로 작성할 수 없는 경우입니다.
    역할 충돌이면 sender_role을, 그 밖의 경우에는 purpose 또는 facts 중 다시 받아야 할
    필드만 missing_fields에 넣으세요.

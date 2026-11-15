@@ -45,7 +45,10 @@ PARTY_SCHEMA = {
     "type": "object",
     "properties": {
         "name": {"type": "string", "description": "계약 입력에 있는 당사자 이름"},
-        "address": {"type": "string", "description": "계약 입력에 있는 송달 주소"},
+        "address": {
+            "type": ["string", "null"],
+            "description": "계약 입력에 있는 송달 주소 또는 null",
+        },
         "detail_address": {
             "type": ["string", "null"],
             "description": "계약 입력에 있는 상세 주소 또는 null",
@@ -399,13 +402,12 @@ class GeminiStructuredLetterModel:
                 f"{field}.detail_address",
                 maximum=300,
             )
+        address = value["address"]
+        if address is not None:
+            address = cls._required_text(address, f"{field}.address", maximum=300)
         return DraftPartyData(
             name=cls._required_text(value["name"], f"{field}.name", maximum=100),
-            address=cls._required_text(
-                value["address"],
-                f"{field}.address",
-                maximum=300,
-            ),
+            address=address,
             detail_address=detail_address,
         )
 

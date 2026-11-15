@@ -240,13 +240,12 @@ class OpenAIStructuredLetterModel:
                 f"{field}.detail_address",
                 maximum=300,
             )
+        address = value["address"]
+        if address is not None:
+            address = cls._required_text(address, f"{field}.address", maximum=300)
         return DraftPartyData(
             name=cls._required_text(value["name"], f"{field}.name", maximum=100),
-            address=cls._required_text(
-                value["address"],
-                f"{field}.address",
-                maximum=300,
-            ),
+            address=address,
             detail_address=detail_address,
         )
 
