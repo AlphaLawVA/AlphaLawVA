@@ -133,7 +133,7 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
     def test_prompt_keeps_requested_core_intent(self) -> None:
         from api.services.gemini_special_clause_generator import PROMPT_VERSION, SYSTEM_PROMPT
 
-        self.assertEqual(PROMPT_VERSION, "special_clause_result_v1.0")
+        self.assertEqual(PROMPT_VERSION, "special_clause_result_v1.1")
         self.assertIn("핵심 내용", SYSTEM_PROMPT)
         self.assertIn("조건부로 바꾸지 않고", SYSTEM_PROMPT)
 

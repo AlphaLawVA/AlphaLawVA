@@ -64,7 +64,9 @@ def _precedent(rank, similarity):
     )
 
 
-QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="special_term", query="질문")
+#  리랭커 동작만 보는 테스트라, 특약 효력 보조 질의가 끼어들지 않는 카테고리를 쓴다
+#  (해당 보조 질의는 test_contract_review_retriever_validity_check.py에서 따로 검증한다).
+QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="registry_field", query="질문")
 STATUTES = [_statute(i, 0.8 - i * 0.03) for i in range(1, 11)]  # 유사도 0.77 ~ 0.50, 모두 기준(0.35) 이상
 PRECEDENTS = [_precedent(i, -0.1 + i * 0.01) for i in range(1, 11)]  # 음수 포함, 판례는 최소 유사도가 없다
 
