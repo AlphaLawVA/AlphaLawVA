@@ -634,10 +634,71 @@
 }
 
 .letterPaper {
-  padding: 46px 54px;
+  box-sizing: border-box;
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: 20mm 15mm 40mm;
   border: 1px solid var(--line-strong);
   background: white;
   box-shadow: var(--shadow);
+}
+
+.deliveryInfo {
+  margin: 0 auto 18px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.deliveryInfo h2 {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.deliveryInfo > div > p {
+  margin-top: 7px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.deliveryAddressFields {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.deliveryAddressFields label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.deliveryAddressFields strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.deliveryAddressFields input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: var(--text);
+  background: white;
+  font-size: 15px;
+  outline: none;
+}
+
+.deliveryAddressFields input:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px var(--navy-soft);
 }
 
 .letterPaper .letterDocumentHeading {
@@ -726,7 +787,8 @@
   .resultSplit,
   .summaryColumns,
   .letterAnalysisGrid,
-  .basisGrid {
+  .basisGrid,
+  .deliveryAddressFields {
     grid-template-columns: 1fr;
   }
 }
@@ -747,6 +809,8 @@
   .letterPaper {
     padding: 21px;
   }
+
+  .deliveryInfo { padding: 21px; }
 
   .steps {
     overflow-x: auto;
@@ -872,7 +936,7 @@
 @media print {
   @page {
     size: A4;
-    margin: 18mm;
+    margin: 20mm 15mm 40mm;
   }
 
   :global(body) {

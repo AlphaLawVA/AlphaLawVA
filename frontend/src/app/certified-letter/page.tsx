@@ -49,6 +49,8 @@ export default function CertifiedLetterPage() {
   const [purpose, setPurpose] = useState("");
   const [facts, setFacts] = useState("");
   const [requestedDeadline, setRequestedDeadline] = useState("");
+  const [senderDeliveryAddress, setSenderDeliveryAddress] = useState("");
+  const [recipientDeliveryAddress, setRecipientDeliveryAddress] = useState("");
   const [confirmedSnapshot, setConfirmedSnapshot] = useState<ConfirmedContractSnapshot>(certifiedLetterContractSnapshot);
   const [draftResult, setDraftResult] = useState<CertifiedLetterResult | null>(null);
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
@@ -233,6 +235,8 @@ export default function CertifiedLetterPage() {
     setPurpose("");
     setFacts("");
     setRequestedDeadline("");
+    setSenderDeliveryAddress("");
+    setRecipientDeliveryAddress("");
     setError("");
     setFileError("");
     setGenerationStatus("queued");
@@ -383,16 +387,44 @@ export default function CertifiedLetterPage() {
 
       {stage === "result" && draftResult && (
         <>
+          <section className={styles.deliveryInfo} aria-labelledby="delivery-info-title">
+            <div>
+              <h2 id="delivery-info-title">발송 정보 입력</h2>
+              <p>내용증명에 적을 실제 발신·수신 주소를 입력해 주세요. 계약 목적물 주소와 다를 수 있으며, 입력한 주소는 문서와 PDF에만 반영됩니다.</p>
+            </div>
+            <div className={styles.deliveryAddressFields}>
+              <label htmlFor="sender-delivery-address">
+                <span>발신인 송달 주소</span>
+                <strong>{draftResult.document.sender.name}</strong>
+                <input
+                  id="sender-delivery-address"
+                  placeholder="예: 서울특별시 ○○구 ○○로 00, ○○동 ○○호"
+                  value={senderDeliveryAddress}
+                  onChange={(event) => setSenderDeliveryAddress(event.target.value)}
+                />
+              </label>
+              <label htmlFor="recipient-delivery-address">
+                <span>수신인 송달 주소</span>
+                <strong>{draftResult.document.recipient.name}</strong>
+                <input
+                  id="recipient-delivery-address"
+                  placeholder="예: 서울특별시 ○○구 ○○로 00, ○○동 ○○호"
+                  value={recipientDeliveryAddress}
+                  onChange={(event) => setRecipientDeliveryAddress(event.target.value)}
+                />
+              </label>
+            </div>
+          </section>
           <article className={styles.letterPaper}>
             <h2 className={styles.letterDocumentHeading}>내용증명</h2>
             <dl className={styles.letterParties}>
               <div>
                 <dt>발신인</dt>
-                <dd><strong>{draftResult.document.sender.name}</strong>{[draftResult.document.sender.address, draftResult.document.sender.detail_address].filter(Boolean).length > 0 && <span>{[draftResult.document.sender.address, draftResult.document.sender.detail_address].filter(Boolean).join(", ")}</span>}</dd>
+                <dd><strong>{draftResult.document.sender.name}</strong>{senderDeliveryAddress && <span>{senderDeliveryAddress}</span>}</dd>
               </div>
               <div>
                 <dt>수신인</dt>
-                <dd><strong>{draftResult.document.recipient.name}</strong>{[draftResult.document.recipient.address, draftResult.document.recipient.detail_address].filter(Boolean).length > 0 && <span>{[draftResult.document.recipient.address, draftResult.document.recipient.detail_address].filter(Boolean).join(", ")}</span>}</dd>
+                <dd><strong>{draftResult.document.recipient.name}</strong>{recipientDeliveryAddress && <span>{recipientDeliveryAddress}</span>}</dd>
               </div>
             </dl>
             <div className={styles.letterSubject}><span>제목</span><strong>{draftResult.document.title}</strong></div>
