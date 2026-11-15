@@ -30,11 +30,14 @@ class CertifiedLetterApiModel(BaseModel):
 class ContractType(str, Enum):
     JEONSE = "jeonse"
     MONTHLY_RENT = "monthly_rent"
+    SALE = "sale"
 
 
 class CertifiedLetterSenderRole(str, Enum):
     LESSEE = "lessee"
     LESSOR = "lessor"
+    BUYER = "buyer"
+    SELLER = "seller"
 
 
 class CertifiedLetterJobStatus(str, Enum):
@@ -53,7 +56,7 @@ class CertifiedLetterOutcome(str, Enum):
 
 class ContractPartyInput(CertifiedLetterApiModel):
     name: str = Field(min_length=1, max_length=100)
-    address: str = Field(min_length=1, max_length=500)
+    address: str | None = Field(default=None, min_length=1, max_length=500)
     detail_address: str | None = Field(default=None, min_length=1, max_length=200)
     phone_number: str | None = Field(default=None, min_length=7, max_length=30)
 
@@ -76,31 +79,54 @@ class ContractPeriodInput(CertifiedLetterApiModel):
 
 
 class ContractPaymentInput(CertifiedLetterApiModel):
-    deposit: int = Field(ge=0, description="원 단위 보증금")
+    deposit: int | None = Field(default=None, ge=0, description="원 단위 보증금")
     monthly_rent: int | None = Field(
         default=None,
         ge=0,
         description="원 단위 월세; 전세 계약이면 null",
     )
+    sale_price: int | None = Field(default=None, ge=0, description="원 단위 매매대금")
+    down_payment: int | None = Field(default=None, ge=0, description="원 단위 계약금")
+    interim_payment: int | None = Field(default=None, ge=0, description="원 단위 중도금")
+    interim_payment_2: int | None = Field(default=None, ge=0, description="원 단위 2차 중도금")
+    balance: int | None = Field(default=None, ge=0, description="원 단위 잔금")
 
 
 class CertifiedLetterContractInput(CertifiedLetterApiModel):
     contract_type: ContractType
+    contract_date: date | None = None
     property: ContractPropertyInput
-    period: ContractPeriodInput
+    period: ContractPeriodInput | None = None
     payment: ContractPaymentInput
-    lessor: ContractPartyInput
-    lessee: ContractPartyInput
+    lessor: ContractPartyInput | None = None
+    lessee: ContractPartyInput | None = None
+    seller: ContractPartyInput | None = None
+    buyer: ContractPartyInput | None = None
+    handover_date: date | None = None
+    ownership_transfer_date: date | None = None
+    special_terms: list[str] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def validate_payment_for_contract_type(self) -> CertifiedLetterContractInput:
         monthly_rent = self.payment.monthly_rent
         if self.contract_type is ContractType.JEONSE and monthly_rent is not None:
             raise ValueError("전세 계약의 monthly_rent는 null이어야 합니다.")
+        if self.contract_type in {ContractType.JEONSE, ContractType.MONTHLY_RENT}:
+            if self.period is None:
+                raise ValueError("임대차 계약에는 계약기간이 필요합니다.")
+            if self.payment.deposit is None:
+                raise ValueError("임대차 계약에는 보증금이 필요합니다.")
+            if self.lessor is None or self.lessee is None:
+                raise ValueError("임대차 계약에는 임대인과 임차인 정보가 필요합니다.")
         if self.contract_type is ContractType.MONTHLY_RENT and (
             monthly_rent is None or monthly_rent <= 0
         ):
             raise ValueError("월세 계약에는 1원 이상의 monthly_rent가 필요합니다.")
+        if self.contract_type is ContractType.SALE:
+            if self.payment.sale_price is None:
+                raise ValueError("매매 계약에는 매매대금이 필요합니다.")
+            if self.seller is None or self.buyer is None:
+                raise ValueError("매매 계약에는 매도인과 매수인 정보가 필요합니다.")
         return self
 
 
@@ -124,6 +150,15 @@ class CertifiedLetterDraftRequest(CertifiedLetterApiModel):
     )
     contract: CertifiedLetterContractInput
 
+    @model_validator(mode="after")
+    def validate_sender_role_for_contract(self) -> CertifiedLetterDraftRequest:
+        lease_roles = {CertifiedLetterSenderRole.LESSOR, CertifiedLetterSenderRole.LESSEE}
+        sale_roles = {CertifiedLetterSenderRole.SELLER, CertifiedLetterSenderRole.BUYER}
+        allowed = sale_roles if self.contract.contract_type is ContractType.SALE else lease_roles
+        if self.sender_role not in allowed:
+            raise ValueError("계약 유형에 맞는 내용증명 발신자를 선택해주세요.")
+        return self
+
 
 class CertifiedLetterDraftAccepted(CertifiedLetterApiModel):
     draft_id: UUID
@@ -138,7 +173,7 @@ class CertifiedLetterDraftAccepted(CertifiedLetterApiModel):
 
 class CertifiedLetterParty(CertifiedLetterApiModel):
     name: str = Field(min_length=1, max_length=100)
-    address: str = Field(min_length=1, max_length=500)
+    address: str | None = Field(default=None, min_length=1, max_length=500)
     detail_address: str | None = Field(default=None, min_length=1, max_length=200)
 
 

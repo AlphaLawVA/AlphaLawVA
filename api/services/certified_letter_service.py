@@ -228,26 +228,43 @@ def _to_internal_request(
         requested_deadline=request.requested_deadline,
         contract=ContractData(
             contract_type=contract.contract_type.value,
+            contract_date=contract.contract_date,
             property=PropertyData(
                 address=contract.property.address,
                 detail_address=contract.property.detail_address,
                 building_type=contract.property.building_type,
             ),
-            period=PeriodData(
-                start_date=contract.period.start_date,
-                end_date=contract.period.end_date,
+            period=(
+                PeriodData(
+                    start_date=contract.period.start_date,
+                    end_date=contract.period.end_date,
+                )
+                if contract.period is not None
+                else None
             ),
             payment=PaymentData(
                 deposit=contract.payment.deposit,
                 monthly_rent=contract.payment.monthly_rent,
+                sale_price=contract.payment.sale_price,
+                down_payment=contract.payment.down_payment,
+                interim_payment=contract.payment.interim_payment,
+                interim_payment_2=contract.payment.interim_payment_2,
+                balance=contract.payment.balance,
             ),
             lessor=_to_party(contract.lessor),
             lessee=_to_party(contract.lessee),
+            seller=_to_party(contract.seller),
+            buyer=_to_party(contract.buyer),
+            handover_date=contract.handover_date,
+            ownership_transfer_date=contract.ownership_transfer_date,
+            special_terms=tuple(contract.special_terms),
         ),
     )
 
 
-def _to_party(value) -> PartyData:
+def _to_party(value) -> PartyData | None:
+    if value is None:
+        return None
     return PartyData(
         name=value.name,
         address=value.address,

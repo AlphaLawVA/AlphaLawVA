@@ -31,6 +31,7 @@ from ml.agent.certified_letter.state import (
     CertifiedLetterGraphState,
     WorkflowFailure,
     recipient_role,
+    resolve_document_parties,
 )
 
 
@@ -39,6 +40,8 @@ ISSUE_KEYWORDS = {
     "임대차계약 종료 또는 해지": ("종료", "해지", "갱신", "퇴거"),
     "임대인의 수선 의무": ("수리", "하자", "누수", "곰팡이"),
     "차임 또는 관리비": ("월세", "차임", "관리비", "연체"),
+    "부동산 매매대금 지급": ("매매대금", "잔금", "계약금", "중도금", "대금"),
+    "부동산 매매계약 이행": ("매매", "소유권", "등기", "인도", "하자"),
 }
 
 STATUTE_CANDIDATE_LIMIT = 10
@@ -105,8 +108,8 @@ class CertifiedLetterNodes:
             "scope_decision": decision.value,
             "outcome": decision.value,
             "message": (
-                "현재 알파 버전은 임대차보증금, 계약 종료·해지, 수선, "
-                "월세·관리비 관련 내용증명 초안을 지원합니다."
+                "현재 알파 버전은 부동산 임대차와 매매계약의 이행, 종료, "
+                "금전 지급, 인도·수선 관련 내용증명 초안을 지원합니다."
             ),
         }
 
@@ -116,14 +119,18 @@ class CertifiedLetterNodes:
     ) -> CertifiedLetterGraphState:
         request = state["normalized_request"]
         missing = []
-        if not request.contract.lessor.name:
-            missing.append("임대인 이름")
-        if not request.contract.lessor.address:
-            missing.append("임대인의 송달 주소")
-        if not request.contract.lessee.name:
-            missing.append("임차인 이름")
-        if not request.contract.lessee.address:
-            missing.append("임차인 주소")
+        try:
+            sender, recipient = resolve_document_parties(request)
+        except ValueError:
+            return {
+                "missing_information": ("계약 당사자 정보",),
+                "outcome": "needs_information",
+                "message": "내용증명 초안을 작성하려면 계약 당사자 정보가 필요합니다.",
+            }
+        if not sender.name:
+            missing.append("발신인 이름")
+        if not recipient.name:
+            missing.append("수신인 이름")
         if not missing:
             return {"missing_information": ()}
         return {
@@ -145,27 +152,45 @@ class CertifiedLetterNodes:
             issue
             for issue, keywords in ISSUE_KEYWORDS.items()
             if any(keyword in searchable_text for keyword in keywords)
-        ) or ("임대차계약상 의무",)
-        contract_label = (
-            "전세" if request.contract.contract_type == "jeonse" else "월세"
-        )
+        ) or ("부동산 계약상 의무",)
+        contract_label = {
+            "jeonse": "전세 임대차",
+            "monthly_rent": "월세 임대차",
+            "sale": "부동산 매매",
+        }.get(request.contract.contract_type, "부동산 계약")
         contract = request.contract
-        payment_context = f"보증금 {contract.payment.deposit}원"
+        payment_parts = []
+        if contract.payment.deposit is not None:
+            payment_parts.append(f"보증금 {contract.payment.deposit}원")
         if contract.payment.monthly_rent is not None:
-            payment_context += f" 월세 {contract.payment.monthly_rent}원"
-        period_context = (
-            f"계약기간 {contract.period.start_date.isoformat()}부터 "
-            f"{contract.period.end_date.isoformat()}까지"
-        )
+            payment_parts.append(f"월세 {contract.payment.monthly_rent}원")
+        if contract.payment.sale_price is not None:
+            payment_parts.append(f"매매대금 {contract.payment.sale_price}원")
+        for label, value in (
+            ("계약금", contract.payment.down_payment),
+            ("중도금", contract.payment.interim_payment),
+            ("2차 중도금", contract.payment.interim_payment_2),
+            ("잔금", contract.payment.balance),
+        ):
+            if value is not None:
+                payment_parts.append(f"{label} {value}원")
+        period_context = ""
+        if contract.period is not None:
+            period_context = (
+                f"계약기간 {contract.period.start_date.isoformat()}부터 "
+                f"{contract.period.end_date.isoformat()}까지"
+            )
+        elif contract.contract_date is not None:
+            period_context = f"계약일 {contract.contract_date.isoformat()}"
         context = " ".join(
             (
-                f"{contract_label} 임대차",
+                contract_label,
                 (
                     f"발신인 {request.sender_role.value} "
                     f"수신인 {recipient_role(request.sender_role).value}"
                 ),
                 period_context,
-                payment_context,
+                " ".join(payment_parts),
                 searchable_text,
             )
         ).strip()
@@ -180,7 +205,6 @@ class CertifiedLetterNodes:
             "statute_queries": statute_queries,
             "precedent_queries": precedent_queries,
         }
-
     def retrieve_statutes(
         self,
         state: CertifiedLetterGraphState,
@@ -318,18 +342,24 @@ class CertifiedLetterNodes:
 def _redact_contract_pii(text: str, state: CertifiedLetterGraphState) -> str:
     contract = state["normalized_request"].contract
     redacted = text
-    pii_values = (
-        contract.lessor.name,
-        contract.lessor.address,
-        contract.lessor.detail_address,
-        contract.lessor.phone_number,
-        contract.lessee.name,
-        contract.lessee.address,
-        contract.lessee.detail_address,
-        contract.lessee.phone_number,
-        contract.property.address,
-        contract.property.detail_address,
+    parties = (
+        contract.lessor,
+        contract.lessee,
+        contract.seller,
+        contract.buyer,
     )
+    pii_values = [
+        value
+        for party in parties
+        if party is not None
+        for value in (
+            party.name,
+            party.address,
+            party.detail_address,
+            party.phone_number,
+        )
+    ]
+    pii_values.extend((contract.property.address, contract.property.detail_address))
     for value in pii_values:
         if value:
             redacted = redacted.replace(value, " ")

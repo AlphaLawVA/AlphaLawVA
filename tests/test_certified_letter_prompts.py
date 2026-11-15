@@ -103,7 +103,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_6")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v0_7")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -126,7 +126,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         prompt = build_generation_prompt(make_request(), [make_statute()])
 
         self.assertIn("정중하고 협력적", prompt.system)
-        self.assertIn("임대 부동산 주소", prompt.system)
+        self.assertIn("계약 목적물 주소", prompt.system)
         self.assertIn("같은 법", prompt.system)
         self.assertIn("마크다운, 이모지", prompt.system)
         self.assertNotIn("25년 경력", prompt.system)
@@ -138,10 +138,27 @@ class CertifiedLetterPromptTests(unittest.TestCase):
 
         self.assertIn("1. 당사자 간의 관계 및 계약 내용", prompt.system)
         self.assertIn("2. 분쟁의 발생 사실", prompt.system)
-        self.assertIn("3. 요구 사항, 법령 근거 및 이행 기한", prompt.system)
-        self.assertIn("4. 협의 제안 및 미이행 시 후속 조치", prompt.system)
+        self.assertIn("3. 요구 사항", prompt.system)
+        self.assertIn("4. 이행 기한 및 미이행 시 후속 조치", prompt.system)
         self.assertIn("계좌번호, 반복 독촉 이력", prompt.system)
         self.assertIn("문서 제목·발신인·수신인", prompt.system)
+
+    def test_prompt_includes_special_terms_as_contract_facts(self):
+        request = replace(
+            make_request(),
+            contract=replace(
+                make_request().contract,
+                special_terms=("임대인은 보증금반환보증 가입 서류 제출에 협조한다.",),
+            ),
+        )
+
+        payload = json.loads(build_generation_prompt(request, []).user)
+
+        self.assertEqual(
+            payload["contract_facts"]["special_terms"],
+            ["임대인은 보증금반환보증 가입 서류 제출에 협조한다."],
+        )
+        self.assertIn("직접 관련된 특약", build_generation_prompt(request, []).system)
 
     def test_prompt_requires_three_fixed_follow_up_stages(self):
         prompt = build_generation_prompt(make_request(), [make_statute()])

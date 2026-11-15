@@ -67,6 +67,13 @@ def _normalize_contract(contract: ContractData) -> ContractData:
         property=_normalize_property(contract.property),
         lessor=_normalize_party(contract.lessor),
         lessee=_normalize_party(contract.lessee),
+        seller=_normalize_party(contract.seller),
+        buyer=_normalize_party(contract.buyer),
+        special_terms=tuple(
+            normalized
+            for term in contract.special_terms
+            if (normalized := _normalize_optional(term)) is not None
+        ),
     )
 
 
@@ -79,11 +86,13 @@ def _normalize_property(value: PropertyData) -> PropertyData:
     )
 
 
-def _normalize_party(value: PartyData) -> PartyData:
+def _normalize_party(value: PartyData | None) -> PartyData | None:
+    if value is None:
+        return None
     return replace(
         value,
         name=_normalize_single_line(value.name),
-        address=_normalize_single_line(value.address),
+        address=_normalize_optional(value.address),
         detail_address=_normalize_optional(value.detail_address),
         phone_number=_normalize_optional(value.phone_number),
     )

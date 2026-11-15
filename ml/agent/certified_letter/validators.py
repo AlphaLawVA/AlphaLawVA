@@ -95,22 +95,14 @@ def _validate_parties(
 ) -> list[ValidationIssue]:
     expected_sender, expected_recipient = resolve_document_parties(request)
     issues = []
-    if (
-        draft.sender.name != expected_sender.name
-        or draft.sender.address != expected_sender.address
-        or draft.sender.detail_address != expected_sender.detail_address
-    ):
+    if draft.sender.name != expected_sender.name:
         issues.append(
             ValidationIssue(
                 code="sender_mismatch",
                 message="발신인 정보가 선택된 계약 당사자의 송달 정보와 일치하지 않습니다.",
             )
         )
-    if (
-        draft.recipient.name != expected_recipient.name
-        or draft.recipient.address != expected_recipient.address
-        or draft.recipient.detail_address != expected_recipient.detail_address
-    ):
+    if draft.recipient.name != expected_recipient.name:
         issues.append(
             ValidationIssue(
                 code="recipient_mismatch",
@@ -195,11 +187,20 @@ def _validate_money(
     body: str,
 ) -> list[ValidationIssue]:
     allowed = {
-        request.contract.payment.deposit,
+        value
+        for value in (
+            request.contract.payment.deposit,
+            request.contract.payment.monthly_rent,
+            request.contract.payment.sale_price,
+            request.contract.payment.down_payment,
+            request.contract.payment.interim_payment,
+            request.contract.payment.interim_payment_2,
+            request.contract.payment.balance,
+        )
+        if value is not None
+    } | {
         *_extract_won_values(f"{request.purpose} {request.facts}"),
     }
-    if request.contract.payment.monthly_rent is not None:
-        allowed.add(request.contract.payment.monthly_rent)
     unexpected = sorted(_extract_won_values(body) - allowed)
     if not unexpected:
         return []
@@ -218,11 +219,16 @@ def _validate_dates(
     request: NormalizedCertifiedLetterRequest,
     body: str,
 ) -> list[ValidationIssue]:
-    allowed = {
-        request.contract.period.start_date,
-        request.contract.period.end_date,
-        *_extract_dates(f"{request.purpose} {request.facts}"),
-    }
+    allowed = set(_extract_dates(f"{request.purpose} {request.facts}"))
+    if request.contract.period is not None:
+        allowed.update((request.contract.period.start_date, request.contract.period.end_date))
+    for value in (
+        request.contract.contract_date,
+        request.contract.handover_date,
+        request.contract.ownership_transfer_date,
+    ):
+        if value is not None:
+            allowed.add(value)
     if request.requested_deadline is not None:
         allowed.add(request.requested_deadline)
     unexpected = sorted(_extract_dates(body) - allowed)
