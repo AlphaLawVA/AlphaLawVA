@@ -103,7 +103,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_1")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_2")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -139,7 +139,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertIn("2. 분쟁의 발생 사실", prompt.system)
         self.assertIn("3. 요구 사항", prompt.system)
         self.assertIn("4. 이행 기한 및 미이행 시 후속 조치", prompt.system)
-        self.assertIn("문서 제목·발신인·수신인", prompt.system)
+        self.assertIn("제목·발신인·수신인 표시 영역", prompt.system)
 
     def test_prompt_includes_special_terms_as_contract_facts(self):
         request = replace(
