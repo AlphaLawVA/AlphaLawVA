@@ -57,6 +57,11 @@ def _contract(
                     if is_sale
                     else {
                         "lease_deposit": {"amount": 200000000},
+                        **(
+                            {"monthly_rent": {"amount": {"amount": 800000}}}
+                            if contract_type == "monthly_rent"
+                            else {}
+                        ),
                         "start_date": "2026-11-01",
                         "end_date": "2028-10-31",
                     }
@@ -257,6 +262,26 @@ class RegistryAttentionItemsTests(unittest.TestCase):
         restriction = _by_id(items, "suggest_rights_change_restriction")
         self.assertIn("계약을 해제할 수 있고", restriction.message)
         self.assertIn("계약금, 보증금 등 일체의 금액", restriction.message)
+
+    def test_monthly_rent_skips_jeonse_guarantee_insurance_guidance(self) -> None:
+        # 전세보증금반환보증 안내는 전세 계약에만 맞으므로 월세에는 나오지 않는다.
+        items = build_registry_attention_items(
+            _contract(contract_type="monthly_rent"), _registry()
+        )
+
+        self.assertNotIn("suggest_guarantee_insurance", _ids(items))
+        self.assertTrue(
+            {"suggest_rights_change_restriction", "tax_arrears_check"} <= _ids(items)
+        )
+        restriction = _by_id(items, "suggest_rights_change_restriction")
+        self.assertNotIn("전세보증보험", restriction.message)
+
+        commercial_items = build_registry_attention_items(
+            _contract(contract_type="monthly_rent"),
+            _registry(description="제2종근린생활시설(사무소)"),
+        )
+        commercial = _by_id(commercial_items, "attention_commercial_use")
+        self.assertNotIn("전세보증금반환보증", commercial.message)
 
     def test_sale_contract_skips_lease_only_suggestions(self) -> None:
         items = build_registry_attention_items(
