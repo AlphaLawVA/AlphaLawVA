@@ -31,7 +31,6 @@ from ml.agent.certified_letter.state import (
     CertifiedLetterScopeDecision,
     CertifiedLetterGraphState,
     WorkflowFailure,
-    recipient_role,
     resolve_document_parties,
 )
 from ml.agent.certified_letter.value_normalizer import (
@@ -42,19 +41,10 @@ from ml.agent.certified_letter.value_normalizer import (
 from ml.agent.certified_letter.prompts import build_generation_prompt, build_repair_prompt
 
 
-ISSUE_KEYWORDS = {
-    "임대차보증금 반환": ("보증금", "전세금", "반환"),
-    "임대차계약 종료 또는 해지": ("종료", "해지", "갱신", "퇴거"),
-    "임대인의 수선 의무": ("수리", "하자", "누수", "곰팡이"),
-    "차임 또는 관리비": ("월세", "차임", "관리비", "연체"),
-    "부동산 매매대금 지급": ("매매대금", "잔금", "계약금", "중도금", "대금"),
-    "부동산 매매계약 이행": ("매매", "소유권", "등기", "인도", "하자"),
-}
-
 STATUTE_CANDIDATE_LIMIT = 10
 STATUTE_MIN_SIMILARITY = 0.35
 STATUTE_RESULT_LIMIT = 3
-PRECEDENT_CANDIDATE_LIMIT = 10
+PRECEDENT_CANDIDATE_LIMIT = 20
 PRECEDENT_RESULT_LIMIT = 3
 
 
@@ -155,62 +145,22 @@ class CertifiedLetterNodes:
             f"{request.purpose} {request.facts}",
             state,
         )
-        issues = tuple(
-            issue
-            for issue, keywords in ISSUE_KEYWORDS.items()
-            if any(keyword in searchable_text for keyword in keywords)
-        ) or ("부동산 계약상 의무",)
         contract_label = {
             "jeonse": "전세 임대차",
             "monthly_rent": "월세 임대차",
             "sale": "부동산 매매",
         }.get(request.contract.contract_type, "부동산 계약")
-        contract = request.contract
-        payment_parts = []
-        if contract.payment.deposit is not None:
-            payment_parts.append(f"보증금 {contract.payment.deposit}원")
-        if contract.payment.monthly_rent is not None:
-            payment_parts.append(f"월세 {contract.payment.monthly_rent}원")
-        if contract.payment.sale_price is not None:
-            payment_parts.append(f"매매대금 {contract.payment.sale_price}원")
-        for label, value in (
-            ("계약금", contract.payment.down_payment),
-            ("중도금", contract.payment.interim_payment),
-            ("2차 중도금", contract.payment.interim_payment_2),
-            ("잔금", contract.payment.balance),
-        ):
-            if value is not None:
-                payment_parts.append(f"{label} {value}원")
-        period_context = ""
-        if contract.period is not None:
-            period_context = (
-                f"계약기간 {contract.period.start_date.isoformat()}부터 "
-                f"{contract.period.end_date.isoformat()}까지"
-            )
-        elif contract.contract_date is not None:
-            period_context = f"계약일 {contract.contract_date.isoformat()}"
         context = " ".join(
             (
                 contract_label,
-                (
-                    f"발신인 {request.sender_role.value} "
-                    f"수신인 {recipient_role(request.sender_role).value}"
-                ),
-                period_context,
-                " ".join(payment_parts),
                 searchable_text,
             )
         ).strip()
-        statute_queries = tuple(
-            _limit_query(f"{issue} 관련 법령 {context}") for issue in issues
-        )
-        precedent_queries = tuple(
-            _limit_query(f"{issue} 유사 판례 {context}") for issue in issues
-        )
+        query = _limit_query(context)
         return {
-            "legal_issues": issues,
-            "statute_queries": statute_queries,
-            "precedent_queries": precedent_queries,
+            "legal_issues": (),
+            "statute_queries": (query,),
+            "precedent_queries": (query,),
         }
     def retrieve_statutes(
         self,
@@ -272,6 +222,11 @@ class CertifiedLetterNodes:
             state["precedent_queries"],
             candidate_limit=PRECEDENT_CANDIDATE_LIMIT,
         )
+        logger.info(
+            "내용증명 판례 검색 후보: request_id=%s candidates=%s",
+            state.get("request_id", "unknown"),
+            _precedent_trace_entries(candidates),
+        )
         return {"precedent_candidates": tuple(candidates)}
 
     def rerank_precedents(
@@ -296,6 +251,12 @@ class CertifiedLetterNodes:
                 key=lambda candidate: candidate.similarity,
                 reverse=True,
             )[:PRECEDENT_RESULT_LIMIT]
+        logger.info(
+            "내용증명 판례 리랭킹 결과: request_id=%s candidates=%s selected=%s",
+            state.get("request_id", "unknown"),
+            _precedent_trace_entries(candidates),
+            _precedent_trace_entries(selected),
+        )
         return {"selected_precedents": tuple(selected)}
 
     def check_evidence(
@@ -458,6 +419,26 @@ def _statute_trace_entries(statutes: object) -> str:
                 "similarity": round(item.similarity, 4),
             }
             for item in statutes
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _precedent_trace_entries(precedents: object) -> str:
+    """판례 원문 없이 검색·리랭킹 결과를 추적 가능한 메타데이터로 남긴다."""
+
+    return json.dumps(
+        [
+            {
+                "precedent_id": item.precedent_id,
+                "case_number": item.case_number,
+                "case_name": item.case_name,
+                "court_name": item.court_name,
+                "decision_date": item.decision_date,
+                "similarity": round(item.similarity, 4),
+            }
+            for item in precedents
         ],
         ensure_ascii=False,
         sort_keys=True,

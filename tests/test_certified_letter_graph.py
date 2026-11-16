@@ -232,6 +232,7 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(len(precedent_search.calls), 1)
         self.assertEqual(statute_search.calls[0][1], STATUTE_CANDIDATE_LIMIT)
         self.assertEqual(precedent_search.calls[0][1], PRECEDENT_CANDIDATE_LIMIT)
+        self.assertEqual(PRECEDENT_CANDIDATE_LIMIT, 20)
         self.assertEqual(dependencies.statute_reranker.calls[0][2], STATUTE_RESULT_LIMIT)
         self.assertEqual(
             dependencies.precedent_reranker.calls[0][2],
@@ -239,10 +240,19 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         )
 
         statute_query = statute_search.calls[0][0][0]
+        precedent_query = precedent_search.calls[0][0][0]
+        self.assertEqual(statute_query, precedent_query)
+        self.assertIn("전세 임대차", statute_query)
+        self.assertIn("보증금을 반환받고 싶습니다.", statute_query)
+        self.assertIn("보증금 반환을 요청했지만 아직 받지 못했습니다.", statute_query)
         self.assertNotIn("홍길동", statute_query)
         self.assertNotIn("서울특별시 종로구 사직로 1", statute_query)
-        self.assertIn("계약기간 2024-10-01부터 2026-09-30까지", statute_query)
-        self.assertIn("보증금 100000000원", statute_query)
+        self.assertNotIn("임대차보증금 반환", statute_query)
+        self.assertNotIn("관련 법령", statute_query)
+        self.assertNotIn("유사 판례", statute_query)
+        self.assertNotIn("발신인 lessee", statute_query)
+        self.assertNotIn("계약기간 2024-10-01부터 2026-09-30까지", statute_query)
+        self.assertNotIn("보증금 100000000원", statute_query)
 
     def test_filters_low_similarity_statutes_before_reranking(self):
         accepted = replace(
@@ -269,7 +279,7 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(reranker.calls[0][1], (accepted,))
         self.assertEqual(generator.generate_calls[0][1], (accepted,))
 
-    def test_logs_statute_retrieval_reranking_and_citation_by_request_id(self):
+    def test_logs_retrieval_reranking_and_citation_by_request_id(self):
         dependencies, *_rest = make_dependencies()
 
         with self.assertLogs("ml.agent.certified_letter.nodes", level="INFO") as logs:
@@ -281,9 +291,12 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertIn("내용증명 법령 검색 후보", joined)
         self.assertIn("내용증명 법령 리랭킹 결과", joined)
         self.assertIn("내용증명 법령 인용 결과", joined)
+        self.assertIn("내용증명 판례 검색 후보", joined)
+        self.assertIn("내용증명 판례 리랭킹 결과", joined)
         self.assertIn("trace-log-001", joined)
         self.assertIn("주택임대차보호법", joined)
         self.assertIn("제4조", joined)
+        self.assertIn("2006다62492", joined)
 
     def test_returns_at_most_three_precedents_without_similarity_cutoff(self):
         precedents = [
