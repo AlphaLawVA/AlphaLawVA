@@ -94,7 +94,7 @@ class ContractReviewAnalysisItem(ContractApiModel):
     # check은 그보다 위험이 낮은 단순 확인 쟁점이다.
     revision: str = Field(default="", max_length=1000)
     negotiation: str = Field(default="", max_length=700)
-    evidence_source_ids: list[str] = Field(min_length=1, max_length=6)
+    evidence_source_ids: list[str] = Field(default_factory=list, max_length=6)
 
 
 class ContractReviewResponse(ContractApiModel):

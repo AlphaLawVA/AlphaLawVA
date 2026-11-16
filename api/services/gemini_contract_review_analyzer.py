@@ -46,7 +46,7 @@ DEFAULT_MAX_EVIDENCE_PER_QUERY = (
     DEFAULT_MAX_STATUTES_PER_QUERY + DEFAULT_MAX_PRECEDENTS_PER_QUERY
 )
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "contract_review_result_v0.6"
+PROMPT_VERSION = "contract_review_result_v0.7"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -77,8 +77,8 @@ OUTPUT_SCHEMA = {
                     "negotiation": {"type": "string", "maxLength": 700},
                     "evidence_source_ids": {
                         "type": "array",
-                        "minItems": 1,
-                        "maxItems": DEFAULT_MAX_EVIDENCE_PER_QUERY,
+                        "minItems": 0,
+                        "maxItems": DEFAULT_MAX_STATUTES_PER_QUERY,
                         "items": {"type": "string"},
                     },
                 },
@@ -110,7 +110,8 @@ title, text)입니다. 제공된 질의와 근거만 사용하세요. 입력에 
 1. 질의에서 확인 대상(특약 문구 또는 등기 항목)의 취지를 파악합니다.
 2. 근거 원문에서 그 취지와 관련된 내용을 찾아 대조합니다.
 3. 근거 중 일부라도 관련되면 관련된 부분만 근거로 삼아 사용자가 확인할 쟁점을
-   정리합니다. 근거 전체가 질의와 무관할 때만 그 항목을 출력하지 않습니다.
+   정리합니다. 관련 법령이 없어도 특약 문구 자체를 검토해 결과를 작성합니다.
+   판례는 화면에 별도로 참고 자료로 보여 주므로 판단 근거로 인용하지 않습니다.
 
 규칙:
 1. 각 항목은 제공된 item_id를 그대로 사용합니다.
@@ -151,8 +152,12 @@ title, text)입니다. 제공된 질의와 근거만 사용하세요. 입력에 
 7. 제공 근거에 없는 법률, 조문, 판례, 금액, 당사자 정보는 만들지 않습니다.
    근거에 없는 내용을 '통상', '일반적', '관행'처럼 확립된 사실로 단정하지
    마세요. 의견이나 제안은 그렇다고 밝혀 쓰세요.
-8. evidence_source_ids에는 해당 item_id에 제공된 근거의 source_id만 넣습니다.
-9. 근거 전체가 질의와 무관한 항목만 출력하지 않습니다.
+8. evidence_source_ids에는 판단에 실제로 도움이 된 법령(source_type이 statute인 근거)의
+   source_id만 넣습니다. 판례(precedent)의 source_id는 넣지 않습니다. 관련된 법령이
+   없으면 빈 배열로 두고, 이때 summary에 직접 근거가 되는 법령은 찾지 못했다는 취지를
+   짧게 포함합니다. 직접 근거가 되는 법령이 없으면 review_status를 safe로 하지 않습니다.
+9. 근거가 모두 질의와 무관해도 특약 문구는 검토해 출력합니다. 근거에 없는 내용은
+   만들지 말고, 확인할 쟁점과 협의 항목 중심으로 작성합니다.
 10. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
     항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
     인용하지 않습니다.
@@ -312,6 +317,14 @@ class GeminiContractReviewAnalyzer:
             item["item_id"]: {evidence["source_id"] for evidence in item["evidence"]}
             for item in payload["items"]
         }
+        statute_sources = {
+            item["item_id"]: {
+                evidence["source_id"]
+                for evidence in item["evidence"]
+                if evidence["source_type"] == "statute"
+            }
+            for item in payload["items"]
+        }
         analyses: list[ContractReviewAnalysis] = []
         seen_item_ids: set[str] = set()
         first_error: ValueError | None = None
@@ -319,7 +332,9 @@ class GeminiContractReviewAnalyzer:
         # 제공되지 않은 근거를 인용한 내용은 어떤 경우에도 화면에 보내지 않는다.
         for item in content["items"]:
             try:
-                analysis = self._validate_item(item, allowed_sources, seen_item_ids)
+                analysis = self._validate_item(
+                    item, allowed_sources, seen_item_ids, statute_sources
+                )
             except ValueError as error:
                 first_error = first_error or error
                 continue
@@ -334,6 +349,7 @@ class GeminiContractReviewAnalyzer:
         item: Any,
         allowed_sources: dict[str, set[str]],
         seen_item_ids: set[str],
+        statute_sources: dict[str, set[str]] | None = None,
     ) -> ContractReviewAnalysis:
         if not isinstance(item, dict):
             raise ValueError("Gemini 계약서 검토 항목 형식이 올바르지 않습니다.")
@@ -362,13 +378,19 @@ class GeminiContractReviewAnalyzer:
                 raise ValueError("Gemini 수정 초안 형식이 올바르지 않습니다.")
             if len(negotiation) < 2 or len(negotiation) > 700:
                 raise ValueError("Gemini 협상 안내 형식이 올바르지 않습니다.")
-        if not isinstance(source_ids, list) or not source_ids:
-            raise ValueError("Gemini 검토 근거가 비어 있습니다.")
+        # 인용은 법령만 허용하고, 관련 법령이 없으면 빈 목록을 허용한다.
+        if not isinstance(source_ids, list):
+            raise ValueError("Gemini 검토 근거 형식이 올바르지 않습니다.")
         normalized_ids = [value for value in source_ids if isinstance(value, str)]
         if len(normalized_ids) != len(source_ids) or any(
             value not in allowed_sources[item_id] for value in normalized_ids
         ):
             raise ValueError("Gemini가 제공되지 않은 근거를 참조했습니다.")
+        if statute_sources is not None:
+            # 판례 ID를 인용해도 항목을 버리지 않고 법령 근거만 남긴다(판례는 화면에 별도로 표시).
+            normalized_ids = [
+                value for value in normalized_ids if value in statute_sources[item_id]
+            ]
         return ContractReviewAnalysis(
             item_id=item_id,
             summary=summary,

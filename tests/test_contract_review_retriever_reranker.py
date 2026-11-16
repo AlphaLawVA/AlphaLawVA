@@ -195,6 +195,14 @@ class RerankerEnvTest(unittest.TestCase):
             SHARED_CROSS_ENCODER_MODEL_LOADER._models = original_models
         self.assertEqual(loader.calls, 1)
 
+    def test_contract_review_factory_shows_three_precedents(self):
+        # 계약서 검토도 관련 판례를 조항마다 3개까지 보여준다(특약 생성과 같은 개수).
+        with tempfile.TemporaryDirectory() as directory:
+            env = {"CONTRACT_REVIEW_RAG_ENABLED": "true", "RAG_STATUTE_RERANKER_DIR": directory}
+            with patch.dict(os.environ, env, clear=False):
+                retriever = module.create_contract_review_rag_retriever_from_env()
+        self.assertEqual(retriever._precedent_evidence_top_k, 3)
+
     def test_retriever_factory_widens_candidates_only_with_reranker(self):
         with tempfile.TemporaryDirectory() as directory:
             env = {"SPECIAL_CLAUSE_RAG_ENABLED": "true", "RAG_STATUTE_RERANKER_DIR": directory}

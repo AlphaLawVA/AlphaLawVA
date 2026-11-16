@@ -428,7 +428,7 @@ def create_contract_review_rag_retriever_from_env() -> ContractReviewRagRetrieve
 
     return _create_rag_retriever_from_env(
         "CONTRACT_REVIEW_RAG_ENABLED",
-        precedent_evidence_top_k=ContractReviewRagRetriever.DEFAULT_PRECEDENT_EVIDENCE_TOP_K,
+        precedent_evidence_top_k=3,
     )
 
 

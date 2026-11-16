@@ -58,10 +58,13 @@ function statuteBasis(evidence: ContractEvidence): LegalBasis {
 function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
   return result.contract_items.map((item) => {
     const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
-    const evidence = result.evidence.filter((entry) => (
-      entry.item_id === item.item_id
+    const itemEvidence = result.evidence.filter((entry) => entry.item_id === item.item_id);
+    // 법령은 판단에 인용된 것만, 판례는 인용과 무관하게 관련 판례로 따로 보여준다.
+    const citedStatutes = itemEvidence.filter((entry) => (
+      entry.source_type === "statute"
       && (!analysis || analysis.evidence_source_ids.includes(entry.source_id))
     ));
+    const relatedPrecedents = itemEvidence.filter((entry) => entry.source_type === "precedent");
     return {
       id: item.item_id,
       title: item.label,
@@ -70,8 +73,8 @@ function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
       reason: analysis?.summary ?? item.message,
       revision: analysis?.revision ?? "근거 기반 수정 초안을 생성하지 못했습니다. 원문을 직접 확인하세요.",
       negotiation: analysis?.negotiation ?? "적용 범위와 사실관계를 상대방과 확인하세요.",
-      statutes: evidence.filter((entry) => entry.source_type === "statute").map(statuteBasis),
-      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(contractEvidenceToPrecedent),
+      statutes: citedStatutes.map(statuteBasis),
+      precedents: relatedPrecedents.map(contractEvidenceToPrecedent),
     };
   });
 }
@@ -293,6 +296,7 @@ export function ResultDemo() {
             )}
             <details>
               <summary>관련 법령 {selectedClause.statutes.length}건</summary>
+              {selectedClause.statutes.length === 0 && <p className={styles.noEvidence}>이 조항의 판단 근거로 직접 연결된 법령은 없습니다.</p>}
               <div className={styles.evidenceList}>
                 {selectedClause.statutes.map((statute) => (
                   <article className={styles.evidenceCard} key={`${statute.law}-${statute.article}`}>
