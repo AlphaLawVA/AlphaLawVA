@@ -33,6 +33,12 @@ from ml.agent.certified_letter.state import (
     recipient_role,
     resolve_document_parties,
 )
+from ml.agent.certified_letter.value_normalizer import (
+    count_prompt_transformations,
+    missing_fact_values,
+    normalize_draft,
+)
+from ml.agent.certified_letter.prompts import build_generation_prompt, build_repair_prompt
 
 
 ISSUE_KEYWORDS = {
@@ -287,11 +293,23 @@ class CertifiedLetterNodes:
         self,
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
-        draft = self.dependencies.generator.generate(
-            state["normalized_request"],
+        request = state["normalized_request"]
+        input_transformations = count_prompt_transformations(
+            build_generation_prompt(request, state["selected_statutes"])
+        )
+        generated = self.dependencies.generator.generate(
+            request,
             state["selected_statutes"],
         )
-        return {"draft": draft}
+        normalized = normalize_draft(generated)
+        trace = dict(state.get("trace", {}))
+        trace.update(
+            {
+                "input_normalization_count": input_transformations,
+                "output_normalization_count": normalized.transformations,
+            }
+        )
+        return {"draft": normalized.draft, "trace": trace}
 
     def validate_draft(
         self,
@@ -308,15 +326,34 @@ class CertifiedLetterNodes:
         self,
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
+        request = state["normalized_request"]
+        input_transformations = count_prompt_transformations(
+            build_repair_prompt(
+                request,
+                state["selected_statutes"],
+                state["draft"],
+                state["validation_issues"],
+            )
+        )
         repaired = self.dependencies.generator.repair(
-            state["normalized_request"],
+            request,
             state["selected_statutes"],
             state["draft"],
             state["validation_issues"],
         )
+        normalized = normalize_draft(repaired)
+        trace = dict(state.get("trace", {}))
+        trace["input_normalization_count"] = (
+            int(trace.get("input_normalization_count", 0)) + input_transformations
+        )
+        trace["output_normalization_count"] = (
+            int(trace.get("output_normalization_count", 0))
+            + normalized.transformations
+        )
         return {
-            "draft": repaired,
+            "draft": normalized.draft,
             "repair_attempts": state.get("repair_attempts", 0) + 1,
+            "trace": trace,
         }
 
     def mark_validation_failure(
@@ -336,6 +373,20 @@ class CertifiedLetterNodes:
     ) -> CertifiedLetterGraphState:
         if "failure" in state or "outcome" in state:
             return {}
+        request = state["normalized_request"]
+        missing_values = missing_fact_values(
+            facts=request.facts,
+            body=state["draft"].body,
+        )
+        logger.info(
+            "내용증명 값 정규화 완료: request_id=%s input_transformations=%s "
+            "output_transformations=%s missing_fact_values=%s missing_values=%s",
+            state.get("request_id", "unknown"),
+            state.get("trace", {}).get("input_normalization_count", 0),
+            state.get("trace", {}).get("output_normalization_count", 0),
+            bool(missing_values),
+            missing_values,
+        )
         return {"outcome": "draft_ready"}
 
 

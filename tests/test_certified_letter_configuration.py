@@ -21,6 +21,7 @@ from api.services.certified_letter_configuration import (
     create_certified_letter_service_from_env,
 )
 from ml.agent.certified_letter.gemini import GeminiStructuredLetterModel
+from ml.agent.certified_letter.anthropic import AnthropicStructuredLetterModel
 from ml.agent.certified_letter.openai import OpenAIStructuredLetterModel
 from ml.rag.reranker import CrossEncoderReranker, DenseSimilarityReranker
 
@@ -160,6 +161,29 @@ class CertifiedLetterConfigurationTests(unittest.TestCase):
             create_workflow.call_args.kwargs["precedent_reranker"],
             DenseSimilarityReranker,
         )
+
+    def test_can_select_claude_for_draft_generation(self):
+        environment = {
+            "GEMINI_API_KEY": "test-key",
+            "CLAUDE_API_KEY": "test-claude-key",
+            "CERTIFIED_LETTER_GENERATION_PROVIDER": "anthropic",
+        }
+        with (
+            patch(
+                "api.services.certified_letter_configuration.load_env_file"
+            ),
+            patch.dict(os.environ, environment, clear=True),
+            patch(
+                "api.services.certified_letter_configuration."
+                "create_certified_letter_workflow",
+                return_value=object(),
+            ) as create_workflow,
+        ):
+            create_certified_letter_service_from_env()
+
+        model = create_workflow.call_args.kwargs["model"]
+        self.assertIsInstance(model, AnthropicStructuredLetterModel)
+        self.assertEqual(model.model_name, "claude-sonnet-5-5")
 
     def test_can_plug_independent_local_cross_encoders_without_code_change(self):
         environment = {
