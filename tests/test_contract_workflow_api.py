@@ -81,7 +81,7 @@ class NoStatuteAnalyzer:
         return [
             ContractReviewAnalysis(
                 item_id=queries[0].item_id,
-                summary="직접 근거가 되는 법령은 찾지 못했습니다. 원문을 확인해 주세요.",
+                summary="적용 범위를 원문과 함께 확인해 주세요.",
                 review_status="check",
                 revision="적용 범위와 위반 시 처리 방법을 합의해 기재한다.",
                 negotiation="적용 종료 시점과 책임 범위를 상대방과 확인하세요.",
