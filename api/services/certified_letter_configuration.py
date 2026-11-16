@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -117,6 +118,12 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         runtime_root / "local_data",
         base_dir=runtime_root,
     )
+    retrieval_trace_log = _path_from_env(
+        "CERTIFIED_LETTER_RETRIEVAL_TRACE_LOG",
+        local_data_dir / "certified_letters" / "logs" / "retrieval_trace.log",
+        base_dir=runtime_root,
+    )
+    _configure_retrieval_trace_logger(retrieval_trace_log)
     model_cache = _path_from_env(
         "CERTIFIED_LETTER_MODEL_CACHE_DIR",
         runtime_root / "data/statutes/models",
@@ -345,6 +352,31 @@ def _load_environment() -> Path:
         )
     load_env_file(env_file)
     return env_file.parent
+
+
+def _configure_retrieval_trace_logger(path: Path) -> None:
+    """검색 메타데이터만 별도 로컬 파일에 남겨 실행 후 추적할 수 있게 한다."""
+
+    resolved_path = path.resolve()
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path.touch(exist_ok=True)
+    resolved_path.chmod(0o600)
+
+    logger = logging.getLogger("ml.agent.certified_letter.nodes")
+    for handler in logger.handlers:
+        if getattr(handler, "_alphalawva_retrieval_trace_path", None) == str(
+            resolved_path
+        ):
+            return
+
+    handler = logging.FileHandler(resolved_path, encoding="utf-8")
+    handler._alphalawva_retrieval_trace_path = str(resolved_path)  # type: ignore[attr-defined]
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 
 def _path_from_env(name: str, default: Path, *, base_dir: Path) -> Path:
