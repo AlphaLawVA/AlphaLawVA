@@ -237,10 +237,9 @@ class SpecialClauseService:
         if generation_status == GenerationStatus.GENERATED:
             drafts = [item for item in items or [] if item.status == "draft_ready"]
             without_evidence = [item for item in drafts if not item.evidence_source_ids]
-            if drafts and len(without_evidence) == len(drafts):
-                return "직접 연결된 법령 근거는 없어 당사자 합의 사항으로 작성한 초안을 구성했습니다."
+            # 법령 근거가 없다는 사실은 결과 화면의 관련 법령 영역이 따로 알리므로 문구에 반복하지 않는다.
             if without_evidence:
-                return "일부 초안은 직접 연결된 법령 근거 없이 당사자 합의 사항으로 작성했습니다."
+                return "특약 초안 또는 추가 확인 항목을 구성했습니다."
             return "근거가 연결된 특약 초안 또는 추가 확인 항목을 구성했습니다."
         if generation_status == GenerationStatus.UNAVAILABLE:
             return "검색 근거는 찾았지만 특약 초안 생성은 현재 사용할 수 없습니다."

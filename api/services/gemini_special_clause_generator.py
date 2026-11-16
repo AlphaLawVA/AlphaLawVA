@@ -48,7 +48,7 @@ DEFAULT_MAX_OUTPUT_TOKENS = 800 * DEFAULT_MAX_QUERIES
 DEFAULT_MAX_STATUTES_PER_QUERY = 3
 DEFAULT_MAX_EVIDENCE_PER_QUERY = DEFAULT_MAX_STATUTES_PER_QUERY
 DEFAULT_MAX_EVIDENCE_CHARS = 1200
-PROMPT_VERSION = "special_clause_result_v1.3"
+PROMPT_VERSION = "special_clause_result_v1.4"
 DEFAULT_USAGE_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "local_data"
@@ -181,8 +181,8 @@ source_type, title, text)입니다. 제공된 요청과 검색 근거만 사용�
 8. 근거가 없거나 요청과 무관해도 요청이 특약으로 정할 수 있는 주제이면 그 항목을
    생략하지 마세요. 이때는 근거를 인용하지 않고 요청 내용만으로 초안을 작성하며,
    조문·법적 효과를 언급하지 않습니다. strategy에는 규칙 2의 실행 팁을 쓰고,
-   마지막에 '직접 근거가 되는 법령은 찾지 못해 당사자 합의 사항으로
-   작성했습니다'라는 취지를 짧은 한 문장으로 덧붙입니다(맨 앞에 쓰지 않습니다).
+   법령 근거를 찾지 못했다거나 당사자 합의 사항으로 작성했다는 말은 쓰지 않습니다
+   (화면이 법령 유무를 따로 알려 줍니다).
 9. 항목에 previous_issues가 있으면 이전 응답이 그 문제로 거절된 것입니다. 해당
     항목만 같은 문제가 없도록 고쳐 다시 작성하고, previous_issues 문구를 결과에
     인용하지 않습니다.
