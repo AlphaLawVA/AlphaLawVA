@@ -20,7 +20,8 @@ from dotenv import load_dotenv
 
 shared_env_file = os.environ.get("ALPHALAWVA_SHARED_ENV_FILE", "").strip()
 if shared_env_file:
-    load_dotenv(Path(shared_env_file), override=False)
+    # 진단은 공유 런타임과 같은 로컬 데이터 경로를 반드시 사용한다.
+    load_dotenv(Path(shared_env_file), override=True)
 
 from ml.rag.precedent_retriever import BgeM3PrecedentRetriever
 
@@ -31,7 +32,8 @@ BASE_QUERY = (
     "제가 관리사무소에 대신 납부했습니다. 11월 10일 문자로 이 금액을 보내 달라고 "
     "요청했지만 아직 입금이 없습니다."
 )
-QUERY_WITH_ISSUE_TERM = f"{BASE_QUERY} 관리비 미납"
+GEMINI_KEYWORDS = "관리비 청구 대납 관리비 전세 임대차 관리비 미납"
+QUERY_WITH_GEMINI_KEYWORDS = f"{BASE_QUERY} {GEMINI_KEYWORDS}"
 TARGET_PRECEDENT_ID = "147076"
 TARGET_CASE_NUMBER = "2005가합100279,2006가합62053"
 CANDIDATE_LIMIT = 50
@@ -62,13 +64,22 @@ def print_result(label: str, query: str, results) -> None:
 
 
 def main() -> None:
-    retriever = BgeM3PrecedentRetriever()
+    db_dir = Path(os.environ["CERTIFIED_LETTER_PRECEDENT_DB_DIR"])
+    model_cache = Path(os.environ["CERTIFIED_LETTER_MODEL_CACHE_DIR"])
+    retriever = BgeM3PrecedentRetriever(
+        db_dir=db_dir,
+        model_cache=model_cache,
+    )
     result_batches = retriever.search_many(
-        (BASE_QUERY, QUERY_WITH_ISSUE_TERM),
+        (BASE_QUERY, QUERY_WITH_GEMINI_KEYWORDS),
         top_k=CANDIDATE_LIMIT,
     )
     print_result("기준 검색", BASE_QUERY, result_batches[0])
-    print_result("쟁점어 보강 검색", QUERY_WITH_ISSUE_TERM, result_batches[1])
+    print_result(
+        "Gemini 쟁점어 보강 검색",
+        QUERY_WITH_GEMINI_KEYWORDS,
+        result_batches[1],
+    )
 
 
 if __name__ == "__main__":
