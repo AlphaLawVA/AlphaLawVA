@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -33,6 +34,10 @@ from ml.agent.certified_letter.openai import (
     DEFAULT_REASONING_EFFORT,
     DEFAULT_TIMEOUT_SECONDS as DEFAULT_OPENAI_TIMEOUT_SECONDS,
     OpenAIStructuredLetterModel,
+)
+from ml.agent.certified_letter.anthropic import (
+    DEFAULT_ANTHROPIC_MODEL,
+    AnthropicStructuredLetterModel,
 )
 from ml.agent.certified_letter.retrieval import (
     BgeM3PrecedentSearchAdapter,
@@ -89,8 +94,23 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
     if not _enabled("CERTIFIED_LETTER_GENERATION_ENABLED", default=True):
         return CertifiedLetterService()
     gemini_api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    generation_provider = os.environ.get(
+        "CERTIFIED_LETTER_GENERATION_PROVIDER",
+        "openai",
+    ).strip().lower()
+    if generation_provider not in {"openai", "anthropic"}:
+        raise ValueError(
+            "CERTIFIED_LETTER_GENERATION_PROVIDER는 openai 또는 anthropic이어야 합니다."
+        )
     openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not gemini_api_key or not openai_api_key:
+    anthropic_api_key = (
+        os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        or os.environ.get("CLAUDE_API_KEY", "").strip()
+    )
+    generation_api_key = (
+        openai_api_key if generation_provider == "openai" else anthropic_api_key
+    )
+    if not gemini_api_key or not generation_api_key:
         return CertifiedLetterService()
 
     local_data_dir = _path_from_env(
@@ -98,6 +118,12 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         runtime_root / "local_data",
         base_dir=runtime_root,
     )
+    retrieval_trace_log = _path_from_env(
+        "CERTIFIED_LETTER_RETRIEVAL_TRACE_LOG",
+        local_data_dir / "certified_letters" / "logs" / "retrieval_trace.log",
+        base_dir=runtime_root,
+    )
+    _configure_retrieval_trace_logger(retrieval_trace_log)
     model_cache = _path_from_env(
         "CERTIFIED_LETTER_MODEL_CACHE_DIR",
         runtime_root / "data/statutes/models",
@@ -132,6 +158,18 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
         / "openai_generation_usage.jsonl",
         base_dir=runtime_root,
     )
+    anthropic_usage_manifest = _path_from_env(
+        "CERTIFIED_LETTER_ANTHROPIC_USAGE_MANIFEST",
+        local_data_dir
+        / "certified_letters"
+        / "manifests"
+        / "anthropic_generation_usage.jsonl",
+        base_dir=runtime_root,
+    )
+    anthropic_failed_response_dir = _optional_path_from_env(
+        "CERTIFIED_LETTER_ANTHROPIC_FAILED_RESPONSE_DIR",
+        base_dir=runtime_root,
+    )
     device = os.environ.get("CERTIFIED_LETTER_EMBEDDING_DEVICE", "auto").strip()
     shared_model_loader = _SharedBgeM3ModelLoader()
 
@@ -158,33 +196,59 @@ def create_certified_letter_service_from_env() -> CertifiedLetterService:
             "CERTIFIED_LETTER_GEMINI_SESSION_BUDGET_USD"
         ),
     )
-    model = OpenAIStructuredLetterModel(
-        api_key=openai_api_key,
-        model=os.environ.get(
-            "CERTIFIED_LETTER_OPENAI_MODEL",
-            DEFAULT_OPENAI_MODEL,
-        ),
-        timeout_seconds=float(
-            os.environ.get(
-                "CERTIFIED_LETTER_OPENAI_TIMEOUT_SECONDS",
-                str(DEFAULT_OPENAI_TIMEOUT_SECONDS),
-            )
-        ),
-        max_output_tokens=int(
-            os.environ.get(
-                "CERTIFIED_LETTER_OPENAI_MAX_OUTPUT_TOKENS",
-                str(DEFAULT_OPENAI_MAX_OUTPUT_TOKENS),
-            )
-        ),
-        reasoning_effort=os.environ.get(
-            "CERTIFIED_LETTER_OPENAI_REASONING_EFFORT",
-            DEFAULT_REASONING_EFFORT,
-        ),
-        usage_manifest_path=openai_usage_manifest,
-        max_session_cost_usd=_optional_positive_float(
-            "CERTIFIED_LETTER_OPENAI_SESSION_BUDGET_USD"
-        ),
-    )
+    if generation_provider == "anthropic":
+        model = AnthropicStructuredLetterModel(
+            api_key=anthropic_api_key,
+            model=os.environ.get(
+                "CERTIFIED_LETTER_ANTHROPIC_MODEL",
+                DEFAULT_ANTHROPIC_MODEL,
+            ),
+            timeout_seconds=float(
+                os.environ.get(
+                    "CERTIFIED_LETTER_ANTHROPIC_TIMEOUT_SECONDS",
+                    str(DEFAULT_OPENAI_TIMEOUT_SECONDS),
+                )
+            ),
+            max_output_tokens=int(
+                os.environ.get(
+                    "CERTIFIED_LETTER_ANTHROPIC_MAX_OUTPUT_TOKENS",
+                    str(DEFAULT_OPENAI_MAX_OUTPUT_TOKENS),
+                )
+            ),
+            usage_manifest_path=anthropic_usage_manifest,
+            failed_response_dir=anthropic_failed_response_dir,
+            max_session_cost_usd=_optional_positive_float(
+                "CERTIFIED_LETTER_ANTHROPIC_SESSION_BUDGET_USD"
+            ),
+        )
+    else:
+        model = OpenAIStructuredLetterModel(
+            api_key=openai_api_key,
+            model=os.environ.get(
+                "CERTIFIED_LETTER_OPENAI_MODEL",
+                DEFAULT_OPENAI_MODEL,
+            ),
+            timeout_seconds=float(
+                os.environ.get(
+                    "CERTIFIED_LETTER_OPENAI_TIMEOUT_SECONDS",
+                    str(DEFAULT_OPENAI_TIMEOUT_SECONDS),
+                )
+            ),
+            max_output_tokens=int(
+                os.environ.get(
+                    "CERTIFIED_LETTER_OPENAI_MAX_OUTPUT_TOKENS",
+                    str(DEFAULT_OPENAI_MAX_OUTPUT_TOKENS),
+                )
+            ),
+            reasoning_effort=os.environ.get(
+                "CERTIFIED_LETTER_OPENAI_REASONING_EFFORT",
+                DEFAULT_REASONING_EFFORT,
+            ),
+            usage_manifest_path=openai_usage_manifest,
+            max_session_cost_usd=_optional_positive_float(
+                "CERTIFIED_LETTER_OPENAI_SESSION_BUDGET_USD"
+            ),
+        )
     statute_search = BgeM3StatuteSearchAdapter(
         BgeM3StatuteRetriever(
             db_dir=statute_db,
@@ -290,12 +354,45 @@ def _load_environment() -> Path:
     return env_file.parent
 
 
+def _configure_retrieval_trace_logger(path: Path) -> None:
+    """검색 메타데이터만 별도 로컬 파일에 남겨 실행 후 추적할 수 있게 한다."""
+
+    resolved_path = path.resolve()
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path.touch(exist_ok=True)
+    resolved_path.chmod(0o600)
+
+    logger = logging.getLogger("ml.agent.certified_letter.nodes")
+    for handler in logger.handlers:
+        if getattr(handler, "_alphalawva_retrieval_trace_path", None) == str(
+            resolved_path
+        ):
+            return
+
+    handler = logging.FileHandler(resolved_path, encoding="utf-8")
+    handler._alphalawva_retrieval_trace_path = str(resolved_path)  # type: ignore[attr-defined]
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+
 def _path_from_env(name: str, default: Path, *, base_dir: Path) -> Path:
     value = os.environ.get(name, "").strip()
     path = Path(value).expanduser() if value else default
     if not path.is_absolute():
         path = base_dir / path
     return path
+
+
+def _optional_path_from_env(name: str, *, base_dir: Path) -> Path | None:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return None
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else base_dir / path
 
 
 def _enabled(name: str, *, default: bool) -> bool:

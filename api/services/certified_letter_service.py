@@ -154,7 +154,9 @@ class CertifiedLetterService:
 
         try:
             request = self._take_request(draft_id)
-            state = self.graph.invoke({"request": request})
+            state = self.graph.invoke(
+                {"request": request, "request_id": str(draft_id)}
+            )
             if failure := state.get("failure"):
                 logger.warning(
                     "내용증명 검증 실패: draft_id=%s issue_codes=%s repair_attempts=%s",

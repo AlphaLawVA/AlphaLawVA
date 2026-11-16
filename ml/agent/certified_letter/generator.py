@@ -25,6 +25,7 @@ from ml.agent.certified_letter.state import (
     StatuteEvidenceData,
     ValidationIssue,
 )
+from ml.agent.certified_letter.value_normalizer import normalize_prompt_bundle
 
 
 class StructuredLetterModel(Protocol):
@@ -40,7 +41,8 @@ class PromptedLetterDraftGenerator:
         request: NormalizedCertifiedLetterRequest,
         statute_evidence: Sequence[StatuteEvidenceData],
     ) -> LetterDraftData:
-        return self.model.invoke(build_generation_prompt(request, statute_evidence))
+        prompt = build_generation_prompt(request, statute_evidence)
+        return self.model.invoke(normalize_prompt_bundle(prompt))
 
     def repair(
         self,
@@ -49,11 +51,10 @@ class PromptedLetterDraftGenerator:
         draft: LetterDraftData,
         issues: Sequence[ValidationIssue],
     ) -> LetterDraftData:
-        return self.model.invoke(
-            build_repair_prompt(
-                request,
-                statute_evidence,
-                draft,
-                issues,
-            )
+        prompt = build_repair_prompt(
+            request,
+            statute_evidence,
+            draft,
+            issues,
         )
+        return self.model.invoke(normalize_prompt_bundle(prompt))

@@ -210,6 +210,7 @@ class WorkflowFailure:
 
 class CertifiedLetterGraphState(TypedDict, total=False):
     request: CertifiedLetterRequestData
+    request_id: str
     normalized_request: NormalizedCertifiedLetterRequest
     scope_decision: str
     missing_information: tuple[str, ...]
