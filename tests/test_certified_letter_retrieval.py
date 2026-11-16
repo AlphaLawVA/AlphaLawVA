@@ -175,6 +175,29 @@ class CertifiedLetterRetrievalTests(unittest.TestCase):
             ["law:001:4:a", "law:002:1:a", "law:003:2:a"],
         )
 
+    def test_rank_fusion_can_prioritize_dense_results(self):
+        dense_only = make_statute(chunk_id="law:001:4:a", similarity=0.9)
+        bm25_only = make_statute(
+            chunk_id="law:002:1:a",
+            similarity=2.0,
+            law_id="002",
+            law_name="민법",
+            article_label="제536조",
+        )
+
+        results = fuse_statute_rankings(
+            [dense_only],
+            [bm25_only],
+            top_k=2,
+            dense_weight=0.7,
+            bm25_weight=0.3,
+        )
+
+        self.assertEqual(
+            [item.chunk_id for item in results],
+            ["law:001:4:a", "law:002:1:a"],
+        )
+
     def test_precedent_adapter_merges_same_precedent_and_preserves_source(self):
         low = make_precedent(
             precedent_id="64441",

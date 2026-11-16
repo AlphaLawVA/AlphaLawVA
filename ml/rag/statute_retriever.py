@@ -19,7 +19,7 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from threading import RLock
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Literal, Sequence
 
 from ml.data_collection.statutes.law_api_common import PROJECT_ROOT
 from ml.embedding.build_bge_m3_statute_chroma import MODEL_SPEC
@@ -33,6 +33,8 @@ RRF_K = 60
 BM25_K1 = 1.5
 BM25_B = 0.75
 BM25_TOKEN_PATTERN = re.compile(r"[가-힣A-Za-z0-9]+")
+Bm25TokenizerName = Literal["regex", "kiwi"]
+Bm25Tokenizer = Callable[[str], tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -58,11 +60,17 @@ class StatuteSearchResult:
 class _StatuteBm25Index:
     """법령 컬렉션 원문을 지연 구축해 검색하는 읽기 전용 BM25 색인이다."""
 
-    def __init__(self, documents: Sequence[StatuteSearchResult]) -> None:
+    def __init__(
+        self,
+        documents: Sequence[StatuteSearchResult],
+        *,
+        tokenizer: Bm25Tokenizer,
+    ) -> None:
         if not documents:
             raise ValueError("BM25 색인을 만들 법령 청크가 없습니다.")
         self.documents = tuple(documents)
-        self.tokens = tuple(_bm25_tokens(item.text) for item in self.documents)
+        self.tokenizer = tokenizer
+        self.tokens = tuple(tokenizer(item.text) for item in self.documents)
         self.average_length = max(
             sum(len(item) for item in self.tokens) / len(self.tokens),
             1.0,
@@ -75,13 +83,17 @@ class _StatuteBm25Index:
                 )
 
     def search(self, query: str, *, top_k: int) -> list[StatuteSearchResult]:
-        query_tokens = _bm25_tokens(query)
+        query_tokens = self.tokenizer(query)
         if not query_tokens:
             return []
         query_terms = set(query_tokens)
         scored: list[tuple[float, StatuteSearchResult]] = []
         document_count = len(self.documents)
-        for document, tokens in zip(self.documents, self.tokens, strict=True):
+        for document, tokens in zip(
+            self.documents,
+            self.tokens,
+            strict=True,
+        ):
             if not tokens:
                 continue
             frequencies: dict[str, int] = {}
@@ -131,21 +143,61 @@ def _bm25_tokens(value: str) -> tuple[str, ...]:
     return tuple(token.lower() for token in BM25_TOKEN_PATTERN.findall(value))
 
 
+def create_kiwi_bm25_tokenizer() -> Bm25Tokenizer:
+    """조사 등을 제외한 Kiwi 형태소 토큰을 만드는 재사용 가능한 함수다."""
+
+    try:
+        from kiwipiepy import Kiwi
+    except ImportError as error:
+        raise RuntimeError(
+            "Kiwi BM25를 사용하려면 requirements-preprocessing.txt의 "
+            "kiwipiepy가 필요합니다."
+        ) from error
+
+    # 서비스 프로세스에서 BGE 모델과 함께 쓰므로, 내부 worker fork를 만들지 않는다.
+    kiwi = Kiwi(num_workers=0)
+    content_prefixes = ("N", "V", "SL", "SN", "XR")
+
+    def tokenize(value: str) -> tuple[str, ...]:
+        return tuple(
+            token.form.lower()
+            for token in kiwi.tokenize(value)
+            if token.tag.startswith(content_prefixes)
+        )
+
+    return tokenize
+
+
+def bm25_tokenizer(name: Bm25TokenizerName) -> Bm25Tokenizer:
+    if name == "regex":
+        return _bm25_tokens
+    if name == "kiwi":
+        return create_kiwi_bm25_tokenizer()
+    raise ValueError(f"지원하지 않는 BM25 토큰화 방식: {name}")
+
+
 def fuse_statute_rankings(
     dense_results: Sequence[StatuteSearchResult],
     bm25_results: Sequence[StatuteSearchResult],
     *,
     top_k: int,
+    dense_weight: float = 1.0,
+    bm25_weight: float = 1.0,
 ) -> list[StatuteSearchResult]:
     """점수 단위를 섞지 않고 RRF로 Dense와 BM25 순위를 합친다."""
 
     if top_k < 1:
         raise ValueError("top_k는 1 이상이어야 합니다.")
+    if dense_weight <= 0 or bm25_weight <= 0:
+        raise ValueError("RRF 가중치는 0보다 커야 합니다.")
     scores: dict[str, float] = {}
     source: dict[str, StatuteSearchResult] = {}
-    for ranking in (dense_results, bm25_results):
+    for ranking, weight in (
+        (dense_results, dense_weight),
+        (bm25_results, bm25_weight),
+    ):
         for rank, result in enumerate(ranking, start=1):
-            scores[result.chunk_id] = scores.get(result.chunk_id, 0.0) + 1.0 / (
+            scores[result.chunk_id] = scores.get(result.chunk_id, 0.0) + weight / (
                 RRF_K + rank
             )
             source.setdefault(result.chunk_id, result)
@@ -325,7 +377,7 @@ class BgeM3StatuteRetriever:
         self._client: Any | None = None
         self._collection: Any | None = None
         self._manifest: dict[str, Any] | None = None
-        self._bm25_index: _StatuteBm25Index | None = None
+        self._bm25_indexes: dict[Bm25TokenizerName, _StatuteBm25Index] = {}
         self._lock = RLock()
 
     @property
@@ -335,15 +387,23 @@ class BgeM3StatuteRetriever:
     def load(self) -> None:
         if self.is_loaded:
             return
+        self._load_collection()
         with self._lock:
-            if self.is_loaded:
+            if self._model is not None:
+                return
+            model = self._model_loader(self.model_cache, self.device)
+            self._model = model
+
+    def _load_collection(self) -> None:
+        if self._collection is not None:
+            return
+        with self._lock:
+            if self._collection is not None:
                 return
             client, collection, manifest = self._collection_loader(self.db_dir)
-            model = self._model_loader(self.model_cache, self.device)
             self._client = client
             self._collection = collection
             self._manifest = manifest
-            self._model = model
 
     def search(
         self,
@@ -388,26 +448,35 @@ class BgeM3StatuteRetriever:
         queries: Sequence[str],
         *,
         top_k: int = DEFAULT_TOP_K,
+        bm25_tokenizer_name: Bm25TokenizerName = "regex",
+        dense_weight: float = 1.0,
+        bm25_weight: float = 1.0,
     ) -> list[list[StatuteSearchResult]]:
         """Dense와 BM25 후보를 RRF로 합쳐 법령 후보군을 넓힌다."""
 
         normalized = self._validate_queries(queries, top_k)
+        bm25_index = self._load_bm25_index(bm25_tokenizer_name)
         dense_batches = self.search_many(normalized, top_k=top_k)
-        bm25_index = self._load_bm25_index()
         return [
             fuse_statute_rankings(
                 dense_results,
                 bm25_index.search(query, top_k=top_k),
                 top_k=top_k,
+                dense_weight=dense_weight,
+                bm25_weight=bm25_weight,
             )
             for query, dense_results in zip(normalized, dense_batches, strict=True)
         ]
 
-    def _load_bm25_index(self) -> _StatuteBm25Index:
-        self.load()
+    def _load_bm25_index(
+        self,
+        tokenizer_name: Bm25TokenizerName,
+    ) -> _StatuteBm25Index:
+        self._load_collection()
         with self._lock:
-            if self._bm25_index is not None:
-                return self._bm25_index
+            existing = self._bm25_indexes.get(tokenizer_name)
+            if existing is not None:
+                return existing
             assert self._collection is not None
             payload = self._collection.get(include=["documents", "metadatas"])
             ids = payload.get("ids", [])
@@ -439,8 +508,12 @@ class BgeM3StatuteRetriever:
                 )
                 if str(document or "").strip()
             ]
-            self._bm25_index = _StatuteBm25Index(corpus)
-            return self._bm25_index
+            index = _StatuteBm25Index(
+                corpus,
+                tokenizer=bm25_tokenizer(tokenizer_name),
+            )
+            self._bm25_indexes[tokenizer_name] = index
+            return index
 
     @staticmethod
     def _validate_queries(queries: Sequence[str], top_k: int) -> list[str]:
