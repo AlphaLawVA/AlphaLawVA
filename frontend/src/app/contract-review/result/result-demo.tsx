@@ -302,10 +302,10 @@ export function ResultDemo() {
                   <article className={styles.evidenceCard} key={`${statute.law}-${statute.article}`}>
                     <div className={styles.evidenceHeading}>
                       <strong>{statute.law} {statute.article}</strong>
-                      {statute.url && <a href={statute.url} target="_blank" rel="noreferrer">원문 <ExternalLink size={14} /></a>}
                     </div>
                     <StatuteExcerpt text={statute.excerpt} />
                     <p>{statute.explanation}</p>
+                    {statute.url && <a className={styles.statuteLink} href={statute.url} target="_blank" rel="noreferrer">국가법령정보센터에서 원문 보기 <ExternalLink size={14} /></a>}
                   </article>
                 ))}
               </div>
