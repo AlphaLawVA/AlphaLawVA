@@ -133,9 +133,11 @@ class SpecialClauseBranchValidationTests(unittest.TestCase):
     def test_prompt_keeps_requested_core_intent(self) -> None:
         from api.services.gemini_special_clause_generator import PROMPT_VERSION, SYSTEM_PROMPT
 
-        self.assertEqual(PROMPT_VERSION, "special_clause_result_v1.1")
+        self.assertEqual(PROMPT_VERSION, "special_clause_result_v1.3")
         self.assertIn("핵심 내용", SYSTEM_PROMPT)
         self.assertIn("조건부로 바꾸지 않고", SYSTEM_PROMPT)
+        self.assertIn("실행 팁", SYSTEM_PROMPT)
+        self.assertIn("strategy에 반복하지 않습니다", SYSTEM_PROMPT)
 
     def test_precedents_are_not_sent_to_generation_model(self) -> None:
         precedent = ContractReviewEvidence(
