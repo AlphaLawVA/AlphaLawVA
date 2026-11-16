@@ -18,18 +18,23 @@ class CertifiedLetterValueNormalizerTests(unittest.TestCase):
     def test_normalizes_supported_korean_money_and_full_dates(self):
         result = normalize_text(
             "100만 원, 1억 2,200만 원, 7,800만 원, 90만원, 900000원, "
-            "1.5억 원, 2026-10-07, 2026.10.07"
+            "1.5억 원, 5천만 원, 1억 5천만 원, 2억 3천 5백만 원, 2천5백 원, "
+            "2026-10-07, 2026.10.07"
         )
 
         self.assertEqual(
             result.text,
             "1,000,000원, 122,000,000원, 78,000,000원, 900,000원, "
-            "900,000원, 150,000,000원, 2026년 10월 7일, 2026년 10월 7일",
+            "900,000원, 150,000,000원, 50,000,000원, 150,000,000원, "
+            "235,000,000원, 2,500원, 2026년 10월 7일, 2026년 10월 7일",
         )
-        self.assertEqual(result.transformations, 8)
+        self.assertEqual(result.transformations, 12)
 
     def test_does_not_change_non_money_numbers_or_partial_date(self):
-        text = "84.62㎡, 203동 1502호, 0.3%, 010-0000-1003, 7일 이내, 제5조, 11월 10일"
+        text = (
+            "84.62㎡, 203동 1502호, 0.3%, 010-0000-1003, 7일 이내, 제5조, "
+            "11월 10일, 오천만 원, 삼천만원"
+        )
 
         self.assertEqual(normalize_text(text).text, text)
 

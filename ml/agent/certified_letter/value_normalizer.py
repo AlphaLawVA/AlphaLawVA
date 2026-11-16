@@ -22,6 +22,21 @@ from ml.agent.certified_letter.prompts import PromptBundle
 from ml.agent.certified_letter.state import LetterDraftData
 
 
+_NUMBER = r"[0-9][0-9,]*(?:\.[0-9]+)?"
+_INTEGER = r"[0-9][0-9,]*"
+_LOWER_UNIT_COEFFICIENT = (
+    rf"(?:{_INTEGER}\s*(?:천|백|십)\s*)+(?:{_INTEGER})?"
+)
+_MIXED_EOK_RE = re.compile(
+    rf"(?<![0-9가-힣])(?P<eok>{_NUMBER})\s*억\s*"
+    rf"(?P<man>{_LOWER_UNIT_COEFFICIENT})\s*만\s*원"
+)
+_MIXED_MAN_RE = re.compile(
+    rf"(?<![0-9가-힣])(?P<coefficient>{_LOWER_UNIT_COEFFICIENT})\s*만\s*원"
+)
+_MIXED_WON_RE = re.compile(
+    rf"(?<![0-9가-힣])(?P<coefficient>{_LOWER_UNIT_COEFFICIENT})\s*원"
+)
 _AMOUNT_EOK_RE = re.compile(
     r"(?<![0-9가-힣])"
     r"(?P<eok>[0-9][0-9,]*(?:\.[0-9]+)?)\s*억"
@@ -210,6 +225,37 @@ def _normalize_payload_value_with_count(value: Any) -> tuple[Any, int]:
 def _normalize_amounts(value: str) -> tuple[str, int]:
     transformations = 0
 
+    def replace_mixed_eok(match: re.Match[str]) -> str:
+        nonlocal transformations
+        eok = _parse_unit_value(match.group("eok"), 100_000_000)
+        man_coefficient = _parse_lower_unit_coefficient(match.group("man"))
+        if eok is None or man_coefficient is None:
+            return match.group(0)
+        normalized = format_money(eok + man_coefficient * 10_000)
+        if normalized != match.group(0):
+            transformations += 1
+        return normalized
+
+    def replace_mixed_man(match: re.Match[str]) -> str:
+        nonlocal transformations
+        coefficient = _parse_lower_unit_coefficient(match.group("coefficient"))
+        if coefficient is None:
+            return match.group(0)
+        normalized = format_money(coefficient * 10_000)
+        if normalized != match.group(0):
+            transformations += 1
+        return normalized
+
+    def replace_mixed_won(match: re.Match[str]) -> str:
+        nonlocal transformations
+        coefficient = _parse_lower_unit_coefficient(match.group("coefficient"))
+        if coefficient is None:
+            return match.group(0)
+        normalized = format_money(coefficient)
+        if normalized != match.group(0):
+            transformations += 1
+        return normalized
+
     def replace_eok(match: re.Match[str]) -> str:
         nonlocal transformations
         eok = _parse_unit_value(match.group("eok"), 100_000_000)
@@ -239,7 +285,10 @@ def _normalize_amounts(value: str) -> tuple[str, int]:
             transformations += 1
         return normalized
 
-    normalized = _AMOUNT_EOK_RE.sub(replace_eok, value)
+    normalized = _MIXED_EOK_RE.sub(replace_mixed_eok, value)
+    normalized = _MIXED_MAN_RE.sub(replace_mixed_man, normalized)
+    normalized = _MIXED_WON_RE.sub(replace_mixed_won, normalized)
+    normalized = _AMOUNT_EOK_RE.sub(replace_eok, normalized)
     normalized = _AMOUNT_MAN_RE.sub(replace_man, normalized)
     normalized = _AMOUNT_WON_RE.sub(replace_won, normalized)
     return normalized, transformations
@@ -258,6 +307,30 @@ def _parse_unit_value(value: str | None, unit: int) -> int | None:
     if unit % scale:
         return None
     return int(whole) * unit + int(fraction) * (unit // scale)
+
+
+def _parse_lower_unit_coefficient(value: str) -> int | None:
+    compact = re.sub(r"\s+", "", value).replace(",", "")
+    position = 0
+    total = 0
+    previous_unit = 10_001
+    for match in re.finditer(r"(?P<number>\d+)(?P<unit>천|백|십)", compact):
+        if match.start() != position:
+            return None
+        unit = {"천": 1_000, "백": 100, "십": 10}[match.group("unit")]
+        if unit >= previous_unit:
+            return None
+        total += int(match.group("number")) * unit
+        previous_unit = unit
+        position = match.end()
+    if position == 0:
+        return None
+    if position < len(compact):
+        remainder = compact[position:]
+        if not remainder.isdigit() or previous_unit <= 1:
+            return None
+        total += int(remainder)
+    return total
 
 
 def _normalize_full_dates(value: str) -> tuple[str, int]:
