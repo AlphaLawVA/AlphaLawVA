@@ -269,6 +269,22 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(reranker.calls[0][1], (accepted,))
         self.assertEqual(generator.generate_calls[0][1], (accepted,))
 
+    def test_logs_statute_retrieval_reranking_and_citation_by_request_id(self):
+        dependencies, *_rest = make_dependencies()
+
+        with self.assertLogs("ml.agent.certified_letter.nodes", level="INFO") as logs:
+            build_certified_letter_graph(dependencies).invoke(
+                {"request": make_request(), "request_id": "trace-log-001"}
+            )
+
+        joined = "\n".join(logs.output)
+        self.assertIn("내용증명 법령 검색 후보", joined)
+        self.assertIn("내용증명 법령 리랭킹 결과", joined)
+        self.assertIn("내용증명 법령 인용 결과", joined)
+        self.assertIn("trace-log-001", joined)
+        self.assertIn("주택임대차보호법", joined)
+        self.assertIn("제4조", joined)
+
     def test_returns_at_most_three_precedents_without_similarity_cutoff(self):
         precedents = [
             replace(

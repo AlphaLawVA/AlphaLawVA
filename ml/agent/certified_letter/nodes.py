@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 
@@ -219,6 +220,12 @@ class CertifiedLetterNodes:
             state["statute_queries"],
             candidate_limit=STATUTE_CANDIDATE_LIMIT,
         )
+        logger.info(
+            "내용증명 법령 검색 후보: request_id=%s legal_issues=%s candidates=%s",
+            state.get("request_id", "unknown"),
+            state.get("legal_issues", ()),
+            _statute_trace_entries(candidates),
+        )
         return {"statute_candidates": tuple(candidates)}
 
     def rerank_statutes(
@@ -247,6 +254,14 @@ class CertifiedLetterNodes:
                 key=lambda candidate: candidate.similarity,
                 reverse=True,
             )[:STATUTE_RESULT_LIMIT]
+        logger.info(
+            "내용증명 법령 리랭킹 결과: request_id=%s min_similarity=%s "
+            "eligible_candidates=%s selected=%s",
+            state.get("request_id", "unknown"),
+            STATUTE_MIN_SIMILARITY,
+            _statute_trace_entries(candidates),
+            _statute_trace_entries(selected),
+        )
         return {"selected_statutes": tuple(selected)}
 
     def retrieve_precedents(
@@ -378,6 +393,16 @@ class CertifiedLetterNodes:
             facts=request.facts,
             body=state["draft"].body,
         )
+        cited_statutes = _cited_statute_trace_entries(
+            state["draft"].body,
+            state.get("selected_statutes", ()),
+        )
+        logger.info(
+            "내용증명 법령 인용 결과: request_id=%s selected=%s cited=%s",
+            state.get("request_id", "unknown"),
+            _statute_trace_entries(state.get("selected_statutes", ())),
+            cited_statutes,
+        )
         logger.info(
             "내용증명 값 정규화 완료: request_id=%s input_transformations=%s "
             "output_transformations=%s missing_fact_values=%s missing_values=%s",
@@ -419,3 +444,39 @@ def _redact_contract_pii(text: str, state: CertifiedLetterGraphState) -> str:
 
 def _limit_query(value: str) -> str:
     return value[:2000].strip()
+
+
+def _statute_trace_entries(statutes: object) -> str:
+    """법령 원문 없이 검색·리랭킹 결과를 추적 가능한 메타데이터로 남긴다."""
+
+    return json.dumps(
+        [
+            {
+                "statute_id": item.statute_id,
+                "law_name": item.law_name,
+                "article_label": item.article_label,
+                "similarity": round(item.similarity, 4),
+            }
+            for item in statutes
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _cited_statute_trace_entries(
+    body: str,
+    selected_statutes: object,
+) -> str:
+    """선정 법령 중 본문에 정형 인용된 항목만 로그 메타데이터로 만든다."""
+
+    from ml.agent.certified_letter.validators import extract_statute_citations
+
+    cited = extract_statute_citations(body)
+    selected = [
+        item
+        for item in selected_statutes
+        if (item.law_name.replace(" ", ""), item.article_label.replace(" ", ""))
+        in cited
+    ]
+    return _statute_trace_entries(selected)
