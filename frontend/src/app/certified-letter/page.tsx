@@ -518,7 +518,17 @@ export default function CertifiedLetterPage() {
               <p><span>발신인</span><strong>{draftResult.document.sender.name} (서명 또는 날인)</strong></p>
             </footer>
           </article>
-          <div className={styles.draftNotice}><Info size={18} /><span>이 문서는 AI가 계약서와 입력 내용을 바탕으로 작성한 법률 검토 전 초안입니다. 발송 전 당사자·금액·날짜와 법령 근거를 다시 확인하세요.</span></div>
+          <div className={styles.draftNotice}>
+            <Info size={18} aria-hidden="true" />
+            <div className={styles.draftNoticeCopy}>
+              <strong>발송 전 확인해 주세요</strong>
+              <p>이 문서는 AI가 작성한 법률 검토 전 초안입니다.</p>
+              <p>
+                내용증명에 작성한 내용은 향후 분쟁이나 소송에서 중요한 자료로 쓰일 수 있으며, 의도와 다르게 해석될 여지가 있습니다.
+                발송 전에 사실관계와 표현을 꼼꼼히 살펴보시고, 필요시 법률 전문가의 도움을 받아보세요.
+              </p>
+            </div>
+          </div>
           <div className={styles.letterAnalysisGrid}>
             <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>{draftResult.strategy_summary}</p></section>
             <section className={styles.panel}><h2>다음 단계</h2><div className={styles.exampleList}>{draftResult.follow_up_actions.map((step) => <p key={`${step.order}-${step.action}`}><b>{String(step.order).padStart(2, "0")} {CERTIFIED_LETTER_FOLLOW_UP_TITLES[step.order - 1] ?? "다음 단계"}</b><span>{step.action}</span></p>)}</div></section>

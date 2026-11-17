@@ -990,6 +990,15 @@
   color: var(--navy);
 }
 
+.draftNoticeCopy {
+  display: grid;
+  gap: 6px;
+}
+
+.draftNoticeCopy strong {
+  color: var(--text);
+}
+
 .resultButton strong { font-size: 17px; }
 .resultButton span { font-size: 15px; }
 .detail > h2 { font-size: 28px; }
