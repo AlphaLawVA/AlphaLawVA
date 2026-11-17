@@ -281,7 +281,6 @@ def _to_api_result(
     precedent_repository: PrecedentCaseRepository | None = None,
 ) -> CertifiedLetterDraftResult:
     draft = state["draft"]
-    normalized_request = state["normalized_request"]
     selected_statutes = state.get("selected_statutes", ())
     cited_statutes = extract_statute_citations(draft.body)
     selected_source_ids = {item.chunk_id for item in selected_statutes}
@@ -309,20 +308,6 @@ def _to_api_result(
         )
         in cited_statutes
     ]
-    no_statute_warning = (
-        "내용증명 작성에 반영된 관련 법령 없이 작성된 초안입니다. "
-        "발송 전 법적 근거를 별도로 확인해 주세요."
-        if not statutes
-        else ""
-    )
-    warnings = _unique_strings(
-        (
-            *draft.warnings,
-            *normalized_request.warnings,
-            no_statute_warning,
-            "이 문서는 법률 검토 전 초안입니다.",
-        )
-    )
     precedents = [
         _to_similar_precedent(item, precedent_repository=precedent_repository)
         for item in state.get("selected_precedents", ())
@@ -349,7 +334,7 @@ def _to_api_result(
         ],
         statute_evidence=statutes,
         similar_precedents=precedents,
-        warnings=warnings,
+        warnings=[],
     )
 
 
@@ -479,10 +464,6 @@ def _parse_date(value: str | None) -> date | None:
         return date(*(int(part) for part in match.groups()))
     except ValueError:
         return None
-
-
-def _unique_strings(values) -> list[str]:
-    return list(dict.fromkeys(value.strip() for value in values if value.strip()))
 
 
 def _optional_text(value: Any) -> str | None:

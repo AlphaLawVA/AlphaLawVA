@@ -82,12 +82,6 @@ LETTER_DRAFT_SCHEMA = {
             "maxItems": 3,
             "description": "발송 전 확인, 발송 및 기록 보관, 기한 경과 후 대응 순서의 내용 3개",
         },
-        "warnings": {
-            "type": "array",
-            "items": {"type": "string"},
-            "maxItems": 8,
-            "description": "초안 성격과 기한 등 주의사항",
-        },
         "used_statute_source_ids": {
             "type": "array",
             "items": {"type": "string"},
@@ -103,7 +97,6 @@ LETTER_DRAFT_SCHEMA = {
         "body",
         "strategy_summary",
         "follow_up_actions",
-        "warnings",
         "used_statute_source_ids",
     ],
     "additionalProperties": False,
@@ -342,7 +335,6 @@ class GeminiStructuredLetterModel:
             "body",
             "strategy_summary",
             "follow_up_actions",
-            "warnings",
             "used_statute_source_ids",
         }
         if set(value) != expected_keys:
@@ -361,7 +353,6 @@ class GeminiStructuredLetterModel:
                 value["follow_up_actions"],
                 "follow_up_actions",
             ),
-            warnings=cls._string_tuple(value["warnings"], "warnings"),
             used_statute_source_ids=cls._source_id_tuple(
                 value["used_statute_source_ids"]
             ),

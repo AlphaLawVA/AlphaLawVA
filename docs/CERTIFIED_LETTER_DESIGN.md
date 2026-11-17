@@ -105,9 +105,8 @@ Rules:
 - A `jeonse` contract must not contain `monthly_rent`.
 - A `monthly_rent` contract must contain a positive `monthly_rent` value.
 - Dates use `YYYY-MM-DD`; money is an integer number of Korean won.
-- `requested_deadline` is optional. When absent, the workflow may suggest the
-  relative deadline "수령 후 7일 이내". That phrase is a generated strategy,
-  not an asserted historical fact, and must be disclosed in `warnings`.
+- `requested_deadline` is optional. When absent, the workflow drafts the letter
+  without an implementation deadline and does not create a relative deadline.
 - User identity is not accepted in the request body. Authentication will supply
   ownership when it is introduced.
 - Unknown request fields are rejected.
@@ -181,9 +180,7 @@ Completed draft example:
     ],
     "statute_evidence": [],
     "similar_precedents": [],
-    "warnings": [
-      "이 문서는 법률 검토 전 초안입니다."
-    ]
+    "warnings": []
   },
   "missing_information": [],
   "error": null,
@@ -351,7 +348,8 @@ The Next.js certified-letter flow is connected to the live FastAPI draft API.
 It passes the user-confirmed contract snapshot, collects only the sender role,
 purpose, confirmed facts, and optional deadline, then polls the in-memory job
 until completion. The result screen renders the generated document, strategy,
-follow-up actions, warnings, cited statute evidence, and similar precedents.
+follow-up actions, a frontend-owned fixed draft notice, cited statute evidence,
+and similar precedents. The compatible `warnings` response field remains empty.
 
 The following parts remain demo or alpha-only behavior:
 

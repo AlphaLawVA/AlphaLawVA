@@ -32,7 +32,6 @@ def _draft_payload():
         "body": "중도금 지급을 요청합니다.",
         "strategy_summary": "미지급 중도금의 지급을 요청합니다.",
         "follow_up_actions": ["계약 정보를 확인합니다."],
-        "warnings": ["이 문서는 법률 검토 전 초안입니다."],
         "used_statute_source_ids": ["statute:001:565"],
     }
 

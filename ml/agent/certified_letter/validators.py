@@ -292,15 +292,13 @@ def _validate_deadline(
     request: NormalizedCertifiedLetterRequest,
     body: str,
 ) -> list[ValidationIssue]:
-    if request.is_deadline_suggested:
-        has_deadline = "7일 이내" in body and "받" in body
-    else:
-        deadline = request.requested_deadline
-        assert deadline is not None
-        has_deadline = (
-            deadline.isoformat() in body
-            or f"{deadline.year}년 {deadline.month}월 {deadline.day}일" in body
-        )
+    deadline = request.requested_deadline
+    if deadline is None:
+        return []
+    has_deadline = (
+        deadline.isoformat() in body
+        or f"{deadline.year}년 {deadline.month}월 {deadline.day}일" in body
+    )
     if has_deadline:
         return []
     return [
@@ -318,7 +316,6 @@ def _validate_safety(draft: LetterDraftData) -> list[ValidationIssue]:
             draft.body,
             draft.strategy_summary,
             *draft.follow_up_actions,
-            *draft.warnings,
         )
     )
     issues = []
@@ -334,13 +331,6 @@ def _validate_safety(draft: LetterDraftData) -> list[ValidationIssue]:
             ValidationIssue(
                 code="unsupported_legal_claim",
                 message="승소, 처벌 또는 법적 효력을 보장하는 표현이 있습니다.",
-            )
-        )
-    if not any("초안" in warning for warning in draft.warnings):
-        issues.append(
-            ValidationIssue(
-                code="missing_draft_warning",
-                message="법률 검토 전 초안이라는 경고가 없습니다.",
             )
         )
     if any(marker in combined.lower() for marker in PROMPT_LEAK_MARKERS):

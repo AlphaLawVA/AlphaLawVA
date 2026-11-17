@@ -1,13 +1,13 @@
 # normalizer.py
 """
 Description: 검증된 내용증명 요청을 생성·검색에서 사용할 내부 값으로 정규화한다.
-기한이 없을 때 역사적 사실과 구분되는 상대 기한 제안을 명시적으로 기록한다.
+사용자가 지정한 기한만 보존하고 기한이 없으면 명시적으로 비워 둔다.
 Author: choeminju
 Date: 2026-10-22
 Before:
     - 공개 요청을 프롬프트에 바로 전달할 수밖에 없는 상태.
 After:
-    - 공백, 선택값과 기한 정책이 일관된 내부 요청으로 변환됨.
+    - 공백, 선택값과 사용자 지정 기한이 일관된 내부 요청으로 변환됨.
 """
 
 from __future__ import annotations
@@ -24,13 +24,6 @@ from ml.agent.certified_letter.state import (
 from ml.agent.certified_letter.value_normalizer import normalize_text
 
 
-DEFAULT_RELATIVE_DEADLINE = "이 내용증명을 받은 날부터 7일 이내"
-SUGGESTED_DEADLINE_WARNING = (
-    "사용자가 이행 기한을 지정하지 않아 '수령 후 7일 이내'를 전략적 제안으로 "
-    "사용했습니다. 발송 전 적절한 기한인지 확인해 주세요."
-)
-
-
 def normalize_request(
     request: CertifiedLetterRequestData,
 ) -> NormalizedCertifiedLetterRequest:
@@ -38,25 +31,16 @@ def normalize_request(
     purpose = _normalize_text_value(request.purpose)
     facts = _normalize_text_value(request.facts)
 
-    if request.requested_deadline is None:
-        return NormalizedCertifiedLetterRequest(
-            sender_role=request.sender_role,
-            purpose=purpose,
-            facts=facts,
-            requested_deadline=None,
-            deadline_text=DEFAULT_RELATIVE_DEADLINE,
-            is_deadline_suggested=True,
-            contract=contract,
-            warnings=(SUGGESTED_DEADLINE_WARNING,),
-        )
-
     return NormalizedCertifiedLetterRequest(
         sender_role=request.sender_role,
         purpose=purpose,
         facts=facts,
         requested_deadline=request.requested_deadline,
-        deadline_text=request.requested_deadline.isoformat(),
-        is_deadline_suggested=False,
+        deadline_text=(
+            request.requested_deadline.isoformat()
+            if request.requested_deadline is not None
+            else None
+        ),
         contract=contract,
     )
 

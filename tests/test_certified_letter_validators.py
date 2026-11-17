@@ -269,6 +269,19 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         self.assertNotIn("missing_deadline", issue_codes(issues))
         self.assertNotIn("unexpected_date", issue_codes(issues))
 
+    def test_does_not_require_deadline_when_user_does_not_select_one(self):
+        draft = replace(
+            make_draft(),
+            body=make_draft().body.replace(
+                "이 내용증명을 받은 날부터 7일 이내 ",
+                "",
+            ),
+        )
+
+        issues = self.validator.validate(self.request, self.statutes, draft)
+
+        self.assertNotIn("missing_deadline", issue_codes(issues))
+
     def test_rejects_precedent_unsafe_claim_and_prompt_leak(self):
         draft = replace(
             make_draft(),
@@ -289,22 +302,21 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         )
         self.assertFalse(prompt_issue.is_repairable)
 
-    def test_requires_draft_warning_and_deadline(self):
+    def test_requires_user_selected_deadline(self):
+        request = make_request(requested_deadline=date(2026, 11, 15))
         draft = replace(
             make_draft(),
             body=make_draft().body.replace(
                 "이 내용증명을 받은 날부터 7일 이내",
                 "가능한 빨리",
             ),
-            warnings=(),
         )
 
         codes = issue_codes(
-            self.validator.validate(self.request, self.statutes, draft)
+            self.validator.validate(request, self.statutes, draft)
         )
 
         self.assertIn("missing_deadline", codes)
-        self.assertIn("missing_draft_warning", codes)
 
 
 if __name__ == "__main__":

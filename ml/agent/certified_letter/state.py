@@ -88,8 +88,7 @@ class NormalizedCertifiedLetterRequest:
     purpose: str
     facts: str
     requested_deadline: date | None
-    deadline_text: str
-    is_deadline_suggested: bool
+    deadline_text: str | None
     contract: ContractData
     warnings: tuple[str, ...] = ()
 

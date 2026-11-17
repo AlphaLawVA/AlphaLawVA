@@ -146,7 +146,7 @@ class CertifiedLetterDraftRequest(CertifiedLetterApiModel):
     )
     requested_deadline: date | None = Field(
         default=None,
-        description="사용자가 지정한 이행 기한; 없으면 상대 기한을 제안할 수 있음",
+        description="사용자가 지정한 이행 기한; null이면 기한 없이 작성",
     )
     contract: CertifiedLetterContractInput
 
@@ -250,7 +250,7 @@ class CertifiedLetterDraftResult(CertifiedLetterApiModel):
     follow_up_actions: list[FollowUpAction]
     statute_evidence: list[StatuteEvidence]
     similar_precedents: list[SimilarPrecedent]
-    warnings: list[str] = Field(min_length=1)
+    warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_follow_up_order(self) -> CertifiedLetterDraftResult:

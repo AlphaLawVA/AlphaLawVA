@@ -61,7 +61,6 @@ def make_draft_payload():
         ),
         "strategy_summary": "계약 종료 사실과 반환 기한을 명확히 통지합니다.",
         "follow_up_actions": ["발송 전 계약 정보를 확인합니다."],
-        "warnings": ["이 문서는 법률 검토 전 초안입니다."],
         "used_statute_source_ids": ["statute:001:4"],
     }
 
@@ -72,6 +71,7 @@ class GeminiStructuredLetterModelTests(unittest.TestCase):
 
         self.assertEqual(follow_up_schema["minItems"], 3)
         self.assertEqual(follow_up_schema["maxItems"], 3)
+        self.assertNotIn("warnings", LETTER_DRAFT_SCHEMA["properties"])
 
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()

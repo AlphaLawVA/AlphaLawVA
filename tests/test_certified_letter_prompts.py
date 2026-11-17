@@ -104,7 +104,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_10")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_11")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -125,9 +125,13 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertIn("used_statute_source_ids에는 내용증명 본문", prompt.system)
         self.assertIn("작성에 실질적으로 사용했다면 포함", prompt.system)
         self.assertIn("법령을 억지로 사용하지 마세요", prompt.system)
+        self.assertNotIn("20. warnings:", prompt.system)
+        self.assertNotIn("required_warning", payload)
         self.assertEqual(payload["document_parties"]["sender_role"], "lessee")
         self.assertEqual(payload["document_parties"]["sender"]["name"], "김민지")
         self.assertEqual(payload["document_parties"]["recipient"]["name"], "홍길동")
+        self.assertIsNone(payload["user_request"]["deadline_text"])
+        self.assertNotIn("is_deadline_suggested", payload["user_request"])
         self.assertNotIn("lessor", payload["contract_facts"])
         self.assertNotIn("lessee", payload["contract_facts"])
         self.assertEqual(

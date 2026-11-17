@@ -267,7 +267,7 @@ class CertifiedLetterServiceTests(unittest.TestCase):
             [section.title for section in precedent.full_text_sections],
             ["주문", "이유"],
         )
-        self.assertIn("수령 후 7일 이내", " ".join(response.result.warnings))
+        self.assertNotIn("수령 후 7일 이내", " ".join(response.result.warnings))
         self.assertEqual(len(graph.calls), 1)
         self.assertEqual(state["outcome"], "draft_ready")
 
@@ -290,10 +290,7 @@ class CertifiedLetterServiceTests(unittest.TestCase):
 
         self.assertEqual(response.outcome, CertifiedLetterOutcome.DRAFT_READY)
         self.assertEqual(response.result.statute_evidence, [])
-        self.assertIn(
-            "반영된 관련 법령 없이 작성된 초안",
-            " ".join(response.result.warnings),
-        )
+        self.assertEqual(response.result.warnings, [])
 
     def test_returns_statute_used_without_direct_body_citation(self):
         service = self.make_service(UncitedStatuteReadyGraph())
@@ -307,10 +304,7 @@ class CertifiedLetterServiceTests(unittest.TestCase):
             [item.article_label for item in response.result.statute_evidence],
             ["제4조"],
         )
-        self.assertNotIn(
-            "반영된 관련 법령 없이 작성된 초안",
-            " ".join(response.result.warnings),
-        )
+        self.assertEqual(response.result.warnings, [])
 
     def test_omits_selected_statute_not_used_or_cited(self):
         service = self.make_service(UnusedStatuteReadyGraph())
@@ -320,10 +314,7 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         response = service.get(submission.response.draft_id)
 
         self.assertEqual(response.result.statute_evidence, [])
-        self.assertIn(
-            "반영된 관련 법령 없이 작성된 초안",
-            " ".join(response.result.warnings),
-        )
+        self.assertEqual(response.result.warnings, [])
 
     def test_rejects_same_idempotency_key_for_different_request(self):
         service = self.make_service(ReadyGraph())

@@ -26,7 +26,7 @@ from ml.agent.certified_letter.state import (
 )
 
 
-PROMPT_VERSION = "certified_letter_v1_10"
+PROMPT_VERSION = "certified_letter_v1_11"
 
 SYSTEM_PROMPT = """당신은 대한민국 부동산 계약 분쟁에 관한 내용증명 초안을 작성하는 도구입니다.
 사용자가 확인한 계약 정보와 상황을 바탕으로, 상대방에게 요구사항과 기한을 명확히 전달하는
@@ -88,9 +88,7 @@ SYSTEM_PROMPT = """당신은 대한민국 부동산 계약 분쟁에 관한 내�
     2~3문장으로 쓰세요. 문서에 담지 않은 내용은 설명하지 마세요.
 19. follow_up_actions: 정확히 3개. 발송 전 확인, 발송 및 기록 보관, 기한 경과 후 대응 순서이며
     단계 제목은 쓰지 마세요. 각 1~3문장입니다.
-20. warnings: 반드시 "이 문서는 법률 검토 전 초안입니다."를 포함하고, 이행 기한이 입력되지 않았거나
-    제안된 기한이면 그 사실을 알리세요.
-21. used_statute_source_ids에는 내용증명 본문에 실제로 반영한 법령의 source_id만 넣으세요.
+20. used_statute_source_ids에는 내용증명 본문에 실제로 반영한 법령의 source_id만 넣으세요.
     본문에 법령명과 조문을 직접 인용하지 않았더라도 작성에 실질적으로 사용했다면 포함하고,
     사용하지 않았다면 빈 배열로 두세요. 배열을 채우기 위해 법령을 억지로 사용하지 마세요.
 
@@ -116,7 +114,6 @@ def build_generation_prompt(
             "purpose": request.purpose,
             "facts": request.facts,
             "deadline_text": request.deadline_text,
-            "is_deadline_suggested": request.is_deadline_suggested,
         },
         "document_parties": {
             "sender_role": request.sender_role.value,
@@ -126,7 +123,6 @@ def build_generation_prompt(
         },
         "contract_facts": _contract_facts_payload(request),
         "statute_evidence": [_statute_payload(item) for item in statute_evidence],
-        "required_warning": "이 문서는 법률 검토 전 초안입니다.",
     }
     return PromptBundle(
         version=PROMPT_VERSION,
@@ -148,7 +144,6 @@ def build_repair_prompt(
             "purpose": request.purpose,
             "facts": request.facts,
             "deadline_text": request.deadline_text,
-            "is_deadline_suggested": request.is_deadline_suggested,
         },
         "document_parties": {
             "sender_role": request.sender_role.value,

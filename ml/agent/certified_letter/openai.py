@@ -204,7 +204,6 @@ class OpenAIStructuredLetterModel:
             "body",
             "strategy_summary",
             "follow_up_actions",
-            "warnings",
             "used_statute_source_ids",
         }
         if set(value) != expected_keys:
@@ -223,7 +222,6 @@ class OpenAIStructuredLetterModel:
                 value["follow_up_actions"],
                 "follow_up_actions",
             ),
-            warnings=cls._string_tuple(value["warnings"], "warnings"),
             used_statute_source_ids=cls._source_id_tuple(
                 value["used_statute_source_ids"]
             ),
