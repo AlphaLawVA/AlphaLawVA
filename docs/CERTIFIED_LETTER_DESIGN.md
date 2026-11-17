@@ -30,8 +30,11 @@ particular court outcome.
 - Missing statute evidence does not prevent a fact-based draft. In that case the
   body contains no statute citation, `statute_evidence` is empty, and the result
   carries an explicit review warning.
-- Retrieved statutes are returned to the user only when the final body actually
-  cites them.
+- Retrieved statutes are returned when the drafting model identifies their
+  `source_id` as actually used in the final body, even if the body does not
+  spell out the statute name and article. An exact body citation to selected
+  evidence is also accepted as a deterministic fallback when that ID is
+  omitted. Unknown model-returned IDs are rejected before the result is shown.
 - Retrieval source metadata must be preserved through the workflow.
 
 This separation is enforced by the generator interface, which accepts normalized
@@ -370,8 +373,8 @@ data set in these standard locations:
 ChromaDB; the API performs retrieval from the vector store. Configure
 `CERTIFIED_LETTER_STATUTE_DB_DIR` when the vector store is outside the runtime
 project root. The public response includes only selected statute evidence that
-the final draft actually cites, so a successful fact-based draft may still
-return an empty `statute_evidence` list.
+the final draft actually used or cited, so a successful fact-based draft may
+still return an empty `statute_evidence` list.
 
 ## Privacy and Logging
 
