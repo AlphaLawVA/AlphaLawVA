@@ -279,6 +279,12 @@ export default function CertifiedLetterPage() {
     }
   }
 
+  const isSale = confirmedSnapshot.contractType === "매매";
+  const contractAmountSummary = isSale
+    ? "매매대금, 계약금·중도금·잔금(있는 경우)"
+    : confirmedSnapshot.contractType === "월세"
+      ? "보증금과 월세"
+      : "전세보증금";
   const stepIndex = stage === "upload" || stage === "processing" ? 0 : stage === "verify" ? 1 : stage === "request" ? 2 : 3;
   const currentOcrStageIndex = Math.max(
     0,
@@ -433,7 +439,23 @@ export default function CertifiedLetterPage() {
             {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>입력 내용을 확인해주세요</strong><span>{error}</span></div></div>}
             <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={() => void generateLetter()}><FileText size={17} />초안 만들기</button></div>
           </section>
-          <aside className={styles.sidePanel}><h2>계약서에서 이미 가져온 정보</h2><div className={styles.exampleList}><p><b>계약 기본정보</b><span>계약 종류, 기간, 목적물 주소</span></p><p><b>당사자 정보</b><span>임대인·임차인의 이름과 주소</span></p><p><b>금액 정보</b><span>보증금과 월세</span></p></div></aside>
+          <aside className={styles.sidePanel}>
+            <h2>확인된 계약 정보</h2>
+            <div className={styles.exampleList}>
+              <p>
+                <b>계약 기본정보</b>
+                <span>{isSale
+                  ? "계약일, 계약한 집의 주소, 인도일·소유권 이전일(있는 경우)"
+                  : "계약일, 임대차 기간, 계약한 집의 주소"}</span>
+              </p>
+              <p>
+                <b>당사자 정보</b>
+                <span>{isSale ? "매도인·매수인의 이름과 주소" : "임대인·임차인의 이름과 주소"}</span>
+              </p>
+              <p><b>금액 정보</b><span>{contractAmountSummary}</span></p>
+              <p><b>특약 사항</b><span>앞에서 확인한 계약서 특약</span></p>
+            </div>
+          </aside>
         </div>
       )}
 
