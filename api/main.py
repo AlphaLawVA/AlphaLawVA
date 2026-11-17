@@ -55,6 +55,10 @@ from api.services.certified_letter_results import (
     create_certified_letter_result_store_from_env,
 )
 from api.services.contract_review_service import ContractReviewService
+from api.services.contract_review_jobs import (
+    ContractReviewIdempotencyConflictError,
+    ContractReviewJobNotFoundError,
+)
 from api.services.special_clause_jobs import (
     SpecialClauseIdempotencyConflictError,
     SpecialClauseJobNotFoundError,
@@ -314,6 +318,28 @@ async def certified_letter_generation_unavailable_error_handler(
         status_code=503,
         code=ApiErrorCode.GENERATION_SERVICE_UNAVAILABLE,
         message="내용증명 생성 서비스를 사용할 수 없습니다.",
+    )
+
+
+async def contract_review_not_found_error_handler(
+    _request: Request,
+    _error: ContractReviewJobNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.CONTRACT_REVIEW_JOB_NOT_FOUND,
+        message="계약서 검토 작업이 없거나 만료되었습니다.",
+    )
+
+
+async def contract_review_idempotency_conflict_error_handler(
+    _request: Request,
+    _error: ContractReviewIdempotencyConflictError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=409,
+        code=ApiErrorCode.CONTRACT_REVIEW_IDEMPOTENCY_CONFLICT,
+        message="같은 중복 방지 키를 다른 요청에 사용할 수 없습니다.",
     )
 
 
@@ -619,6 +645,14 @@ def create_app(
     app.add_exception_handler(
         CertifiedLetterGenerationUnavailableError,
         certified_letter_generation_unavailable_error_handler,
+    )
+    app.add_exception_handler(
+        ContractReviewJobNotFoundError,
+        contract_review_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        ContractReviewIdempotencyConflictError,
+        contract_review_idempotency_conflict_error_handler,
     )
     app.add_exception_handler(
         SpecialClauseJobNotFoundError,

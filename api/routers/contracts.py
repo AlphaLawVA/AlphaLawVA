@@ -28,8 +28,9 @@ from fastapi import (
 )
 
 from api.models.contracts import (
+    ContractReviewAccepted,
+    ContractReviewJobResponse,
     ContractReviewRequest,
-    ContractReviewResponse,
     SpecialClauseDraftAccepted,
     SpecialClauseDraftJobResponse,
     SpecialClauseDraftRequest,
@@ -196,20 +197,6 @@ def save_registry_snapshot(
     return store.save_registry(payload)
 
 
-@router.post(
-    "/contract-reviews",
-    tags=["contract-review"],
-    response_model=ContractReviewResponse,
-    responses=SNAPSHOT_LOOKUP_RESPONSES,
-    summary="사용자 확인 계약 정보의 검토 대기 항목 생성",
-)
-def create_contract_review(
-    payload: ContractReviewRequest,
-    service: ContractReviewServiceDependency,
-) -> ContractReviewResponse:
-    return service.review(payload)
-
-
 IdempotencyKeyHeader = Annotated[
     str | None,
     Header(
@@ -220,6 +207,43 @@ IdempotencyKeyHeader = Annotated[
         description="중복 생성 방지를 위한 클라이언트 생성 키",
     ),
 ]
+
+
+@router.post(
+    "/contract-reviews",
+    tags=["contract-review"],
+    response_model=ContractReviewAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        **SNAPSHOT_LOOKUP_RESPONSES,
+        409: {"model": ApiErrorResponse, "description": "중복 방지 키 충돌"},
+    },
+    summary="사용자 확인 계약 정보의 검토 작업 접수",
+)
+def create_contract_review(
+    payload: ContractReviewRequest,
+    background_tasks: BackgroundTasks,
+    service: ContractReviewServiceDependency,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> ContractReviewAccepted:
+    submission = service.submit(payload, idempotency_key=idempotency_key)
+    if submission.is_new:
+        background_tasks.add_task(service.process, submission.response.review_id)
+    return submission.response
+
+
+@router.get(
+    "/contract-reviews/{review_id}",
+    tags=["contract-review"],
+    response_model=ContractReviewJobResponse,
+    responses={404: {"model": ApiErrorResponse, "description": "작업 없음 또는 만료"}},
+    summary="계약서 검토 작업 조회",
+)
+def get_contract_review(
+    review_id: UUID,
+    service: ContractReviewServiceDependency,
+) -> ContractReviewJobResponse:
+    return service.get(review_id)
 
 
 @router.post(

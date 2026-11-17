@@ -22,6 +22,7 @@ from api.models.contracts import ContractReviewItem, ReviewItemStatus
 from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot, RegistryEntryStatus
 from ml.agent.output_validation import find_output_issues
+from ml.agent.stage_tracking import StageCallback, staged_node
 from ml.agent.registry_attention import build_registry_attention_items
 
 _CONTRACT_TYPE_LABEL = {"jeonse": "전세", "monthly_rent": "월세", "sale": "매매"}
@@ -109,6 +110,7 @@ class ContractReviewGraphState(TypedDict):
     analysis_issues: dict[str, list[str]]
     analysis_repair_attempts: int
     validation_dropped_item_ids: list[str]
+    on_stage: StageCallback | None
 
 
 class ContractReviewGraph:
@@ -116,13 +118,17 @@ class ContractReviewGraph:
 
     def __init__(self) -> None:
         builder = StateGraph(ContractReviewGraphState)
-        builder.add_node("run_prechecks", self._run_prechecks)
-        builder.add_node("build_retrieval_queries", self._build_retrieval_queries)
-        builder.add_node("retrieve_evidence", self._retrieve_evidence)
-        builder.add_node("analyze_evidence", self._analyze_evidence)
-        builder.add_node("validate_analysis", self._validate_analysis)
-        builder.add_node("repair_analysis", self._repair_analysis)
-        builder.add_node("drop_invalid_analyses", self._drop_invalid_analyses)
+        # 노드 시작 시 단계 이름을 알리고 노드별 소요 시간을 로그로 남긴다.
+        for name, stage, node in (
+            ("run_prechecks", "precheck", self._run_prechecks),
+            ("build_retrieval_queries", "retrieve", self._build_retrieval_queries),
+            ("retrieve_evidence", "retrieve", self._retrieve_evidence),
+            ("analyze_evidence", "analyze", self._analyze_evidence),
+            ("validate_analysis", "validate", self._validate_analysis),
+            ("repair_analysis", "repair", self._repair_analysis),
+            ("drop_invalid_analyses", "validate", self._drop_invalid_analyses),
+        ):
+            builder.add_node(name, staged_node(stage, node, name=name))
         builder.set_entry_point("run_prechecks")
         builder.add_edge("run_prechecks", "build_retrieval_queries")
         builder.add_edge("build_retrieval_queries", "retrieve_evidence")
@@ -144,6 +150,7 @@ class ContractReviewGraph:
         *,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         analyzer: ContractReviewAnalyzer | None = None,
+        on_stage: StageCallback | None = None,
     ) -> ContractReviewPrecheckResult:
         """확정 스냅샷을 사전검증하고 후속 검색 질의를 만든다."""
 
@@ -161,6 +168,7 @@ class ContractReviewGraph:
                 "analysis_issues": {},
                 "analysis_repair_attempts": 0,
                 "validation_dropped_item_ids": [],
+                "on_stage": on_stage,
             }
         )
         return ContractReviewPrecheckResult(

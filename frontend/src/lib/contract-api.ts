@@ -404,6 +404,11 @@ function registryPayload(snapshot: DemoRegistrySnapshot) {
 export async function createContractReview(
   contractSnapshot: DemoContractSnapshot,
   registrySnapshot: DemoRegistrySnapshot | null,
+  options: {
+    onUpdate?: (snapshot: JobSnapshot<ContractReviewResult>) => void;
+    onSlow?: () => void;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<ContractReviewResult> {
   const contract = {
     schema_version: "confirmed_contract_snapshot.v0.1",
@@ -424,14 +429,34 @@ export async function createContractReview(
       body: JSON.stringify(registryPayload(registrySnapshot)),
     })
     : null;
-  return requestApi<ContractReviewResult>("/api/v1/contract-reviews", {
-    method: "POST",
-    body: JSON.stringify({
-      contract_snapshot_id: savedContract.snapshot_id,
-      registry_snapshot_id: savedRegistry?.snapshot_id ?? null,
-    }),
-  });
+  // 검토는 202로 접수한 뒤 GET으로 결과를 기다린다(lib/job-polling.ts).
+  // 같은 클릭의 중복 접수를 막도록 요청마다 새 Idempotency-Key를 보낸다.
+  const accepted = await requestApi<{ review_id: string; status: "queued"; created_at: string }>(
+    "/api/v1/contract-reviews",
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({
+        contract_snapshot_id: savedContract.snapshot_id,
+        registry_snapshot_id: savedRegistry?.snapshot_id ?? null,
+      }),
+    },
+  );
+  return pollJob(
+    () => requestApi<JobSnapshot<ContractReviewResult>>(
+      `/api/v1/contract-reviews/${encodeURIComponent(accepted.review_id)}`,
+    ),
+    {
+      ...options,
+      slowAfterMs: CONTRACT_REVIEW_SLOW_AFTER_MS,
+      giveUpAfterMs: CONTRACT_REVIEW_GIVE_UP_AFTER_MS,
+      statusOf: (error) => (error instanceof ContractApiError ? error.status : undefined),
+    },
+  );
 }
+
+export const CONTRACT_REVIEW_SLOW_AFTER_MS = 180_000;
+export const CONTRACT_REVIEW_GIVE_UP_AFTER_MS = 300_000;
 
 // 특약 생성은 202로 접수한 뒤 GET으로 결과를 기다린다(lib/job-polling.ts).
 // 같은 클릭의 중복 접수를 막도록 요청마다 새 Idempotency-Key를 보낸다.
