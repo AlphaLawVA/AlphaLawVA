@@ -92,8 +92,12 @@ class GenerationResultApiTests(unittest.TestCase):
         response = self.client.post(
             "/api/v1/special-clause-drafts", json={"requests": list(requests)}
         )
-        self.assertEqual(response.status_code, 200, response.text)
-        return response.json()
+        self.assertEqual(response.status_code, 202, response.text)
+        # TestClient는 응답을 돌려주기 전에 백그라운드 작업을 끝내므로 바로 조회할 수 있다.
+        job = self.client.get(f"/api/v1/special-clause-drafts/{response.json()['draft_id']}")
+        self.assertEqual(job.status_code, 200, job.text)
+        self.assertEqual(job.json()["status"], "completed")
+        return job.json()["result"]
 
     def test_requires_login(self) -> None:
         response = self.client.get("/api/v1/generation-results")
