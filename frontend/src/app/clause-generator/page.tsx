@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
@@ -9,7 +9,8 @@ import { statuteOfficialUrl } from "@/lib/statute-link";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
-import { contractEvidenceToPrecedent, createSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
+import { contractEvidenceToPrecedent, generateSpecialClauseDraft, type ContractEvidence, type SpecialClauseDraftResult } from "@/lib/contract-api";
+import { isAbortError } from "@/lib/job-polling";
 import { getPrecedentFullText, mergePrecedentFullText } from "@/lib/precedent-api";
 import styles from "../feature-demo.module.css";
 
@@ -18,6 +19,16 @@ import styles from "../feature-demo.module.css";
 const MAX_REQUESTS = 10;
 
 type Stage = "input" | "review" | "generating" | "result";
+
+// 서버가 알려 주는 처리 단계(scope, retrieve, generate, validate, repair)를 화면 문구와 진행도로 바꾼다.
+const GENERATION_STAGES: Record<string, { label: string; progress: number }> = {
+  scope: { label: "요청이 특약 작성 대상인지 확인하고 있습니다", progress: 15 },
+  retrieve: { label: "관련 법령과 판례를 찾고 있습니다", progress: 40 },
+  generate: { label: "특약 초안을 작성하고 있습니다", progress: 70 },
+  validate: { label: "초안을 검증하고 있습니다", progress: 90 },
+  repair: { label: "초안을 다듬고 있습니다", progress: 90 },
+};
+const QUEUED_STAGE = { label: "작업을 준비하고 있습니다", progress: 8 };
 type RequestItem = { id: number; value: string };
 type GeneratedClause = {
   title: string;
@@ -137,7 +148,9 @@ export default function ClauseGeneratorPage() {
     { id: 1, value: "" },
   ]);
   const [selected, setSelected] = useState(0);
-  const [progress, setProgress] = useState(12);
+  const [jobStage, setJobStage] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
+  const generationAbort = useRef<AbortController | null>(null);
   const [error, setError] = useState("");
   const [focusedRequestId, setFocusedRequestId] = useState<number | null>(null);
   const [draftResult, setDraftResult] = useState<SpecialClauseDraftResult | null>(null);
@@ -151,15 +164,12 @@ export default function ClauseGeneratorPage() {
     [draftResult, validRequests],
   );
   const current = generated[selected] ?? generated[0];
+  const generationProgress = jobStage === "done"
+    ? { label: "결과 화면을 구성하고 있습니다", progress: 100 }
+    : (jobStage ? GENERATION_STAGES[jobStage] : undefined) ?? QUEUED_STAGE;
 
-  // 응답을 기다리는 동안 진행도가 멈춰 보이지 않도록 계약서 검토 로딩과 같은 방식으로 천천히 올린다.
-  useEffect(() => {
-    if (stage !== "generating") return;
-    const timer = window.setInterval(() => {
-      setProgress((value) => (value >= 92 ? value : Math.min(92, value + (value < 55 ? 5 : 2))));
-    }, 650);
-    return () => window.clearInterval(timer);
-  }, [stage]);
+  // 화면을 떠나면 진행 중인 폴링을 멈춘다.
+  useEffect(() => () => generationAbort.current?.abort(), []);
 
   function updateRequest(id: number, value: string) {
     setRequests((items) => items.map((item) => item.id === id ? { ...item, value } : item));
@@ -178,18 +188,28 @@ export default function ClauseGeneratorPage() {
 
   async function generateClauses() {
     setSelected(0);
-    setProgress(35);
+    setJobStage(null);
+    setSlow(false);
     setError("");
     setDraftResult(null);
     setStage("generating");
+    generationAbort.current?.abort();
+    const controller = new AbortController();
+    generationAbort.current = controller;
     try {
-      const result = await createSpecialClauseDraft(validRequests);
+      const result = await generateSpecialClauseDraft(validRequests, {
+        signal: controller.signal,
+        onUpdate: (snapshot) => setJobStage(snapshot.status === "completed" ? "done" : snapshot.stage),
+        onSlow: () => setSlow(true),
+      });
       setDraftResult(result);
-      setProgress(100);
+      setJobStage("done");
       // 100%가 화면에 보인 뒤 결과 화면으로 넘어간다.
       await new Promise((resolve) => window.setTimeout(resolve, 450));
+      if (controller.signal.aborted) return;
       setStage("result");
     } catch (requestError) {
+      if (isAbortError(requestError)) return;
       setError(
         requestError instanceof Error
           ? requestError.message
@@ -317,8 +337,9 @@ export default function ClauseGeneratorPage() {
           <span><LoaderCircle className={styles.spinner} size={28} aria-hidden="true" /></span>
           <h2>요청에 맞는 특약을 만들고 있습니다</h2>
           <p>요청별 문구를 구성하고 관련 법령과 판례 근거를 연결하고 있습니다.</p>
-          <div className={styles.progressHeader}><span>특약 초안 및 근거 구성</span><strong>{progress}%</strong></div>
-          <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
+          <div className={styles.progressHeader}><span>{generationProgress.label}</span><strong>{generationProgress.progress}%</strong></div>
+          <div className={styles.progressTrack}><i style={{ width: `${generationProgress.progress}%` }} /></div>
+          {slow && <p role="status">평소보다 시간이 걸리고 있습니다. 서버가 처리 중이니 닫지 말고 기다려주세요.</p>}
         </section>
       )}
 

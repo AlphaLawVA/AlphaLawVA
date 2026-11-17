@@ -12,6 +12,7 @@ After:
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
@@ -137,3 +138,43 @@ class SpecialClauseDraftResponse(ContractApiModel):
     generation_status: GenerationStatus
     message: str = Field(min_length=1)
     disclaimer: str = Field(min_length=1)
+
+
+class ContractJobStatus(str, Enum):
+    """계약서 검토·특약 생성 비동기 작업의 공통 상태다."""
+
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ContractJobError(ContractApiModel):
+    code: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=1000)
+
+
+class SpecialClauseDraftAccepted(ContractApiModel):
+    draft_id: UUID
+    status: ContractJobStatus = Field(
+        default=ContractJobStatus.QUEUED,
+        description=(
+            "신규 접수이면 queued이다. 같은 Idempotency-Key와 같은 본문으로 다시 요청하면 "
+            "기존 작업의 현재 상태(queued, processing, completed, failed)를 돌려줄 수 있다."
+        ),
+    )
+    created_at: datetime
+
+
+class SpecialClauseDraftJobResponse(ContractApiModel):
+    draft_id: UUID
+    status: ContractJobStatus
+    stage: str | None = Field(
+        default=None,
+        description="처리 중인 단계 이름(scope, retrieve, generate, validate, repair). 처리 중에만 값이 있다.",
+    )
+    result: SpecialClauseDraftResponse | None = None
+    error: ContractJobError | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None

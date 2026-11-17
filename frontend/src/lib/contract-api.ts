@@ -4,6 +4,7 @@ import type {
   SnapshotField,
 } from "@/lib/demo-types";
 import type { CaseBasis } from "@/lib/demo-types";
+import { pollJob, type JobSnapshot } from "@/lib/job-polling";
 
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000"
@@ -432,10 +433,43 @@ export async function createContractReview(
   });
 }
 
+// 특약 생성은 202로 접수한 뒤 GET으로 결과를 기다린다(lib/job-polling.ts).
+// 같은 클릭의 중복 접수를 막도록 요청마다 새 Idempotency-Key를 보낸다.
 export function createSpecialClauseDraft(requests: string[]) {
-  return requestApi<SpecialClauseDraftResult>("/api/v1/special-clause-drafts", {
-    method: "POST",
-    body: JSON.stringify({ requests }),
+  return requestApi<{ draft_id: string; status: "queued"; created_at: string }>(
+    "/api/v1/special-clause-drafts",
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ requests }),
+    },
+  );
+}
+
+export function getSpecialClauseDraftJob(draftId: string) {
+  return requestApi<JobSnapshot<SpecialClauseDraftResult>>(
+    `/api/v1/special-clause-drafts/${encodeURIComponent(draftId)}`,
+  );
+}
+
+export const SPECIAL_CLAUSE_SLOW_AFTER_MS = 90_000;
+export const SPECIAL_CLAUSE_GIVE_UP_AFTER_MS = 180_000;
+
+/** 특약 생성을 접수하고 완료될 때까지 기다려 결과를 돌려준다. */
+export async function generateSpecialClauseDraft(
+  requests: string[],
+  options: {
+    onUpdate?: (snapshot: JobSnapshot<SpecialClauseDraftResult>) => void;
+    onSlow?: () => void;
+    signal?: AbortSignal;
+  } = {},
+) {
+  const accepted = await createSpecialClauseDraft(requests);
+  return pollJob(() => getSpecialClauseDraftJob(accepted.draft_id), {
+    ...options,
+    slowAfterMs: SPECIAL_CLAUSE_SLOW_AFTER_MS,
+    giveUpAfterMs: SPECIAL_CLAUSE_GIVE_UP_AFTER_MS,
+    statusOf: (error) => (error instanceof ContractApiError ? error.status : undefined),
   });
 }
 

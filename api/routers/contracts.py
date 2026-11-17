@@ -13,14 +13,26 @@ After:
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    Header,
+    Request,
+    UploadFile,
+    status,
+)
 
 from api.models.contracts import (
     ContractReviewRequest,
     ContractReviewResponse,
+    SpecialClauseDraftAccepted,
+    SpecialClauseDraftJobResponse,
     SpecialClauseDraftRequest,
-    SpecialClauseDraftResponse,
 )
 from api.models.contract_ocr import ContractOcrDraftResponse
 from api.models.registry_ocr import RegistryOcrDraftResponse
@@ -198,15 +210,50 @@ def create_contract_review(
     return service.review(payload)
 
 
+IdempotencyKeyHeader = Annotated[
+    str | None,
+    Header(
+        alias="Idempotency-Key",
+        min_length=1,
+        max_length=128,
+        pattern=r".*\S.*",
+        description="중복 생성 방지를 위한 클라이언트 생성 키",
+    ),
+]
+
+
 @router.post(
     "/special-clause-drafts",
     tags=["special-clause"],
-    response_model=SpecialClauseDraftResponse,
-    responses=VALIDATION_RESPONSES,
-    summary="자연어 특약 생성 결과 구성",
+    response_model=SpecialClauseDraftAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        **VALIDATION_RESPONSES,
+        409: {"model": ApiErrorResponse, "description": "중복 방지 키 충돌"},
+    },
+    summary="자연어 특약 생성 작업 접수",
 )
 def create_special_clause_draft(
     payload: SpecialClauseDraftRequest,
+    background_tasks: BackgroundTasks,
     service: SpecialClauseServiceDependency,
-) -> SpecialClauseDraftResponse:
-    return service.create_draft(payload)
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> SpecialClauseDraftAccepted:
+    submission = service.submit(payload, idempotency_key=idempotency_key)
+    if submission.is_new:
+        background_tasks.add_task(service.process, submission.response.draft_id)
+    return submission.response
+
+
+@router.get(
+    "/special-clause-drafts/{draft_id}",
+    tags=["special-clause"],
+    response_model=SpecialClauseDraftJobResponse,
+    responses={404: {"model": ApiErrorResponse, "description": "작업 없음 또는 만료"}},
+    summary="특약 생성 작업 조회",
+)
+def get_special_clause_draft(
+    draft_id: UUID,
+    service: SpecialClauseServiceDependency,
+) -> SpecialClauseDraftJobResponse:
+    return service.get(draft_id)
