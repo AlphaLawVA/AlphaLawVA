@@ -12,8 +12,6 @@ After:
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -44,6 +42,7 @@ from api.services.certified_letter_jobs import (
     CertifiedLetterJobStore,
     CertifiedLetterJobTransitionError,
 )
+from api.services.job_store import build_request_fingerprint
 from api.services.precedent_case_repository import (
     PrecedentCaseRepository,
     PrecedentCaseRepositoryError,
@@ -116,13 +115,12 @@ class CertifiedLetterService:
             raise CertifiedLetterGenerationUnavailableError(
                 "내용증명 생성 모델이 구성되지 않았습니다."
             )
-        normalized_key = _normalize_idempotency_key(idempotency_key)
-        fingerprint = _request_fingerprint(request)
+        fingerprint = build_request_fingerprint(request.model_dump(mode="json"))
         now = self.clock()
         job, is_new = self.jobs.create(
             draft_id=self.uuid_factory(),
             request_fingerprint=fingerprint,
-            idempotency_key=normalized_key,
+            idempotency_key=idempotency_key,
             now=now,
         )
         if is_new:
@@ -154,9 +152,7 @@ class CertifiedLetterService:
 
         try:
             request = self._take_request(draft_id)
-            state = self.graph.invoke(
-                {"request": request, "request_id": str(draft_id)}
-            )
+            state = self.graph.invoke({"request": request, "request_id": str(draft_id)})
             if failure := state.get("failure"):
                 logger.warning(
                     "내용증명 검증 실패: draft_id=%s issue_codes=%s repair_attempts=%s",
@@ -376,10 +372,7 @@ def _to_similar_precedent(
         ],
         full_text_sections=_full_text_sections(case_data),
         source_url=item.source_url
-        or (
-            "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq="
-            f"{item.precedent_id}"
-        ),
+        or (f"https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq={item.precedent_id}"),
     )
 
 
@@ -430,25 +423,6 @@ def _to_job_response(job: CertifiedLetterJob) -> CertifiedLetterDraftJobResponse
         updated_at=job.updated_at,
         completed_at=job.completed_at,
     )
-
-
-def _request_fingerprint(request: CertifiedLetterDraftRequest) -> str:
-    serialized = json.dumps(
-        request.model_dump(mode="json"),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-
-def _normalize_idempotency_key(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    return normalized
 
 
 def _parse_date(value: str | None) -> date | None:
