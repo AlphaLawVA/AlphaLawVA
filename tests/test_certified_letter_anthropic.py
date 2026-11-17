@@ -33,6 +33,7 @@ def _draft_payload():
         "strategy_summary": "미지급 중도금의 지급을 요청합니다.",
         "follow_up_actions": ["계약 정보를 확인합니다."],
         "warnings": ["이 문서는 법률 검토 전 초안입니다."],
+        "used_statute_source_ids": ["statute:001:565"],
     }
 
 
@@ -63,6 +64,10 @@ class AnthropicStructuredLetterModelTests(unittest.TestCase):
                 draft = model.invoke(prompt)
 
             self.assertEqual(draft.sender.name, "홍길동")
+            self.assertEqual(
+                draft.used_statute_source_ids,
+                ("statute:001:565",),
+            )
             request = mock_urlopen.call_args.args[0]
             payload = json.loads(request.data.decode("utf-8"))
             self.assertEqual(request.full_url, "https://api.anthropic.com/v1/messages")

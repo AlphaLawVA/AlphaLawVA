@@ -81,6 +81,7 @@ class CertifiedLetterDraftValidator:
         issues.extend(_validate_parties(request, draft))
         issues.extend(_validate_required_content(draft))
         issues.extend(_validate_citations(statute_evidence, draft.body))
+        issues.extend(_validate_used_statute_source_ids(statute_evidence, draft))
         issues.extend(_validate_money(request, draft.body))
         issues.extend(_validate_dates(request, draft.body))
         issues.extend(_validate_unconfirmed_events(request, draft.body))
@@ -180,6 +181,25 @@ def extract_statute_citations(body: str) -> set[tuple[str, str]]:
         )
         for match in LAW_CITATION_PATTERN.finditer(body)
     }
+
+
+def _validate_used_statute_source_ids(
+    statute_evidence: Sequence[StatuteEvidenceData],
+    draft: LetterDraftData,
+) -> list[ValidationIssue]:
+    allowed = {item.chunk_id for item in statute_evidence}
+    unsupported = sorted(set(draft.used_statute_source_ids) - allowed)
+    if not unsupported:
+        return []
+    return [
+        ValidationIssue(
+            code="unsupported_statute_source_id",
+            message=(
+                "검색 근거에 없는 법령 source_id가 있습니다: "
+                + ", ".join(unsupported)
+            ),
+        )
+    ]
 
 
 def _validate_money(

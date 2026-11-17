@@ -193,6 +193,7 @@ class LetterDraftData:
     strategy_summary: str
     follow_up_actions: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    used_statute_source_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

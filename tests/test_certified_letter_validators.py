@@ -79,6 +79,7 @@ def make_draft():
         strategy_summary="보증금 반환 의무와 이행 기한을 명확히 통지합니다.",
         follow_up_actions=("발송 전 계약 정보와 주소를 확인합니다.",),
         warnings=("이 문서는 법률 검토 전 초안입니다.",),
+        used_statute_source_ids=("statute:001:4",),
     )
 
 
@@ -123,6 +124,27 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         )
 
         self.assertEqual(issues, [])
+
+    def test_allows_empty_used_statute_source_ids(self):
+        draft = replace(make_draft(), used_statute_source_ids=())
+
+        codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, draft)
+        )
+
+        self.assertNotIn("unsupported_statute_source_id", codes)
+
+    def test_rejects_used_statute_source_id_outside_selected_evidence(self):
+        draft = replace(
+            make_draft(),
+            used_statute_source_ids=("statute:not-selected",),
+        )
+
+        codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, draft)
+        )
+
+        self.assertIn("unsupported_statute_source_id", codes)
 
     def test_rejects_unsupported_citation_but_allows_no_citation(self):
         unsupported = replace(

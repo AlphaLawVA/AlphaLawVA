@@ -26,7 +26,7 @@ from ml.agent.certified_letter.state import (
 )
 
 
-PROMPT_VERSION = "certified_letter_v1_8"
+PROMPT_VERSION = "certified_letter_v1_10"
 
 SYSTEM_PROMPT = """당신은 대한민국 부동산 계약 분쟁에 관한 내용증명 초안을 작성하는 도구입니다.
 사용자가 확인한 계약 정보와 상황을 바탕으로, 상대방에게 요구사항과 기한을 명확히 전달하는
@@ -39,6 +39,9 @@ SYSTEM_PROMPT = """당신은 대한민국 부동산 계약 분쟁에 관한 내�
    어디에서도 있는 것처럼 쓰지 마세요. 확인되지 않은 정보는 비워 두세요.
 3. 코드가 확정한 발신인·수신인 정보를 그대로 쓰세요. 계약 목적물 주소를 송달 주소로 쓰지 마세요.
 4. 법적 근거는 statute_evidence의 법령·조문만 인용하고, 없으면 인용하지 마세요. 판례·사건번호는 쓰지 마세요.
+   본문에 법령을 직접 적을 때는 statute_evidence의 법령명과 조문명을 그대로 사용하여
+   `「법령명」 제N조` 형식으로 작성하세요.
+   동일한 법령·조문은 본문 전체에서 한 번만 직접 인용하세요.
 5. 과도한 위협, 형사고소 암시, 승소·법적 효력 보장, 상대방의 위법 확정 표현은 쓰지 마세요.
 6. 요구하지 않은 기한이나 계약서의 날짜를 요구 기한으로 쓰지 마세요. 입력된 기한만 해당 행위에 적용하세요.
 
@@ -87,6 +90,9 @@ SYSTEM_PROMPT = """당신은 대한민국 부동산 계약 분쟁에 관한 내�
     단계 제목은 쓰지 마세요. 각 1~3문장입니다.
 20. warnings: 반드시 "이 문서는 법률 검토 전 초안입니다."를 포함하고, 이행 기한이 입력되지 않았거나
     제안된 기한이면 그 사실을 알리세요.
+21. used_statute_source_ids에는 내용증명 본문에 실제로 반영한 법령의 source_id만 넣으세요.
+    본문에 법령명과 조문을 직접 인용하지 않았더라도 작성에 실질적으로 사용했다면 포함하고,
+    사용하지 않았다면 빈 배열로 두세요. 배열을 채우기 위해 법령을 억지로 사용하지 마세요.
 
 지정된 구조화 출력 스키마의 필드만 반환하세요.
 """
@@ -184,6 +190,7 @@ def _contract_facts_payload(
 
 def _statute_payload(item: StatuteEvidenceData) -> dict[str, str | None]:
     return {
+        "source_id": item.chunk_id,
         "statute_id": item.statute_id,
         "law_name": item.law_name,
         "article_label": item.article_label,

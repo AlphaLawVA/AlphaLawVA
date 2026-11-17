@@ -88,6 +88,13 @@ LETTER_DRAFT_SCHEMA = {
             "maxItems": 8,
             "description": "초안 성격과 기한 등 주의사항",
         },
+        "used_statute_source_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 0,
+            "maxItems": 3,
+            "description": "내용증명 본문 작성에 실제로 사용한 statute_evidence의 source_id",
+        },
     },
     "required": [
         "title",
@@ -97,6 +104,7 @@ LETTER_DRAFT_SCHEMA = {
         "strategy_summary",
         "follow_up_actions",
         "warnings",
+        "used_statute_source_ids",
     ],
     "additionalProperties": False,
 }
@@ -335,6 +343,7 @@ class GeminiStructuredLetterModel:
             "strategy_summary",
             "follow_up_actions",
             "warnings",
+            "used_statute_source_ids",
         }
         if set(value) != expected_keys:
             raise ValueError("Gemini 내용증명 응답 필드가 스키마와 일치하지 않습니다.")
@@ -353,7 +362,17 @@ class GeminiStructuredLetterModel:
                 "follow_up_actions",
             ),
             warnings=cls._string_tuple(value["warnings"], "warnings"),
+            used_statute_source_ids=cls._source_id_tuple(
+                value["used_statute_source_ids"]
+            ),
         )
+
+    @classmethod
+    def _source_id_tuple(cls, value: Any) -> tuple[str, ...]:
+        source_ids = cls._string_tuple(value, "used_statute_source_ids")
+        if len(source_ids) > 3 or len(set(source_ids)) != len(source_ids):
+            raise ValueError("Gemini used_statute_source_ids가 올바르지 않습니다.")
+        return source_ids
 
     @staticmethod
     def _parse_scope_classification(value: Any) -> ScopeClassification:

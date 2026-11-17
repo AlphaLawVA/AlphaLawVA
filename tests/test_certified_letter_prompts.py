@@ -85,6 +85,7 @@ def make_draft():
         ),
         strategy_summary="보증금 반환 요청",
         warnings=("이 문서는 법률 검토 전 초안입니다.",),
+        used_statute_source_ids=("statute:001:4",),
     )
 
 
@@ -103,15 +104,27 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_8")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_10")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
             "주택임대차보호법",
         )
+        self.assertEqual(
+            payload["statute_evidence"][0]["source_id"],
+            "statute:001:4",
+        )
         self.assertNotIn("precedent", prompt.user.lower())
         self.assertNotIn("판례", prompt.user)
         self.assertIn("statute_evidence의 법령·조문만 인용", prompt.system)
+        self.assertIn("`「법령명」 제N조` 형식", prompt.system)
+        self.assertIn(
+            "동일한 법령·조문은 본문 전체에서 한 번만 직접 인용",
+            prompt.system,
+        )
+        self.assertIn("used_statute_source_ids에는 내용증명 본문", prompt.system)
+        self.assertIn("작성에 실질적으로 사용했다면 포함", prompt.system)
+        self.assertIn("법령을 억지로 사용하지 마세요", prompt.system)
         self.assertEqual(payload["document_parties"]["sender_role"], "lessee")
         self.assertEqual(payload["document_parties"]["sender"]["name"], "김민지")
         self.assertEqual(payload["document_parties"]["recipient"]["name"], "홍길동")
