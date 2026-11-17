@@ -182,7 +182,13 @@ class SpecialClauseDraftJobResponse(ContractApiModel):
 
 class ContractReviewAccepted(ContractApiModel):
     review_id: UUID
-    status: ContractJobStatus = ContractJobStatus.QUEUED
+    status: ContractJobStatus = Field(
+        default=ContractJobStatus.QUEUED,
+        description=(
+            "신규 접수이면 queued이다. 같은 Idempotency-Key와 같은 본문으로 다시 요청하면 "
+            "기존 작업의 현재 상태(queued, processing, completed, failed)를 돌려줄 수 있다."
+        ),
+    )
     created_at: datetime
 
 
