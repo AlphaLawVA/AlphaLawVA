@@ -11,6 +11,7 @@ After:
 
 from __future__ import annotations
 
+import logging
 import unittest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -239,6 +240,30 @@ class StageTrackingTests(unittest.TestCase):
         )
 
         self.assertEqual(len(result.generations), 1)
+
+
+class StageTimingLogTests(unittest.TestCase):
+    def test_create_app_enables_stage_timing_log_once(self) -> None:
+        logger = logging.getLogger("ml.agent.stage_tracking")
+        _client(FakeGenerator())
+        _client(FakeGenerator())
+
+        marked = [h for h in logger.handlers if getattr(h, "_alphalawva_stage_timing", False)]
+        self.assertEqual(len(marked), 1)
+        self.assertTrue(logger.isEnabledFor(logging.INFO))
+
+    def test_timing_is_logged_for_each_node(self) -> None:
+        _client(FakeGenerator())
+
+        with self.assertLogs("ml.agent.stage_tracking", level="INFO") as captured:
+            SpecialClauseGraph().prepare(
+                ["권리 변동을 막는 특약"],
+                evidence_retriever=FakeRetriever(),
+                generator=FakeGenerator(),
+            )
+
+        self.assertTrue(any("stage=generate" in line for line in captured.output))
+        self.assertTrue(all("elapsed=" in line for line in captured.output))
 
 
 if __name__ == "__main__":
