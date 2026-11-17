@@ -73,8 +73,7 @@ def make_draft():
         ),
         body=(
             "2026-09-30 계약이 종료되었습니다. 「주택임대차보호법」 제4조를 "
-            "근거로 보증금 100,000,000원을 이 내용증명을 받은 날부터 "
-            "7일 이내 반환해 주시기 바랍니다."
+            "근거로 보증금 100,000,000원을 반환해 주시기 바랍니다."
         ),
         strategy_summary="보증금 반환 의무와 이행 기한을 명확히 통지합니다.",
         follow_up_actions=("발송 전 계약 정보와 주소를 확인합니다.",),
@@ -259,8 +258,8 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         draft = replace(
             make_draft(),
             body=make_draft().body.replace(
-                "이 내용증명을 받은 날부터 7일 이내",
-                "2026년 11월 15일까지",
+                "보증금 100,000,000원을",
+                "보증금 100,000,000원을 2026년 11월 15일까지",
             ),
         )
 
@@ -270,17 +269,27 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         self.assertNotIn("unexpected_date", issue_codes(issues))
 
     def test_does_not_require_deadline_when_user_does_not_select_one(self):
-        draft = replace(
-            make_draft(),
-            body=make_draft().body.replace(
-                "이 내용증명을 받은 날부터 7일 이내 ",
-                "",
-            ),
-        )
+        draft = make_draft()
 
         issues = self.validator.validate(self.request, self.statutes, draft)
 
         self.assertNotIn("missing_deadline", issue_codes(issues))
+        self.assertNotIn("unexpected_deadline", issue_codes(issues))
+
+    def test_rejects_invented_relative_deadline_when_user_selects_none(self):
+        draft = replace(
+            make_draft(),
+            body=make_draft().body.replace(
+                "반환해 주시기 바랍니다",
+                "이 내용증명을 받은 날부터 7일 이내 반환해 주시기 바랍니다",
+            ),
+        )
+
+        codes = issue_codes(
+            self.validator.validate(self.request, self.statutes, draft)
+        )
+
+        self.assertIn("unexpected_deadline", codes)
 
     def test_rejects_precedent_unsafe_claim_and_prompt_leak(self):
         draft = replace(
@@ -306,10 +315,7 @@ class CertifiedLetterDraftValidatorTests(unittest.TestCase):
         request = make_request(requested_deadline=date(2026, 11, 15))
         draft = replace(
             make_draft(),
-            body=make_draft().body.replace(
-                "이 내용증명을 받은 날부터 7일 이내",
-                "가능한 빨리",
-            ),
+            body=make_draft().body,
         )
 
         codes = issue_codes(

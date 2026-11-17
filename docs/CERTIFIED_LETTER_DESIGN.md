@@ -282,10 +282,13 @@ provided. This allows a future same-dataset experiment to replace either
 cross-encoder without changing graph or API code. If reranking fails at
 runtime, the workflow falls back to the already filtered dense order.
 
-Stage 6 prompt `certified_letter_v0_5` incorporates the useful drafting
+Stage 6 prompt `certified_letter_v1_13` incorporates the useful drafting
 structure from SuperLawVA's legacy `generate_letter` prompt while removing
 fabricated experience, unsupported success-rate claims, guaranteed-effect
 language, ungrounded general-law fallback, and successful fallback letters.
+It deterministically appends either the selected-deadline rule or the
+no-deadline rule and keeps an already stated termination notice independent
+from the recipient's confirmation, consent, or reply.
 The detailed comparison is recorded in
 `docs/CERTIFIED_LETTER_PROMPT_CHANGES.md`.
 
@@ -303,7 +306,9 @@ Before returning a draft, deterministic checks validate:
 - sender and recipient direction;
 - names, addresses, dates, and monetary amounts against the request;
 - every statute name and article against selected evidence;
-- required title, demand, deadline or deadline placeholder, and draft warning;
+- required title and demand or rights-notice content;
+- presence of the user-selected deadline, or absence of an invented deadline
+  when the user selected no deadline;
 - absence of internal prompts, provider errors, and unsupported success claims.
 
 Fixable validation failures may trigger one repair call with the same statute
