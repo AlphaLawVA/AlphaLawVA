@@ -13,13 +13,18 @@ After:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from api.models.contracts import (
     AnalysisStatus,
     ContractReviewAnalysisItem,
     ContractInputSummary,
+    ContractJobError,
+    ContractReviewAccepted,
+    ContractReviewJobResponse,
     ContractReviewEvidenceItem,
     ContractReviewItem,
     ContractReviewRequest,
@@ -31,14 +36,28 @@ from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.generation_results import GenerationResultKind
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
+from api.services.contract_review_jobs import (
+    ContractReviewJob,
+    ContractReviewJobNotFoundError,
+    ContractReviewJobStore,
+    ContractReviewJobTransitionError,
+)
+from api.services.job_store import build_request_fingerprint
 from api.services.precedent_case_repository import PrecedentCaseRepository
 from api.services.precedent_evidence_enricher import enrich_precedent_evidence_metadata
 from ml.agent.contract_review_graph import ContractReviewGraph
 from ml.agent.contract_review_graph import ContractReviewAnalyzer
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
+from ml.agent.stage_tracking import StageCallback
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ContractReviewSubmission:
+    response: ContractReviewAccepted
+    is_new: bool
 
 
 class ContractReviewService:
@@ -51,7 +70,11 @@ class ContractReviewService:
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         analyzer: ContractReviewAnalyzer | None = None,
         precedent_repository: PrecedentCaseRepository | None = None,
+        jobs: ContractReviewJobStore | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
+        self._jobs = jobs or ContractReviewJobStore()
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._snapshot_store = snapshot_store
         self._review_graph = review_graph or ContractReviewGraph()
         self._evidence_retriever = evidence_retriever
@@ -64,7 +87,82 @@ class ContractReviewService:
 
         self._result_recorder = recorder
 
-    def review(self, payload: ContractReviewRequest) -> ContractReviewResponse:
+    def submit(
+        self,
+        payload: ContractReviewRequest,
+        *,
+        idempotency_key: str | None = None,
+    ) -> ContractReviewSubmission:
+        """스냅샷 존재를 먼저 확인한 뒤 요청을 작업으로 접수한다."""
+
+        # 없는 스냅샷은 202를 내지 않고 바로 404로 알린다.
+        self._snapshot_store.get_contract(payload.contract_snapshot_id)
+        if payload.registry_snapshot_id is not None:
+            self._snapshot_store.get_registry(payload.registry_snapshot_id)
+        job, is_new = self._jobs.create(
+            review_id=uuid4(),
+            request=payload,
+            request_fingerprint=build_request_fingerprint(payload.model_dump(mode="json")),
+            idempotency_key=idempotency_key,
+            now=self._clock(),
+        )
+        return ContractReviewSubmission(
+            response=ContractReviewAccepted(
+                review_id=job.review_id,
+                status=job.status,
+                created_at=job.created_at,
+            ),
+            is_new=is_new,
+        )
+
+    def process(self, review_id: UUID) -> ContractReviewResponse | None:
+        """접수된 작업을 실행해 완료 또는 실패로 기록한다(백그라운드에서 호출)."""
+
+        try:
+            job = self._jobs.mark_processing(review_id, now=self._clock())
+        except (ContractReviewJobNotFoundError, ContractReviewJobTransitionError):
+            logger.warning("계약서 검토 작업 실행 건너뜀: review_id=%s reason=not_queued", review_id)
+            return None
+
+        def on_stage(stage: str) -> None:
+            try:
+                self._jobs.set_stage(review_id, stage, now=self._clock())
+            except (ContractReviewJobNotFoundError, ContractReviewJobTransitionError):
+                pass
+
+        try:
+            response = self.review(job.request, review_id=review_id, on_stage=on_stage)
+            self._jobs.mark_completed(review_id, result=response, now=self._clock())
+            return response
+        except Exception as error:  # noqa: BLE001 - 어떤 실패든 작업을 failed로 닫아야 한다.
+            logger.exception(
+                "계약서 검토 작업 실패: review_id=%s error_type=%s",
+                review_id,
+                type(error).__name__,
+            )
+            try:
+                self._jobs.mark_failed(
+                    review_id,
+                    error=ContractJobError(
+                        code="contract_review_failed",
+                        message="계약서 검토를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                    ),
+                    now=self._clock(),
+                )
+            except (ContractReviewJobNotFoundError, ContractReviewJobTransitionError):
+                pass
+            return None
+
+    def get(self, review_id: UUID) -> ContractReviewJobResponse:
+        return _to_job_response(self._jobs.get(review_id, now=self._clock()))
+
+    def review(
+        self,
+        payload: ContractReviewRequest,
+        *,
+        review_id: UUID | None = None,
+        on_stage: StageCallback | None = None,
+    ) -> ContractReviewResponse:
         contract_snapshot = self._snapshot_store.get_contract(
             payload.contract_snapshot_id
         )
@@ -83,6 +181,7 @@ class ContractReviewService:
                 registry_snapshot,
                 evidence_retriever=self._evidence_retriever,
                 analyzer=self._analyzer,
+                on_stage=on_stage,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
             # 실패 원인이 응답에는 드러나지 않으므로 서버 로그에 남긴다.
@@ -142,7 +241,7 @@ class ContractReviewService:
             evidence_item_ids,
         )
         response = ContractReviewResponse(
-            review_id=uuid4(),
+            review_id=review_id or uuid4(),
             status="completed",
             input_summary=ContractInputSummary(
                 contract_snapshot_id=payload.contract_snapshot_id,
@@ -298,3 +397,16 @@ class ContractReviewService:
             )
             for encumbrance in active_encumbrances
         ]
+
+
+def _to_job_response(job: ContractReviewJob) -> ContractReviewJobResponse:
+    return ContractReviewJobResponse(
+        review_id=job.review_id,
+        status=job.status,
+        stage=job.stage,
+        result=job.result,
+        error=job.error,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        completed_at=job.completed_at,
+    )
