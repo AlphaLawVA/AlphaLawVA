@@ -125,6 +125,28 @@ def dates(lines):
     return found
 
 
+def dated_groups(lines):
+    """날짜가 실제로 적힌 물리적 행(줄 묶음)을 날짜와 함께 순서대로 돌려준다.
+
+    dates()와 같은 방식으로 행을 복원하되, 날짜마다 그 날짜가 들어 있는 행의 줄만 묶는다.
+    날짜의 근거(raw_text, 위치)를 페이지 전체가 아니라 그 행으로 좁히는 데 쓴다.
+    """
+
+    found = []
+    pending = list(lines)
+    while pending:
+        group = row(pending, pending[0])
+        for match in re.finditer(
+            r"(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일", joined(group)
+        ):
+            try:
+                found.append((date(*map(int, match.groups())).isoformat(), group))
+            except ValueError:
+                pass
+        pending = [item for item in pending if item not in group]
+    return found
+
+
 def korean_amount(text):
     token = compact(text)
     if not re.fullmatch(r"[일이삼사오육칠팔구십백천만억0-9]+", token):
@@ -465,7 +487,15 @@ def extract_document_ai(document, contract_type):
 
     def date_field(pool, index=0):
         values = dates(pool)
-        return field(values[index] if len(values) > index else None, pool)
+        if len(values) <= index:
+            return field(None, pool)
+        # 날짜의 근거는 날짜가 적힌 행으로 좁힌다. 페이지 전체를 담으면 서로 다른 줄의
+        # 숫자가 이어 붙어 주민등록번호 검증에 오탐으로 걸린다. 행을 찾지 못한 드문 경우
+        # (날짜가 행 경계에 걸린 경우)에만 기존처럼 전달받은 줄 전체를 쓴다.
+        groups = dated_groups(pool)
+        if len(groups) > index and groups[index][0] == values[index]:
+            return field(values[index], groups[index][1])
+        return field(values[index], pool)
 
     address_line = next(
         (
