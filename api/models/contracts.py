@@ -172,3 +172,23 @@ class SpecialClauseDraftJobResponse(ContractApiModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
+
+
+class ContractReviewAccepted(ContractApiModel):
+    review_id: UUID
+    status: ContractJobStatus = ContractJobStatus.QUEUED
+    created_at: datetime
+
+
+class ContractReviewJobResponse(ContractApiModel):
+    review_id: UUID
+    status: ContractJobStatus
+    stage: str | None = Field(
+        default=None,
+        description="처리 중인 단계 이름(precheck, retrieve, analyze, validate, repair). 처리 중에만 값이 있다.",
+    )
+    result: ContractReviewResponse | None = None
+    error: ContractJobError | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
