@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Bookmark, Check, CheckCircle2, Download, FileText, Info, LoaderCircle, ScanText, Upload } from "lucide-react";
+import { AlertCircle, Bookmark, Check, CheckCircle2, Download, ExternalLink, FileText, Info, LoaderCircle, ScanText, Upload } from "lucide-react";
 import { LiveProgress } from "@/components/live-progress";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
+import { StatuteExcerpt } from "@/components/statute-excerpt";
 import { UploadGuide } from "@/components/upload-guide";
 import { createContractOcrDraft, mapContractOcrDraftToSnapshot } from "@/lib/contract-ocr-api";
 import {
@@ -19,6 +20,7 @@ import type { CertifiedLetterResult } from "@/lib/certified-letter-api";
 import { certifiedLetterContractSnapshot } from "@/lib/certified-letter-data";
 import type { CaseBasis, ConfirmedContractSnapshot } from "@/lib/demo-types";
 import { validateDemoFile } from "@/lib/demo-validation";
+import { statuteOfficialUrl } from "@/lib/statute-link";
 import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
 import { createClient } from "@/lib/supabase/client";
 import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-demo";
@@ -537,19 +539,14 @@ export default function CertifiedLetterPage() {
             <h2>관련 근거</h2>
             <details className={styles.detailDisclosure}>
               <summary>관련 법령 {draftResult.statute_evidence.length}건</summary>
-              {draftResult.statute_evidence.length > 0 ? (
-                <div className={styles.basisGrid}>
-                  {draftResult.statute_evidence.map((statute) => (
-                    <article className={styles.basisCard} key={`${statute.statute_id ?? statute.law_name}-${statute.article_label}`}>
-                      <strong>{statute.law_name} {statute.article_label}</strong>
-                      {statute.article_title && <p>{statute.article_title}</p>}
-                      <span>{statute.explanation}</span>
-                      <p style={{ whiteSpace: "pre-wrap" }}>{statute.content}</p>
-                      {statute.source_url && <a href={statute.source_url} target="_blank" rel="noreferrer">원문 보기</a>}
-                    </article>
-                  ))}
-                </div>
-              ) : <p>최종 내용증명 본문에 직접 인용된 관련 법령이 없습니다.</p>}
+              {draftResult.statute_evidence.length > 0 ? draftResult.statute_evidence.map((statute) => (
+                <article className={styles.basisCard} key={`${statute.statute_id ?? statute.law_name}-${statute.article_label}`}>
+                  <strong>{statute.law_name} {statute.article_label}</strong>
+                  <StatuteExcerpt text={statute.content} />
+                  <span>{statute.explanation}</span>
+                  <a href={statute.source_url ?? statuteOfficialUrl(statute.law_name, statute.article_label)} target="_blank" rel="noreferrer">국가법령정보센터에서 원문 보기 <ExternalLink size={14} /></a>
+                </article>
+              )) : <p>이 내용증명에 직접 연결된 법령 근거는 없습니다.</p>}
             </details>
             <details className={styles.detailDisclosure}>
               <summary>관련 판례 {relatedPrecedents.length}건</summary>
