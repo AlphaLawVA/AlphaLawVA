@@ -282,13 +282,15 @@ provided. This allows a future same-dataset experiment to replace either
 cross-encoder without changing graph or API code. If reranking fails at
 runtime, the workflow falls back to the already filtered dense order.
 
-Stage 6 prompt `certified_letter_v1_13` incorporates the useful drafting
+Stage 6 prompt `certified_letter_v1_14` incorporates the useful drafting
 structure from SuperLawVA's legacy `generate_letter` prompt while removing
 fabricated experience, unsupported success-rate claims, guaranteed-effect
 language, ungrounded general-law fallback, and successful fallback letters.
 It deterministically appends either the selected-deadline rule or the
 no-deadline rule and keeps an already stated termination notice independent
 from the recipient's confirmation, consent, or reply.
+Section 4 is titled “후속 조치” and describes which steps the sender will consider
+after giving notice or if the recipient does not fulfill a demand.
 The detailed comparison is recorded in
 `docs/CERTIFIED_LETTER_PROMPT_CHANGES.md`.
 

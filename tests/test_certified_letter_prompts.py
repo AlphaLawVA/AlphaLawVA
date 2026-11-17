@@ -108,7 +108,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         payload = json.loads(prompt.user)
 
         self.assertEqual(prompt.version, PROMPT_VERSION)
-        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_13")
+        self.assertEqual(PROMPT_VERSION, "certified_letter_v1_14")
         self.assertEqual(payload["task"], "create_certified_letter_draft")
         self.assertEqual(
             payload["statute_evidence"][0]["law_name"],
@@ -159,7 +159,7 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertIn("1. 당사자 간의 관계 및 계약 내용", prompt.system)
         self.assertIn("2. 분쟁의 발생 사실", prompt.system)
         self.assertIn("3. 요구 사항", prompt.system)
-        self.assertIn("4. 미이행 시 후속 조치", prompt.system)
+        self.assertIn("4. 후속 조치", prompt.system)
         self.assertIn("제목·발신인·수신인 표시 영역", prompt.system)
 
     def test_prompt_includes_special_terms_as_contract_facts(self):
@@ -234,7 +234,9 @@ class CertifiedLetterPromptTests(unittest.TestCase):
         self.assertIn("권리 행사 통지 내용을 쓰세요", prompt.system)
         self.assertIn("그 의사를 한 문장으로 명확히 쓰세요", prompt.system)
         self.assertNotIn("권리 행사 통지는", prompt.system)
-        self.assertIn("해당 권리를 제4항에서 다시 검토한다고", prompt.system)
+        self.assertIn("검토하겠다는 수준으로 작성하세요", prompt.system)
+        self.assertIn("통지 이후의 절차를", prompt.system)
+        self.assertIn("그 요구가 이행되지 않았을 때의 대응을 쓰세요", prompt.system)
 
     def test_repair_prompt_contains_only_reported_issues(self):
         issue = ValidationIssue(
