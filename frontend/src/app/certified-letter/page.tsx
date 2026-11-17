@@ -279,6 +279,12 @@ export default function CertifiedLetterPage() {
     }
   }
 
+  const isSale = confirmedSnapshot.contractType === "매매";
+  const contractAmountSummary = isSale
+    ? "매매대금, 계약금·중도금·잔금(있는 경우)"
+    : confirmedSnapshot.contractType === "월세"
+      ? "보증금과 월세"
+      : "전세보증금";
   const stepIndex = stage === "upload" || stage === "processing" ? 0 : stage === "verify" ? 1 : stage === "request" ? 2 : 3;
   const currentOcrStageIndex = Math.max(
     0,
@@ -425,7 +431,7 @@ export default function CertifiedLetterPage() {
                 {deadlineMode === "none" && (
                   <p className={styles.deadlineWarning} role="note">
                     <Info size={17} aria-hidden="true" />
-                    기한 없이 작성하면 상대방의 이행 시점이 명확하지 않을 수 있습니다.
+                    상대방에게 지급·반환 등 이행을 요구한다면 기한을 지정해 주세요. 이 선택은 별도의 이행 요구 없이 의사를 통지하는 경우에 적합합니다.
                   </p>
                 )}
               </fieldset>
@@ -433,7 +439,23 @@ export default function CertifiedLetterPage() {
             {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>입력 내용을 확인해주세요</strong><span>{error}</span></div></div>}
             <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={() => void generateLetter()}><FileText size={17} />초안 만들기</button></div>
           </section>
-          <aside className={styles.sidePanel}><h2>계약서에서 이미 가져온 정보</h2><div className={styles.exampleList}><p><b>계약 기본정보</b><span>계약 종류, 기간, 목적물 주소</span></p><p><b>당사자 정보</b><span>임대인·임차인의 이름과 주소</span></p><p><b>금액 정보</b><span>보증금과 월세</span></p></div></aside>
+          <aside className={styles.sidePanel}>
+            <h2>확인된 계약 정보</h2>
+            <div className={styles.exampleList}>
+              <p>
+                <b>계약 기본정보</b>
+                <span>{isSale
+                  ? "계약일, 계약한 집의 주소, 인도일·소유권 이전일(있는 경우)"
+                  : "계약일, 임대차 기간, 계약한 집의 주소"}</span>
+              </p>
+              <p>
+                <b>당사자 정보</b>
+                <span>{isSale ? "매도인·매수인의 이름과 주소" : "임대인·임차인의 이름과 주소"}</span>
+              </p>
+              <p><b>금액 정보</b><span>{contractAmountSummary}</span></p>
+              <p><b>특약 사항</b><span>앞에서 확인한 계약서 특약</span></p>
+            </div>
+          </aside>
         </div>
       )}
 
@@ -496,7 +518,17 @@ export default function CertifiedLetterPage() {
               <p><span>발신인</span><strong>{draftResult.document.sender.name} (서명 또는 날인)</strong></p>
             </footer>
           </article>
-          <div className={styles.draftNotice}><Info size={18} /><span>이 문서는 AI가 계약서와 입력 내용을 바탕으로 작성한 법률 검토 전 초안입니다. 발송 전 당사자·금액·날짜와 법령 근거를 다시 확인하세요.</span></div>
+          <div className={styles.draftNotice}>
+            <Info size={18} aria-hidden="true" />
+            <div className={styles.draftNoticeCopy}>
+              <strong>발송 전 확인해 주세요</strong>
+              <p>이 문서는 AI가 작성한 법률 검토 전 초안입니다.</p>
+              <p>
+                내용증명에 작성한 내용은 향후 분쟁이나 소송에서 중요한 자료로 쓰일 수 있으며, 의도와 다르게 해석될 여지가 있습니다.
+                발송 전에 사실관계와 표현을 꼼꼼히 살펴보시고, 필요시 법률 전문가의 도움을 받아보세요.
+              </p>
+            </div>
+          </div>
           <div className={styles.letterAnalysisGrid}>
             <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>{draftResult.strategy_summary}</p></section>
             <section className={styles.panel}><h2>다음 단계</h2><div className={styles.exampleList}>{draftResult.follow_up_actions.map((step) => <p key={`${step.order}-${step.action}`}><b>{String(step.order).padStart(2, "0")} {CERTIFIED_LETTER_FOLLOW_UP_TITLES[step.order - 1] ?? "다음 단계"}</b><span>{step.action}</span></p>)}</div></section>
