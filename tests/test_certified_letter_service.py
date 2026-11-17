@@ -186,6 +186,21 @@ class UncitedStatuteReadyGraph(ReadyGraph):
                 "이 내용증명을 받은 날부터 7일 이내 보증금 반환을 "
                 "요청합니다."
             ),
+            used_statute_source_ids=("statute:001:4",),
+        )
+        return state
+
+
+class UnusedStatuteReadyGraph(ReadyGraph):
+    def invoke(self, input):
+        state = super().invoke(input)
+        state["draft"] = replace(
+            state["draft"],
+            body=(
+                "이 내용증명을 받은 날부터 7일 이내 보증금 반환을 "
+                "요청합니다."
+            ),
+            used_statute_source_ids=(),
         )
         return state
 
@@ -276,11 +291,11 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         self.assertEqual(response.outcome, CertifiedLetterOutcome.DRAFT_READY)
         self.assertEqual(response.result.statute_evidence, [])
         self.assertIn(
-            "직접 인용된 관련 법령 없이 작성된 초안",
+            "반영된 관련 법령 없이 작성된 초안",
             " ".join(response.result.warnings),
         )
 
-    def test_returns_only_statutes_actually_cited_by_the_draft(self):
+    def test_returns_statute_used_without_direct_body_citation(self):
         service = self.make_service(UncitedStatuteReadyGraph())
         submission = service.submit(make_request())
 
@@ -288,9 +303,25 @@ class CertifiedLetterServiceTests(unittest.TestCase):
         response = service.get(submission.response.draft_id)
 
         self.assertEqual(response.outcome, CertifiedLetterOutcome.DRAFT_READY)
+        self.assertEqual(
+            [item.article_label for item in response.result.statute_evidence],
+            ["제4조"],
+        )
+        self.assertNotIn(
+            "반영된 관련 법령 없이 작성된 초안",
+            " ".join(response.result.warnings),
+        )
+
+    def test_omits_selected_statute_not_used_or_cited(self):
+        service = self.make_service(UnusedStatuteReadyGraph())
+        submission = service.submit(make_request())
+
+        service.process(submission.response.draft_id)
+        response = service.get(submission.response.draft_id)
+
         self.assertEqual(response.result.statute_evidence, [])
         self.assertIn(
-            "직접 인용된 관련 법령 없이 작성된 초안",
+            "반영된 관련 법령 없이 작성된 초안",
             " ".join(response.result.warnings),
         )
 

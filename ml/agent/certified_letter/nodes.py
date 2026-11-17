@@ -359,10 +359,12 @@ class CertifiedLetterNodes:
             state.get("selected_statutes", ()),
         )
         logger.info(
-            "내용증명 법령 인용 결과: request_id=%s selected=%s cited=%s",
+            "내용증명 법령 인용 결과: request_id=%s selected=%s cited=%s "
+            "used_source_ids=%s",
             state.get("request_id", "unknown"),
             _statute_trace_entries(state.get("selected_statutes", ())),
             cited_statutes,
+            list(state["draft"].used_statute_source_ids),
         )
         logger.info(
             "내용증명 값 정규화 완료: request_id=%s input_transformations=%s "
