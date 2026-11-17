@@ -30,8 +30,11 @@ particular court outcome.
 - Missing statute evidence does not prevent a fact-based draft. In that case the
   body contains no statute citation, `statute_evidence` is empty, and the result
   carries an explicit review warning.
-- Retrieved statutes are returned to the user only when the final body actually
-  cites them.
+- Retrieved statutes are returned when the drafting model identifies their
+  `source_id` as actually used in the final body, even if the body does not
+  spell out the statute name and article. An exact body citation to selected
+  evidence is also accepted as a deterministic fallback when that ID is
+  omitted. Unknown model-returned IDs are rejected before the result is shown.
 - Retrieval source metadata must be preserved through the workflow.
 
 This separation is enforced by the generator interface, which accepts normalized
@@ -102,9 +105,8 @@ Rules:
 - A `jeonse` contract must not contain `monthly_rent`.
 - A `monthly_rent` contract must contain a positive `monthly_rent` value.
 - Dates use `YYYY-MM-DD`; money is an integer number of Korean won.
-- `requested_deadline` is optional. When absent, the workflow may suggest the
-  relative deadline "수령 후 7일 이내". That phrase is a generated strategy,
-  not an asserted historical fact, and must be disclosed in `warnings`.
+- `requested_deadline` is optional. When absent, the workflow drafts the letter
+  without an implementation deadline and does not create a relative deadline.
 - User identity is not accepted in the request body. Authentication will supply
   ownership when it is introduced.
 - Unknown request fields are rejected.
@@ -178,9 +180,7 @@ Completed draft example:
     ],
     "statute_evidence": [],
     "similar_precedents": [],
-    "warnings": [
-      "이 문서는 법률 검토 전 초안입니다."
-    ]
+    "warnings": []
   },
   "missing_information": [],
   "error": null,
@@ -282,10 +282,13 @@ provided. This allows a future same-dataset experiment to replace either
 cross-encoder without changing graph or API code. If reranking fails at
 runtime, the workflow falls back to the already filtered dense order.
 
-Stage 6 prompt `certified_letter_v0_5` incorporates the useful drafting
+Stage 6 prompt `certified_letter_v1_13` incorporates the useful drafting
 structure from SuperLawVA's legacy `generate_letter` prompt while removing
 fabricated experience, unsupported success-rate claims, guaranteed-effect
 language, ungrounded general-law fallback, and successful fallback letters.
+It deterministically appends either the selected-deadline rule or the
+no-deadline rule and keeps an already stated termination notice independent
+from the recipient's confirmation, consent, or reply.
 The detailed comparison is recorded in
 `docs/CERTIFIED_LETTER_PROMPT_CHANGES.md`.
 
@@ -303,7 +306,9 @@ Before returning a draft, deterministic checks validate:
 - sender and recipient direction;
 - names, addresses, dates, and monetary amounts against the request;
 - every statute name and article against selected evidence;
-- required title, demand, deadline or deadline placeholder, and draft warning;
+- required title and demand or rights-notice content;
+- presence of the user-selected deadline, or absence of an invented deadline
+  when the user selected no deadline;
 - absence of internal prompts, provider errors, and unsupported success claims.
 
 Fixable validation failures may trigger one repair call with the same statute
@@ -348,7 +353,8 @@ The Next.js certified-letter flow is connected to the live FastAPI draft API.
 It passes the user-confirmed contract snapshot, collects only the sender role,
 purpose, confirmed facts, and optional deadline, then polls the in-memory job
 until completion. The result screen renders the generated document, strategy,
-follow-up actions, warnings, cited statute evidence, and similar precedents.
+follow-up actions, a frontend-owned fixed draft notice, cited statute evidence,
+and similar precedents. The compatible `warnings` response field remains empty.
 
 The following parts remain demo or alpha-only behavior:
 
@@ -370,8 +376,8 @@ data set in these standard locations:
 ChromaDB; the API performs retrieval from the vector store. Configure
 `CERTIFIED_LETTER_STATUTE_DB_DIR` when the vector store is outside the runtime
 project root. The public response includes only selected statute evidence that
-the final draft actually cites, so a successful fact-based draft may still
-return an empty `statute_evidence` list.
+the final draft actually used or cited, so a successful fact-based draft may
+still return an empty `statute_evidence` list.
 
 ## Privacy and Logging
 

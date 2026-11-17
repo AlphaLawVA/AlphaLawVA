@@ -1,14 +1,10 @@
 # test_certified_letter_normalizer.py
-"""내용증명 내부 요청 정규화와 기본 기한 정책을 검증한다."""
+"""내용증명 내부 요청 정규화와 선택 기한 정책을 검증한다."""
 
 import unittest
 from datetime import date
 
-from ml.agent.certified_letter.normalizer import (
-    DEFAULT_RELATIVE_DEADLINE,
-    SUGGESTED_DEADLINE_WARNING,
-    normalize_request,
-)
+from ml.agent.certified_letter.normalizer import normalize_request
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
@@ -68,15 +64,13 @@ class CertifiedLetterNormalizerTests(unittest.TestCase):
         )
         self.assertIsNone(normalized.contract.lessor.detail_address)
         self.assertEqual(normalized.deadline_text, "2026-11-15")
-        self.assertFalse(normalized.is_deadline_suggested)
         self.assertEqual(normalized.warnings, ())
 
-    def test_marks_default_relative_deadline_as_strategy_suggestion(self):
+    def test_keeps_deadline_empty_when_user_does_not_select_one(self):
         normalized = normalize_request(make_request(requested_deadline=None))
 
-        self.assertEqual(normalized.deadline_text, DEFAULT_RELATIVE_DEADLINE)
-        self.assertTrue(normalized.is_deadline_suggested)
-        self.assertEqual(normalized.warnings, (SUGGESTED_DEADLINE_WARNING,))
+        self.assertIsNone(normalized.deadline_text)
+        self.assertEqual(normalized.warnings, ())
 
 
 if __name__ == "__main__":

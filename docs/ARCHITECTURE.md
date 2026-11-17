@@ -176,6 +176,10 @@ Keep entrypoints thin and isolate external dependencies behind clear modules.
 - Frontend components should not directly contain backend, RAG, data collection, or provider API logic.
 - Do not call external APIs directly from routers or UI components.
 - Keep Open Law API, LLM provider, embedding API, ChromaDB, Neo4j, and MySQL access behind explicit client, service, repository, or adapter-style modules.
+- Asynchronous generation features share only job lifecycle concerns through
+  `api/services/job_store.py`: UUID, queued/processing/completed/failed state,
+  TTL, Idempotency-Key, request fingerprint, and locking. Feature-specific
+  result types, outcomes, and error details remain in each feature service.
 - Avoid crossing folder responsibilities only for convenience.
 
 ## Data Design Assumptions

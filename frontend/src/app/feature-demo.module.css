@@ -139,6 +139,80 @@
   line-height: 1.55;
 }
 
+.deadlineFieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.deadlineFieldset legend {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.deadlineChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.deadlineChoices label {
+  min-height: 46px;
+  margin: 0;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: white;
+  cursor: pointer;
+}
+
+.deadlineChoices label:hover {
+  border-color: var(--navy);
+}
+
+.deadlineChoices label.deadlineChoiceActive {
+  border-color: var(--navy);
+  color: var(--navy);
+  background: var(--navy-soft);
+}
+
+.field .deadlineChoices input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--navy);
+}
+
+.deadlineFieldset > input[type="date"] {
+  margin-top: 10px;
+}
+
+.deadlineWarning {
+  margin-top: 10px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #e4bc72;
+  border-radius: 5px;
+  color: #5c432d;
+  background: var(--warning-bg);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.deadlineWarning svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .field input,
 .field textarea,
 .field select,
@@ -836,6 +910,8 @@
   }
 
   .deliveryInfo { padding: 21px; }
+
+  .deadlineChoices { grid-template-columns: 1fr; }
 
   .steps {
     overflow-x: auto;

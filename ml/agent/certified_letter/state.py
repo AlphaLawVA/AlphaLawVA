@@ -88,8 +88,7 @@ class NormalizedCertifiedLetterRequest:
     purpose: str
     facts: str
     requested_deadline: date | None
-    deadline_text: str
-    is_deadline_suggested: bool
+    deadline_text: str | None
     contract: ContractData
     warnings: tuple[str, ...] = ()
 
@@ -193,6 +192,7 @@ class LetterDraftData:
     strategy_summary: str
     follow_up_actions: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    used_statute_source_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

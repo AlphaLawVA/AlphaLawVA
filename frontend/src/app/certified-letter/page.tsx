@@ -27,6 +27,7 @@ import reviewStyles from "../contract-review/contract-review.module.css";
 import styles from "../feature-demo.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
+type DeadlineMode = "date" | "none" | "";
 
 const purposeExample = "예: 계약 종료 후 보증금 전액을 반환받고 싶습니다.";
 const factsExample =
@@ -48,6 +49,7 @@ export default function CertifiedLetterPage() {
   const [senderRole, setSenderRole] = useState<"lessee" | "lessor" | "buyer" | "seller">("lessee");
   const [purpose, setPurpose] = useState("");
   const [facts, setFacts] = useState("");
+  const [deadlineMode, setDeadlineMode] = useState<DeadlineMode>("");
   const [requestedDeadline, setRequestedDeadline] = useState("");
   const [senderDeliveryAddress, setSenderDeliveryAddress] = useState("");
   const [recipientDeliveryAddress, setRecipientDeliveryAddress] = useState("");
@@ -145,6 +147,14 @@ export default function CertifiedLetterPage() {
       setError("내용증명으로 달성하려는 목적을 조금 더 구체적으로 적어주세요.");
       return;
     }
+    if (!deadlineMode) {
+      setError("이행 기한을 지정할지, 기한 없이 작성할지 선택해 주세요.");
+      return;
+    }
+    if (deadlineMode === "date" && !requestedDeadline) {
+      setError("상대방에게 요구할 이행 기한을 선택해 주세요.");
+      return;
+    }
     try {
       const contract = buildCertifiedLetterContract(confirmedSnapshot);
       setError("");
@@ -156,7 +166,7 @@ export default function CertifiedLetterPage() {
           sender_role: senderRole,
           purpose: purpose.trim(),
           facts: facts.trim(),
-          requested_deadline: requestedDeadline || null,
+          requested_deadline: deadlineMode === "date" ? requestedDeadline : null,
           contract,
         },
         crypto.randomUUID(),
@@ -234,6 +244,7 @@ export default function CertifiedLetterPage() {
     setSenderRole("lessee");
     setPurpose("");
     setFacts("");
+    setDeadlineMode("");
     setRequestedDeadline("");
     setSenderDeliveryAddress("");
     setRecipientDeliveryAddress("");
@@ -364,9 +375,60 @@ export default function CertifiedLetterPage() {
               <textarea aria-describedby="letter-facts-guide" id="letter-facts" placeholder={factsExample} value={facts} onChange={(event) => setFacts(event.target.value)} />
             </div>
             <div className={styles.field}>
-              <label htmlFor="requested-deadline">희망 이행 기한 (선택)</label>
-              <p className={styles.fieldGuide} id="requested-deadline-guide">상대방이 언제까지 이행하기를 원하는지 선택해 주세요. 정해진 날짜가 없다면 비워두어도 됩니다.</p>
-              <input aria-describedby="requested-deadline-guide" id="requested-deadline" type="date" value={requestedDeadline} onChange={(event) => setRequestedDeadline(event.target.value)} />
+              <fieldset className={styles.deadlineFieldset}>
+                <legend>희망 이행 기한</legend>
+                <p className={styles.fieldGuide} id="requested-deadline-guide">
+                  상대방이 이행해야 할 사항이 있는 경우에는 기한을 지정해 주세요.<br />
+                  별도의 이행 요구 없이 의사를 통지하는 경우에는 기한을 지정하지 않을 수 있습니다.
+                </p>
+                <div className={styles.deadlineChoices}>
+                  <label className={deadlineMode === "date" ? styles.deadlineChoiceActive : undefined}>
+                    <input
+                      checked={deadlineMode === "date"}
+                      name="deadline-mode"
+                      type="radio"
+                      value="date"
+                      onChange={() => {
+                        setDeadlineMode("date");
+                        setError("");
+                      }}
+                    />
+                    <span>기한 지정</span>
+                  </label>
+                  <label className={deadlineMode === "none" ? styles.deadlineChoiceActive : undefined}>
+                    <input
+                      checked={deadlineMode === "none"}
+                      name="deadline-mode"
+                      type="radio"
+                      value="none"
+                      onChange={() => {
+                        setDeadlineMode("none");
+                        setRequestedDeadline("");
+                        setError("");
+                      }}
+                    />
+                    <span>기한 미지정 (의사 통지)</span>
+                  </label>
+                </div>
+                {deadlineMode === "date" && (
+                  <input
+                    aria-describedby="requested-deadline-guide"
+                    id="requested-deadline"
+                    type="date"
+                    value={requestedDeadline}
+                    onChange={(event) => {
+                      setRequestedDeadline(event.target.value);
+                      setError("");
+                    }}
+                  />
+                )}
+                {deadlineMode === "none" && (
+                  <p className={styles.deadlineWarning} role="note">
+                    <Info size={17} aria-hidden="true" />
+                    기한 없이 작성하면 상대방의 이행 시점이 명확하지 않을 수 있습니다.
+                  </p>
+                )}
+              </fieldset>
             </div>
             {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>입력 내용을 확인해주세요</strong><span>{error}</span></div></div>}
             <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={() => void generateLetter()}><FileText size={17} />초안 만들기</button></div>

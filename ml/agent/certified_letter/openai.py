@@ -204,7 +204,7 @@ class OpenAIStructuredLetterModel:
             "body",
             "strategy_summary",
             "follow_up_actions",
-            "warnings",
+            "used_statute_source_ids",
         }
         if set(value) != expected_keys:
             raise ValueError("OpenAI 내용증명 응답 필드가 스키마와 일치하지 않습니다.")
@@ -222,8 +222,17 @@ class OpenAIStructuredLetterModel:
                 value["follow_up_actions"],
                 "follow_up_actions",
             ),
-            warnings=cls._string_tuple(value["warnings"], "warnings"),
+            used_statute_source_ids=cls._source_id_tuple(
+                value["used_statute_source_ids"]
+            ),
         )
+
+    @classmethod
+    def _source_id_tuple(cls, value: Any) -> tuple[str, ...]:
+        source_ids = cls._string_tuple(value, "used_statute_source_ids")
+        if len(source_ids) > 3 or len(set(source_ids)) != len(source_ids):
+            raise ValueError("OpenAI used_statute_source_ids가 올바르지 않습니다.")
+        return source_ids
 
     @classmethod
     def _parse_party(cls, value: Any, field: str) -> DraftPartyData:

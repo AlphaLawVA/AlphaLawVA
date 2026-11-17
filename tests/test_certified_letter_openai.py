@@ -51,7 +51,7 @@ def make_draft_payload():
         "body": "계약 종료에 따라 보증금 반환을 요청합니다.",
         "strategy_summary": "계약 종료 사실과 반환 기한을 명확히 통지합니다.",
         "follow_up_actions": ["발송 전 계약 정보를 확인합니다."],
-        "warnings": ["이 문서는 법률 검토 전 초안입니다."],
+        "used_statute_source_ids": ["statute:001:4"],
     }
 
 
@@ -107,6 +107,7 @@ class OpenAIStructuredLetterModelTests(unittest.TestCase):
         draft = self.model.invoke(self.prompt)
 
         self.assertEqual(draft.sender.name, "김민지")
+        self.assertEqual(draft.used_statute_source_ids, ("statute:001:4",))
         request = mock_urlopen.call_args.args[0]
         payload = json.loads(request.data.decode("utf-8"))
         self.assertEqual(request.full_url, "https://api.openai.com/v1/responses")
