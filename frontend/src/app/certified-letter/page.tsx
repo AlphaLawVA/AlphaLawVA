@@ -425,7 +425,7 @@ export default function CertifiedLetterPage() {
                 {deadlineMode === "none" && (
                   <p className={styles.deadlineWarning} role="note">
                     <Info size={17} aria-hidden="true" />
-                    기한 없이 작성하면 상대방의 이행 시점이 명확하지 않을 수 있습니다.
+                    상대방에게 지급·반환 등 이행을 요구한다면 기한을 지정해 주세요. 이 선택은 별도의 이행 요구 없이 의사를 통지하는 경우에 적합합니다.
                   </p>
                 )}
               </fieldset>
