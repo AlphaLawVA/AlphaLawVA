@@ -64,7 +64,9 @@ def _precedent(rank, similarity):
     )
 
 
-QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="special_term", query="질문")
+#  리랭커 동작만 보는 테스트라, 특약 효력 보조 질의가 끼어들지 않는 카테고리를 쓴다
+#  (해당 보조 질의는 test_contract_review_retriever_validity_check.py에서 따로 검증한다).
+QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="registry_field", query="질문")
 STATUTES = [_statute(i, 0.8 - i * 0.03) for i in range(1, 11)]  # 유사도 0.77 ~ 0.50, 모두 기준(0.35) 이상
 PRECEDENTS = [_precedent(i, -0.1 + i * 0.01) for i in range(1, 11)]  # 음수 포함, 판례는 최소 유사도가 없다
 
@@ -192,6 +194,14 @@ class RerankerEnvTest(unittest.TestCase):
         finally:
             SHARED_CROSS_ENCODER_MODEL_LOADER._models = original_models
         self.assertEqual(loader.calls, 1)
+
+    def test_contract_review_factory_shows_three_precedents(self):
+        # 계약서 검토도 관련 판례를 조항마다 3개까지 보여준다(특약 생성과 같은 개수).
+        with tempfile.TemporaryDirectory() as directory:
+            env = {"CONTRACT_REVIEW_RAG_ENABLED": "true", "RAG_STATUTE_RERANKER_DIR": directory}
+            with patch.dict(os.environ, env, clear=False):
+                retriever = module.create_contract_review_rag_retriever_from_env()
+        self.assertEqual(retriever._precedent_evidence_top_k, 3)
 
     def test_retriever_factory_widens_candidates_only_with_reranker(self):
         with tempfile.TemporaryDirectory() as directory:

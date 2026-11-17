@@ -225,6 +225,10 @@ class ContractReviewGraphTests(unittest.TestCase):
         self.assertIn("registry_4", queries)
         self.assertNotIn("임대인", queries["term-1"])
         self.assertNotIn("테스트로 1", queries["term-1"])
+        # 영어 계약 유형 코드와 머리말 없이 한글 계약 유형과 특약 원문만 질의로 쓴다.
+        self.assertTrue(queries["term-1"].startswith("전세 "))
+        self.assertNotIn("jeonse", queries["term-1"])
+        self.assertNotIn("계약 특약 검토", queries["term-1"])
         self.assertEqual(result.evidence, [])
 
     def test_preserves_statute_and_precedent_source_metadata(self):

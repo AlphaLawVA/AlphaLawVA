@@ -24,6 +24,8 @@ from api.models.registry_snapshots import ConfirmedRegistrySnapshot, RegistryEnt
 from ml.agent.output_validation import find_output_issues
 from ml.agent.registry_attention import build_registry_attention_items
 
+_CONTRACT_TYPE_LABEL = {"jeonse": "전세", "monthly_rent": "월세", "sale": "매매"}
+
 
 @dataclass(frozen=True)
 class ContractReviewRetrievalQuery:
@@ -232,8 +234,11 @@ class ContractReviewGraph:
                 ContractReviewRetrievalQuery(
                     item_id=term.term_id,
                     category="special_term",
+                    # 영어 코드값(jeonse 등)과 "계약 특약 검토:" 머리말이 검색 질의에 섞이면
+                    # 관련 조문 순위가 밀려(로컬 비교: 핵심 조문 적중 10/14 -> 12/14)
+                    # 한글 계약 유형과 특약 원문만 쓴다.
                     query=(
-                        f"{contract.contract_type.value} 계약 특약 검토: "
+                        f"{_CONTRACT_TYPE_LABEL[contract.contract_type.value]} "
                         f"{ContractReviewGraph._redact_contract_text(term.original_text, contract)}"
                     ),
                 )

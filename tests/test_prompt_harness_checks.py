@@ -143,8 +143,11 @@ class ReviewCheckTests(unittest.TestCase):
     def test_evidence_ids_must_be_provided(self) -> None:
         results = evaluate_item(CONTEXT, _review(evidence_source_ids=["invented"]))
         self.assertIn("evidence_ids_valid", _failed(results))
+
+    def test_review_may_have_no_evidence_ids(self) -> None:
+        # 관련 법령이 없으면 인용을 비워 둘 수 있다(판례는 인용하지 않고 별도로 표시).
         results = evaluate_item(CONTEXT, _review(evidence_source_ids=[]))
-        self.assertIn("evidence_ids_valid", _failed(results))
+        self.assertNotIn("evidence_ids_valid", _failed(results))
 
     def test_required_fields_must_be_filled(self) -> None:
         results = evaluate_item(CONTEXT, _review(revision=""))

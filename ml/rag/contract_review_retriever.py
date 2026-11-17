@@ -76,6 +76,18 @@ _REGISTERED_RENTAL_BUSINESS_MARKER = re.compile(
     r"임대사업자|등록임대|민간임대주택|공공임대주택|공공주택"
 )
 
+# 특약 문구(계약서 검토의 개별 특약, 특약 생성 요청) 전용 보조 질의다. 주제 질의는
+# "갱신요구권을 포기한다" 같은 생활 표현과 "강행규정 위반 약정은 무효" 같은 효력
+# 조문 사이의 어휘가 안 겹쳐서, 주제만으로는 강행규정 조문을 못 찾는 경우가 있다
+# (2026-11-15 확인: "계약갱신요구권을 행사하지 않겠다"는 질의로는 top-15에도
+# 주택임대차보호법 제10조가 안 나오지만, 이 보조 질의로는 0.77대 1위로 나온다).
+# 주제와 무관하게 "임차인에게 불리한 약정은 무효"라는 포괄 조문을 노리는 고정 접미사라,
+# 요청마다 새로 만들 필요 없이 원문 뒤에 그대로 붙인다.
+_VALIDITY_CHECK_QUERY_SUFFIX = " 특약이 임차인에게 불리하여 무효가 되는지, 강행규정 위반 여부"
+_VALIDITY_CHECK_CATEGORIES = frozenset({"special_term", "special_clause_request"})
+# 주제 질의에서 이미 찾은 조문과 겹치지 않게, 보조 질의로는 최대 1개만 더 보탠다.
+_VALIDITY_CHECK_MAX_EXTRA = 1
+
 
 @dataclass(frozen=True)
 class _RerankView:
@@ -159,8 +171,38 @@ class ContractReviewRagRetriever:
                     candidates.extend(self._retrieve_statutes(query))
                 if self._precedent_retriever is not None:
                     candidates.extend(self._retrieve_precedents(query))
-                evidence.extend(self._select_relevant_evidence(candidates, query.query))
+                selected = self._select_relevant_evidence(candidates, query.query)
+                if self._statute_retriever is not None and query.category in _VALIDITY_CHECK_CATEGORIES:
+                    selected = self._append_validity_check_evidence(query, selected)
+                evidence.extend(selected)
             return evidence
+
+    def _append_validity_check_evidence(
+        self,
+        query: ContractReviewRetrievalQuery,
+        selected: list[ContractReviewEvidence],
+    ) -> list[ContractReviewEvidence]:
+        """강행규정 위반으로 무효가 될 수 있는지를 노리는 보조 질의 결과를 덧붙인다.
+
+        주제 질의의 상위 선정 결과는 그대로 두고, 아직 없는 조문 중 가장 유사도
+        높은 것 하나만 추가한다(주제 재정렬에 끼워 넣어 밀려나지 않게 한다).
+        """
+
+        validity_query = ContractReviewRetrievalQuery(
+            item_id=query.item_id,
+            category=query.category,
+            query=query.query + _VALIDITY_CHECK_QUERY_SUFFIX,
+        )
+        already = {item.source_id for item in selected if item.source_type == "statute"}
+        extra = sorted(
+            (
+                candidate
+                for candidate in self._retrieve_statutes(validity_query)
+                if candidate.source_id not in already and candidate.similarity >= self._min_similarity
+            ),
+            key=lambda candidate: (-candidate.similarity, candidate.rank, candidate.source_id),
+        )[:_VALIDITY_CHECK_MAX_EXTRA]
+        return selected + extra
 
     def _select_relevant_evidence(
         self,
@@ -386,7 +428,7 @@ def create_contract_review_rag_retriever_from_env() -> ContractReviewRagRetrieve
 
     return _create_rag_retriever_from_env(
         "CONTRACT_REVIEW_RAG_ENABLED",
-        precedent_evidence_top_k=ContractReviewRagRetriever.DEFAULT_PRECEDENT_EVIDENCE_TOP_K,
+        precedent_evidence_top_k=3,
     )
 
 

@@ -152,10 +152,7 @@ class EvidenceTrimAndMessageTests(unittest.TestCase):
         response = self._create([_generation_with("request-1", [])])
 
         self.assertEqual(response.evidence, [])
-        self.assertEqual(
-            response.message,
-            "직접 연결된 법령 근거는 없어 당사자 합의 사항으로 작성한 초안을 구성했습니다.",
-        )
+        self.assertEqual(response.message, "특약 초안 또는 추가 확인 항목을 구성했습니다.")
 
     def test_only_cited_evidence_is_returned(self) -> None:
         response = self._create(
@@ -164,9 +161,7 @@ class EvidenceTrimAndMessageTests(unittest.TestCase):
         )
 
         self.assertEqual([(e.item_id, e.source_id) for e in response.evidence], [("request-1", "law:1")])
-        self.assertEqual(
-            response.message, "일부 초안은 직접 연결된 법령 근거 없이 당사자 합의 사항으로 작성했습니다."
-        )
+        self.assertEqual(response.message, "특약 초안 또는 추가 확인 항목을 구성했습니다.")
 
     def test_cited_draft_keeps_original_message(self) -> None:
         response = self._create([_generation_with("request-1", ["law:1"])])

@@ -86,6 +86,55 @@ class GeminiContractReviewAnalyzerTests(unittest.TestCase):
             "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5},
         }
 
+    def test_prompt_asks_for_complete_revision_and_actionable_negotiation(self):
+        from api.services.gemini_contract_review_analyzer import PROMPT_VERSION, SYSTEM_PROMPT
+
+        self.assertEqual(PROMPT_VERSION, "contract_review_result_v0.9")
+        self.assertIn("문체만", SYSTEM_PROMPT)
+        self.assertIn("실행 팁", SYSTEM_PROMPT)
+        self.assertIn("법령이 있는지와 무관하게", SYSTEM_PROMPT.replace("인용할 ", ""))
+
+    def test_precedent_citation_is_dropped_but_item_is_kept(self):
+        # 판례는 인용 대상이 아니라 화면에 별도로 표시되므로, 판례 ID를 인용해도 항목은 살리고 법령만 남긴다.
+        evidence = self.evidence + [
+            ContractReviewEvidence(
+                item_id="term-1",
+                source_type="precedent",
+                source_id="precedent:100",
+                title="판례",
+                text="판례 원문",
+                rank=1,
+                similarity=0.4,
+                metadata={},
+            )
+        ]
+        item = {
+            "item_id": "term-1",
+            "summary": "확인 필요: 적용 범위를 확인하세요.",
+            "review_status": "check",
+            "revision": "적용 범위를 명확히 기재한다.",
+            "negotiation": "범위를 상대방과 확인하세요.",
+            "evidence_source_ids": ["precedent:100", "law:001248:article:0003"],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            result = self.analyzer.analyze(self.queries, evidence)
+        self.assertEqual(result[0].evidence_source_ids, ["law:001248:article:0003"])
+
+    def test_item_without_cited_statute_is_kept(self):
+        # 관련 법령이 없으면 인용을 비워 두어도 항목은 결과에 남는다.
+        item = {
+            "item_id": "term-1",
+            "summary": "적용 범위를 확인하세요.",
+            "review_status": "check",
+            "revision": "적용 범위를 명확히 기재한다.",
+            "negotiation": "범위를 상대방과 확인하세요.",
+            "evidence_source_ids": [],
+        }
+        with patch.object(self.analyzer, "_post_json", return_value=self._response(item)):
+            result = self.analyzer.analyze(self.queries, self.evidence)
+        self.assertEqual(result[0].item_id, "term-1")
+        self.assertEqual(result[0].evidence_source_ids, [])
+
     def test_safe_item_drops_revision_and_negotiation(self):
         item = {
             "item_id": "term-1",

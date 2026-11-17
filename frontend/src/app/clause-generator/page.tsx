@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, ExternalLink, LoaderCircle, Plus, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
+import { StatuteExcerpt } from "@/components/statute-excerpt";
+import { statuteOfficialUrl } from "@/lib/statute-link";
 import { lessorMaintenanceLaw, restorationCase, restorationLaw } from "@/lib/mock-data";
 import type { CaseBasis, LegalBasis } from "@/lib/demo-types";
 import { hasContradictoryRequests, validateRealEstateInput } from "@/lib/demo-validation";
@@ -85,12 +87,14 @@ function buildClause(request: string, index: number): GeneratedClause {
 }
 
 function evidenceToLaw(evidence: ContractEvidence): LegalBasis {
+  const law = String(evidence.metadata.law_name ?? evidence.title);
+  const article = String(evidence.metadata.article_label ?? "");
   return {
-    law: String(evidence.metadata.law_name ?? evidence.title),
-    article: String(evidence.metadata.article_label ?? ""),
+    law,
+    article,
     excerpt: evidence.text,
     explanation: "생성된 특약 초안에 연결된 법령 근거입니다.",
-    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
+    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : statuteOfficialUrl(law, article),
   };
 }
 
@@ -139,6 +143,8 @@ export default function ClauseGeneratorPage() {
   const [draftResult, setDraftResult] = useState<SpecialClauseDraftResult | null>(null);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const [fullTextLoading, setFullTextLoading] = useState(false);
+  const [fullTextLoadingId, setFullTextLoadingId] = useState<string | null>(null);
+  const [precedentError, setPrecedentError] = useState("");
   const validRequests = useMemo(() => requests.map((item) => item.value.trim()).filter(Boolean), [requests]);
   const generated = useMemo(
     () => draftResult ? generatedFromApi(draftResult) : validRequests.map(buildClause),
@@ -215,6 +221,20 @@ export default function ClauseGeneratorPage() {
     setStage("input");
   }
 
+  async function openPrecedentFullTextFromList(precedent: CaseBasis) {
+    if (fullTextLoadingId) return;
+    setPrecedentError("");
+    setFullTextLoadingId(precedent.precedentId);
+    try {
+      const fullText = await getPrecedentFullText(precedent.precedentId);
+      setPrecedentModal({ precedent: mergePrecedentFullText(precedent, fullText), initialView: "fullText" });
+    } catch (loadError) {
+      setPrecedentError(loadError instanceof Error ? loadError.message : "판례 전문을 불러오지 못했습니다.");
+    } finally {
+      setFullTextLoadingId(null);
+    }
+  }
+
   async function openPrecedentFullText() {
     if (!precedentModal || fullTextLoading) return;
     setFullTextLoading(true);
@@ -227,7 +247,7 @@ export default function ClauseGeneratorPage() {
   }
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${styles.pageGuide}`}>
       <header className={styles.header}>
         <p className={styles.eyebrow}>내 상황을 계약 문구로</p>
         <h1>특약 생성</h1>
@@ -242,7 +262,7 @@ export default function ClauseGeneratorPage() {
       </div>
 
       {stage === "input" && (
-        <div className={styles.splitWide}>
+        <div className={styles.splitGuide}>
           <section className={styles.panel}>
             <h2>어떤 조건을 계약에 넣고 싶나요?</h2>
             <p className={styles.panelLead}>서로 다른 요청은 항목을 나누어 입력해주세요. 계약정보가 없어도 초안을 만들 수 있습니다.</p>
@@ -262,12 +282,21 @@ export default function ClauseGeneratorPage() {
           </section>
           <aside className={styles.sidePanel}>
             <h2>이렇게 적어보세요</h2>
+            <p className={styles.panelLead}>누가, 무엇을, 언제까지, 어떻게 하는지 중 알고 있는 것을 적을수록 더 분명한 문구가 나옵니다. 정하지 못한 부분은 비워 두셔도 됩니다.</p>
             <div className={styles.exampleList}>
-              <p><b>허용받고 싶은 행동</b><span>반려동물을 키우거나 벽에 못을 박고 싶어요.</span></p>
-              <p><b>비용과 수리 책임</b><span>보일러가 고장 나면 임대인이 수리했으면 해요.</span></p>
-              <p><b>계약 종료 시 처리</b><span>보증보험이 거절되면 계약금을 돌려받고 싶어요.</span></p>
+              <p><b>허용받고 싶은 행동</b><span>반려견 한 마리를 키우고 싶어요. 벽에 선반용 못을 박아도 되는지 정해두고 싶어요.</span></p>
+              <p><b>비용과 수리 책임</b><span>입주 후 6개월 안에 보일러가 고장 나면 임대인이 수리비를 부담했으면 해요.</span></p>
+              <p><b>금액과 기간 조건</b><span>계약을 갱신할 때 월세는 최대 5%까지만 올릴 수 있게 해주세요.</span></p>
+              <p><b>계약 해제와 반환</b><span>전세보증보험 가입이 거절되면 계약을 해제하고 계약금을 돌려받고 싶어요.</span></p>
+              <p><b>매매 계약</b><span>잔금 전에 건물에 큰 하자가 발견되면 계약을 해제하고 계약금을 돌려받게 해주세요.</span></p>
             </div>
-            <div className={styles.notice}><AlertCircle size={18} aria-hidden="true" /><span>구체적인 기한, 금액, 책임 범위를 적으면 더 분명한 문구를 만들 수 있습니다.</span></div>
+            <ul className={styles.guideTips}>
+              <li><b>한 줄에 하나씩</b> 입력하면 요청마다 특약이 따로 만들어집니다.</li>
+              <li><b>내 입장을 함께</b> 적어주세요. 임차인인지 임대인인지, 매수인인지 매도인인지에 따라 문구가 달라집니다.</li>
+              <li><b>이름·연락처·계좌번호·주소</b> 같은 개인정보는 적지 마세요.</li>
+              <li>특약과 관련 없는 질문은 초안이 만들어지지 않고, 내용이 너무 짧으면 추가로 알려달라고 안내합니다.</li>
+            </ul>
+            <div className={styles.notice}><AlertCircle size={18} aria-hidden="true" /><span>직접 연결할 법령이 없는 요청은 &apos;당사자가 합의하는 문구&apos;로 작성되고, 그 사실도 함께 알려드립니다. 결과의 법령과 판례는 참고 자료이며 법률 자문이 아닙니다.</span></div>
           </aside>
         </div>
       )}
@@ -305,7 +334,7 @@ export default function ClauseGeneratorPage() {
                 </button>
               ))}
             </div>
-            <article className={styles.detail}>
+            <article className={styles.detail} key={selected}>
               <h2>{current.title}</h2>
               <section className={styles.detailSection}><h3>생성된 특약</h3><p className={styles.generatedText}>{current.clause}</p></section>
               <section className={styles.detailSection}><h3>요청하신 내용</h3><p>{current.userInput}</p></section>
@@ -318,10 +347,11 @@ export default function ClauseGeneratorPage() {
                 </section>
               )}
               <details className={styles.detailDisclosure}><summary>관련 법령 {current.statutes.length}건</summary>
-                {current.statutes.length ? current.statutes.map((law) => <article className={styles.basisCard} key={`${law.law}-${law.article}`}><strong>{law.law} {law.article}</strong><p>{law.excerpt}</p><span>{law.explanation}</span>{law.url && <a href={law.url} target="_blank" rel="noreferrer">원문 보기 <ExternalLink size={14} /></a>}</article>) : <p>이 초안에 직접 연결된 법령 근거는 없습니다.</p>}
+                {current.statutes.length ? current.statutes.map((law) => <article className={styles.basisCard} key={`${law.law}-${law.article}`}><strong>{law.law} {law.article}</strong><StatuteExcerpt text={law.excerpt} /><span>{law.explanation}</span>{law.url && <a href={law.url} target="_blank" rel="noreferrer">국가법령정보센터에서 원문 보기 <ExternalLink size={14} /></a>}</article>) : <p>이 초안에 직접 연결된 법령 근거는 없습니다.</p>}
               </details>
               <details className={styles.detailDisclosure}><summary>관련 판례 {current.precedents.length}건</summary>
-                {current.precedents.length ? current.precedents.map((item) => <PrecedentListItem key={item.caseNumber} onOpenDetail={() => setPrecedentModal({ precedent: item, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent: item, initialView: "fullText" })} precedent={item} />) : <p>이 초안에 직접 연결된 판례는 없습니다.</p>}
+                {precedentError && <p role="alert">{precedentError}</p>}
+                {current.precedents.length ? current.precedents.map((item) => <PrecedentListItem key={item.caseNumber} fullTextLoading={fullTextLoadingId === item.precedentId} onOpenDetail={() => setPrecedentModal({ precedent: item, initialView: "detail" })} onOpenFullText={() => void openPrecedentFullTextFromList(item)} precedent={item} />) : <p>이 초안에 직접 연결된 판례는 없습니다.</p>}
               </details>
             </article>
           </div>

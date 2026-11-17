@@ -111,6 +111,7 @@ type ListItemProps = {
   precedent: CaseBasis;
   onOpenDetail: () => void;
   onOpenFullText: () => void;
+  fullTextLoading?: boolean;
   favorite?: boolean;
   onToggleFavorite?: () => void;
 };
@@ -119,6 +120,7 @@ export function PrecedentListItem({
   precedent,
   onOpenDetail,
   onOpenFullText,
+  fullTextLoading = false,
   favorite = false,
   onToggleFavorite,
 }: ListItemProps) {
@@ -130,7 +132,7 @@ export function PrecedentListItem({
         <p className={styles.preview}>{precedent.easySummary ?? precedent.summary}</p>
       </div>
       <div className={styles.listActions}>
-        <button onClick={onOpenFullText} type="button"><FileText size={16} />판례 전문</button>
+        <button disabled={fullTextLoading} onClick={onOpenFullText} type="button"><FileText size={16} />{fullTextLoading ? "전문 불러오는 중" : "판례 전문"}</button>
         <button onClick={onOpenDetail} type="button">상세보기</button>
         {onToggleFavorite && (
           <button aria-label="즐겨찾기" className={styles.bookmarkButton} onClick={onToggleFavorite} type="button">

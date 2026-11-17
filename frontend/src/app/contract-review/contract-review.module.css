@@ -1196,6 +1196,16 @@
   font-weight: 750;
 }
 
+.statuteLink {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--navy);
+  font-size: 15px;
+  font-weight: 750;
+}
+
 .evidenceExcerpt {
   padding: 11px;
   background: var(--navy-soft);

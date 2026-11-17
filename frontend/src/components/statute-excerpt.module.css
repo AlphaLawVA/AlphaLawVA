@@ -1,0 +1,60 @@
+.excerpt {
+  margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+}
+
+.path {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.heading {
+  margin-top: 4px;
+  color: var(--navy);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.body {
+  position: relative;
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.line {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.paragraph { margin-top: 4px; font-weight: 600; }
+.item { padding-left: 16px; }
+.subitem { padding-left: 32px; color: var(--text-muted); }
+
+.fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 44px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), white);
+  pointer-events: none;
+}
+
+.toggle {
+  margin-top: 8px;
+  padding: 6px 0 0;
+  border: 0;
+  color: var(--navy);
+  background: none;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
