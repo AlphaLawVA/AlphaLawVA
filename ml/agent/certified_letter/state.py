@@ -21,7 +21,7 @@ from typing import TypedDict
 @dataclass(frozen=True)
 class PartyData:
     name: str
-    address: str
+    address: str | None = None
     detail_address: str | None = None
     phone_number: str | None = None
 
@@ -41,23 +41,36 @@ class PeriodData:
 
 @dataclass(frozen=True)
 class PaymentData:
-    deposit: int
+    deposit: int | None = None
     monthly_rent: int | None = None
+    sale_price: int | None = None
+    down_payment: int | None = None
+    interim_payment: int | None = None
+    interim_payment_2: int | None = None
+    balance: int | None = None
 
 
 @dataclass(frozen=True)
 class ContractData:
     contract_type: str
     property: PropertyData
-    period: PeriodData
+    period: PeriodData | None
     payment: PaymentData
-    lessor: PartyData
-    lessee: PartyData
+    lessor: PartyData | None = None
+    lessee: PartyData | None = None
+    seller: PartyData | None = None
+    buyer: PartyData | None = None
+    contract_date: date | None = None
+    handover_date: date | None = None
+    ownership_transfer_date: date | None = None
+    special_terms: tuple[str, ...] = ()
 
 
 class ContractPartyRole(str, Enum):
     LESSEE = "lessee"
     LESSOR = "lessor"
+    BUYER = "buyer"
+    SELLER = "seller"
 
 
 @dataclass(frozen=True)
@@ -86,15 +99,26 @@ def resolve_document_parties(
 ) -> tuple[PartyData, PartyData]:
     """Return sender and recipient in the user-confirmed document direction."""
 
-    if request.sender_role is ContractPartyRole.LESSEE:
-        return request.contract.lessee, request.contract.lessor
-    return request.contract.lessor, request.contract.lessee
+    parties = {
+        ContractPartyRole.LESSEE: request.contract.lessee,
+        ContractPartyRole.LESSOR: request.contract.lessor,
+        ContractPartyRole.BUYER: request.contract.buyer,
+        ContractPartyRole.SELLER: request.contract.seller,
+    }
+    sender = parties[request.sender_role]
+    recipient = parties[recipient_role(request.sender_role)]
+    if sender is None or recipient is None:
+        raise ValueError("계약 유형에 맞는 당사자 정보가 없습니다.")
+    return sender, recipient
 
 
 def recipient_role(sender_role: ContractPartyRole) -> ContractPartyRole:
-    if sender_role is ContractPartyRole.LESSEE:
-        return ContractPartyRole.LESSOR
-    return ContractPartyRole.LESSEE
+    return {
+        ContractPartyRole.LESSEE: ContractPartyRole.LESSOR,
+        ContractPartyRole.LESSOR: ContractPartyRole.LESSEE,
+        ContractPartyRole.BUYER: ContractPartyRole.SELLER,
+        ContractPartyRole.SELLER: ContractPartyRole.BUYER,
+    }[sender_role]
 
 
 class CertifiedLetterScopeDecision(str, Enum):
@@ -156,7 +180,7 @@ class PrecedentEvidenceData:
 @dataclass(frozen=True)
 class DraftPartyData:
     name: str
-    address: str
+    address: str | None = None
     detail_address: str | None = None
 
 
@@ -186,6 +210,7 @@ class WorkflowFailure:
 
 class CertifiedLetterGraphState(TypedDict, total=False):
     request: CertifiedLetterRequestData
+    request_id: str
     normalized_request: NormalizedCertifiedLetterRequest
     scope_decision: str
     missing_information: tuple[str, ...]

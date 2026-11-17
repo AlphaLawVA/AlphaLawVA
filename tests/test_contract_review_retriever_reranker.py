@@ -19,7 +19,7 @@ from unittest.mock import patch
 from ml.agent.contract_review_graph import ContractReviewRetrievalQuery
 from ml.rag import contract_review_retriever as module
 from ml.rag.contract_review_retriever import ContractReviewRagRetriever
-from ml.rag.reranker import CrossEncoderReranker
+from ml.rag.reranker import SHARED_CROSS_ENCODER_MODEL_LOADER, CrossEncoderReranker
 
 
 def _statute(rank, similarity):
@@ -64,7 +64,9 @@ def _precedent(rank, similarity):
     )
 
 
-QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="special_term", query="질문")
+#  리랭커 동작만 보는 테스트라, 특약 효력 보조 질의가 끼어들지 않는 카테고리를 쓴다
+#  (해당 보조 질의는 test_contract_review_retriever_validity_check.py에서 따로 검증한다).
+QUERY = ContractReviewRetrievalQuery(item_id="term-1", category="registry_field", query="질문")
 STATUTES = [_statute(i, 0.8 - i * 0.03) for i in range(1, 11)]  # 유사도 0.77 ~ 0.50, 모두 기준(0.35) 이상
 PRECEDENTS = [_precedent(i, -0.1 + i * 0.01) for i in range(1, 11)]  # 음수 포함, 판례는 최소 유사도가 없다
 
@@ -177,10 +179,10 @@ class RerankerEnvTest(unittest.TestCase):
             loader.calls += 1
             return SimpleNamespace()
 
-        original_model = module._SHARED_CROSS_ENCODER_MODEL_LOADER._model
-        module._SHARED_CROSS_ENCODER_MODEL_LOADER._model = None
+        original_models = SHARED_CROSS_ENCODER_MODEL_LOADER._models
+        SHARED_CROSS_ENCODER_MODEL_LOADER._models = {}
         try:
-            with patch.object(module._SHARED_CROSS_ENCODER_MODEL_LOADER, "_loader", fake_loader):
+            with patch.object(SHARED_CROSS_ENCODER_MODEL_LOADER, "_loader", fake_loader):
                 with tempfile.TemporaryDirectory() as directory:
                     env = {"RAG_STATUTE_RERANKER_DIR": directory}
                     with patch.dict(os.environ, env, clear=False):
@@ -190,8 +192,16 @@ class RerankerEnvTest(unittest.TestCase):
                         contract_review_reranker.load()
                         special_clause_reranker.load()
         finally:
-            module._SHARED_CROSS_ENCODER_MODEL_LOADER._model = original_model
+            SHARED_CROSS_ENCODER_MODEL_LOADER._models = original_models
         self.assertEqual(loader.calls, 1)
+
+    def test_contract_review_factory_shows_three_precedents(self):
+        # 계약서 검토도 관련 판례를 조항마다 3개까지 보여준다(특약 생성과 같은 개수).
+        with tempfile.TemporaryDirectory() as directory:
+            env = {"CONTRACT_REVIEW_RAG_ENABLED": "true", "RAG_STATUTE_RERANKER_DIR": directory}
+            with patch.dict(os.environ, env, clear=False):
+                retriever = module.create_contract_review_rag_retriever_from_env()
+        self.assertEqual(retriever._precedent_evidence_top_k, 3)
 
     def test_retriever_factory_widens_candidates_only_with_reranker(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -204,6 +214,7 @@ class RerankerEnvTest(unittest.TestCase):
         self.assertEqual(with_reranker._statute_top_k, 10)
         self.assertIsNotNone(with_reranker._statute_reranker)
         self.assertEqual(with_reranker._precedent_top_k, 10)
+        self.assertEqual(with_reranker._precedent_evidence_top_k, 3)
         # 법령·판례 리랭커는 같은 KURE-Reranker-nano 인스턴스를 공유한다.
         self.assertIs(with_reranker._precedent_reranker, with_reranker._statute_reranker)
         self.assertEqual(without._statute_top_k, 3)

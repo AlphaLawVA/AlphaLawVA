@@ -1,0 +1,6 @@
+method,recall_win_queries,recall_tie_queries,recall_loss_queries,recovered_gold_pairs,lost_gold_pairs,candidate_set_changed_queries,order_changed_queries
+bm25,4,15,71,24,207,90,90
+hybrid_d0.9_b0.1,0,90,0,0,0,0,85
+hybrid_d0.8_b0.2,0,90,0,0,0,0,86
+hybrid_d0.7_b0.3,0,90,0,0,0,0,86
+hybrid_d0.5_b0.5,6,54,30,14,42,90,90

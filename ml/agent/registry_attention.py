@@ -99,6 +99,8 @@ def build_registry_attention_items(
 
     contract = contract_snapshot.contract
     is_lease = contract.contract_type.value != "sale"
+    # 전세보증금반환보증과 보증보험 안내는 전세 계약에만 맞는 안내다.
+    is_jeonse = contract.contract_type.value == "jeonse"
     deposit = contract.lease_deposit.amount if is_lease else None
     active = [entry for entry in registry.encumbrances if _is_active_entry(entry)]
     items: list[ContractReviewItem] = []
@@ -184,10 +186,10 @@ def build_registry_attention_items(
             "등기부상 용도가 근린생활시설입니다. 실제 주거용으로 사용할 수 있는지, "
             "전입신고가 가능한지 확인해 주세요."
         )
-        if is_lease:
+        if is_jeonse:
             message += (
-                " HUG 전세보증금반환보증은 근린생활시설을 보증 대상으로 "
-                "안내하지 않습니다."
+                " 보증기관마다 대상 주택과 가입 요건이 다를 수 있으므로, 해당 "
+                "주택의 전세보증금반환보증 가입 가능 여부를 기관에 확인해 주세요."
             )
         items.append(
             _item(
@@ -204,8 +206,8 @@ def build_registry_attention_items(
                     _CROSSCHECK_CATEGORY,
                     "계약 용도·등본 건물 용도",
                     "계약서는 주택 임대차인데 등기부상 건물 용도는 근린생활시설입니다. "
-                    "주택임대차보호법 적용 여부는 공부상 용도만이 아니라 건물 구조와 "
-                    "실제 주거 사용 여부 등을 종합해 판단되므로, 용도를 확인해 주세요.",
+                    "실제 주거 이용과 전입신고 가능 여부, 관련 보호 제도의 적용 요건을 "
+                    "관계 기관이나 전문가에게 확인해 주세요.",
                 )
             )
 
@@ -230,25 +232,32 @@ def build_registry_attention_items(
 
     if is_lease:
         if not has_restriction_term:
+            rights_change_message = (
+                "계약일이나 잔금일 전후로 등기 내용이 바뀔 수 있으니, 잔금 지급 "
+                "다음 날까지 권리 변동이 없도록 하는 특약 추가를 검토해 보세요. "
+                f"특약 예시: \"{_RIGHTS_CHANGE_CLAUSE}\""
+            )
+            if is_jeonse:
+                rights_change_message += (
+                    " 특약은 집행까지 시간이 걸릴 수 있어 전세보증보험 가입도 "
+                    "함께 검토해 보세요."
+                )
             items.append(
                 _item(
                     "suggest_rights_change_restriction",
                     _SUGGESTION_CATEGORY,
                     "권리변동 금지 특약 제안",
-                    "계약일이나 잔금일 전후로 등기 내용이 바뀔 수 있으니, 잔금 지급 "
-                    "다음 날까지 권리 변동이 없도록 하는 특약 추가를 검토해 보세요. "
-                    f"특약 예시: \"{_RIGHTS_CHANGE_CLAUSE}\" 특약은 집행까지 시간이 "
-                    "걸릴 수 있어 전세보증보험 가입도 함께 검토해 보세요.",
+                    rights_change_message,
                 )
             )
-        if not has_guarantee_term:
+        if is_jeonse and not has_guarantee_term:
             items.append(
                 _item(
                     "suggest_guarantee_insurance",
                     _SUGGESTION_CATEGORY,
                     "보증보험 특약 제안",
                     "보증보험 가입이 되지 않는 집인데 계약을 권하는 경우를 대비해 "
-                    "아래 특약 추가를 검토해 보세요. HUG도 이런 취지의 특약을 안내합니다. "
+                    "아래 특약 추가를 검토해 보세요. "
                     f"특약 예시: \"{_GUARANTEE_CLAUSE}\"",
                 )
             )
@@ -257,9 +266,9 @@ def build_registry_attention_items(
                 "tax_arrears_check",
                 _ATTENTION_CATEGORY,
                 "국세·지방세 미납 확인",
-                "국세와 지방세는 대부분 임차인보다 우선하는데 등기부등본에는 나오지 "
-                "않습니다. 계약 전에 임대인의 미납국세·지방세를 열람하거나 임대인에게 "
-                "완납증명서 제시를 요청해 확인해 주세요.",
+                "일부 조세채권은 보증금 회수 순위에 영향을 줄 수 있고 등기부만으로 "
+                "확인되지 않을 수 있습니다. 계약 전에 임대인의 미납국세·지방세와 "
+                "우선순위를 관계 기관이나 전문가에게 확인해 주세요.",
             )
         )
     return items

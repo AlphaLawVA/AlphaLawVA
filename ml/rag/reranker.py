@@ -162,3 +162,41 @@ class CrossEncoderReranker:
             key=lambda item: (-item[1], -item[0].similarity, item[2]),
         )
         return [candidate for candidate, _score, _index in ranked[:top_k]]
+
+
+class SharedCrossEncoderModelLoader:
+    """같은 설정의 cross-encoder 가중치를 기능 간에 한 번만 로딩한다."""
+
+    def __init__(self, loader: Callable[..., Any] = load_cross_encoder) -> None:
+        self._loader = loader
+        self._models: dict[tuple[Path, int, str, bool], Any] = {}
+        self._lock = RLock()
+
+    def __call__(
+        self,
+        model_path: Path,
+        *,
+        max_length: int,
+        device: str,
+        trust_remote_code: bool,
+    ) -> Any:
+        key = (
+            model_path.expanduser().resolve(),
+            max_length,
+            device,
+            trust_remote_code,
+        )
+        with self._lock:
+            model = self._models.get(key)
+            if model is None:
+                model = self._loader(
+                    model_path,
+                    max_length=max_length,
+                    device=device,
+                    trust_remote_code=trust_remote_code,
+                )
+                self._models[key] = model
+            return model
+
+
+SHARED_CROSS_ENCODER_MODEL_LOADER = SharedCrossEncoderModelLoader()

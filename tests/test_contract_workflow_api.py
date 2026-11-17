@@ -74,6 +74,22 @@ class FakeAnalyzer:
         ]
 
 
+class NoStatuteAnalyzer:
+    """관련 법령이 없어 인용을 비워 둔 분석을 돌려준다."""
+
+    def analyze(self, queries, evidence):
+        return [
+            ContractReviewAnalysis(
+                item_id=queries[0].item_id,
+                summary="적용 범위를 원문과 함께 확인해 주세요.",
+                review_status="check",
+                revision="적용 범위와 위반 시 처리 방법을 합의해 기재한다.",
+                negotiation="적용 종료 시점과 책임 범위를 상대방과 확인하세요.",
+                evidence_source_ids=[],
+            )
+        ]
+
+
 class FakeSpecialClauseEvidenceRetriever:
     def retrieve(self, queries):
         return [
@@ -86,7 +102,17 @@ class FakeSpecialClauseEvidenceRetriever:
                 rank=1,
                 similarity=0.9,
                 metadata={},
-            )
+            ),
+            ContractReviewEvidence(
+                item_id=queries[0].item_id,
+                source_type="precedent",
+                source_id="precedent:100",
+                title="임대차 관련 판례",
+                text="판례 원문",
+                rank=1,
+                similarity=0.8,
+                metadata={},
+            ),
         ]
 
 
@@ -245,6 +271,22 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.analysis[0].item_id, "term-1")
         self.assertEqual(response.analysis[0].evidence_source_ids, ["law:001248:article:0003"])
 
+    def test_contract_review_allows_analysis_without_cited_statute(self):
+        store = ConfirmedSnapshotStore()
+        contract = store.save_contract(self._contract_snapshot())
+        service = ContractReviewService(
+            store,
+            evidence_retriever=FakeEvidenceRetriever(),
+            analyzer=NoStatuteAnalyzer(),
+        )
+
+        response = service.review(
+            ContractReviewRequest(contract_snapshot_id=contract.snapshot_id)
+        )
+
+        self.assertEqual(response.analysis_status, "analyzed")
+        self.assertEqual(response.analysis[0].evidence_source_ids, [])
+
     def test_contract_review_keeps_prechecks_when_retrieval_is_unavailable(self):
         store = ConfirmedSnapshotStore()
         contract = store.save_contract(self._contract_snapshot())
@@ -324,6 +366,10 @@ class ContractWorkflowApiTests(unittest.TestCase):
         self.assertEqual(
             response.items[0].evidence_source_ids,
             ["law:001248:article:0003"],
+        )
+        self.assertEqual(
+            [evidence.source_type for evidence in response.evidence],
+            ["statute", "precedent"],
         )
 
 

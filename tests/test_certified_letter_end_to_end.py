@@ -44,7 +44,7 @@ def make_payload():
 
 
 class InScopeClassifier:
-    def classify_scope(self, _purpose, _facts):
+    def classify_scope(self, _sender_role, _purpose, _facts):
         return ScopeClassification(CertifiedLetterScopeDecision.IN_SCOPE)
 
 

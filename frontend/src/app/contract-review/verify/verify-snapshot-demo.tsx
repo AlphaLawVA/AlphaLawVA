@@ -26,6 +26,9 @@ type VerifySnapshotDemoProps = {
   initialContractSnapshot?: ConfirmedContractSnapshot;
   allowedContractTypes?: ConfirmedContractSnapshot["contractType"][];
   modeOverride?: DocumentMode;
+  // 실시간 OCR로 이미 유형이 확정된 경우 전환을 잠근다. URL의 source=ocr로 판단하지
+  // 않는 호출부(예: 내용증명 생성)를 위해 명시적으로 지정할 수 있게 둔다.
+  lockContractType?: boolean;
   onBack?: () => void;
   onComplete?: (contractSnapshot: ConfirmedContractSnapshot) => void;
   submitLabel?: string;
@@ -61,11 +64,12 @@ export function VerifySnapshotDemo(props: VerifySnapshotDemoProps) {
   return <VerifySnapshotContent key={draftVersion} {...props} />;
 }
 
-function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
+function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, lockContractType, modeOverride, onBack, onComplete, submitLabel }: VerifySnapshotDemoProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = modeOverride ?? readMode(searchParams.get("documents"));
   const isOcrSource = searchParams.get("source") === "ocr";
+  const typeLocked = lockContractType ?? isOcrSource;
   const [tab, setTab] = useState<VerifyTab>(mode === "registry" ? "registry" : "contract");
   const [missingOcrDraft] = useState(() => (
     isOcrSource
@@ -183,7 +187,7 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
   }
 
   function changeContractType(contractType: ConfirmedContractSnapshot["contractType"]) {
-    if (isOcrSource) return;
+    if (typeLocked) return;
     const next = contractSnapshots[contractType];
     setContractSnapshot({ ...next, fields: next.fields.map((field) => ({ ...field, source: { ...field.source } })) });
     setContractConfirmed(false);
@@ -226,7 +230,7 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
     <div className={styles.verifyLayout}>
       <aside className={styles.documentPreview} aria-label="업로드 문서 미리보기"><div className={styles.previewHeading}><FileSearch size={17} /><span>원문 PDF · 1 / 2페이지</span></div><DemoDocument activeAnchor={activeAnchor} kind={tab} onSelectAnchor={selectSource} /></aside>
       <section className={styles.formPanel}>
-        <div className={styles.formHeading}><span>{tab === "contract" ? "ConfirmedContractSnapshot" : "ConfirmedRegistrySnapshot"}</span><h2>확인할 정보부터 원문과 대조하세요</h2><p>{tab === "contract" ? "주소·당사자·금액·날짜·특약은 확인된 값만 계약서 검토에 사용합니다." : "현재 소유자와 유효한 권리부담을 먼저 확인하고, 말소 이력은 보조 정보로 확인합니다."}</p>{tab === "contract" && <div className={styles.contractTypeSwitch} role="group" aria-label="계약 유형"><span>계약 유형</span>{(isOcrSource ? [contractSnapshot.contractType] : allowedContractTypes ?? ["전세", "월세", "매매"]).map((contractType) => <button className={contractSnapshot.contractType === contractType ? styles.contractTypeActive : ""} disabled={isOcrSource} key={contractType} type="button" onClick={() => changeContractType(contractType)}>{contractType}</button>)}</div>}</div>
+        <div className={styles.formHeading}><span>{tab === "contract" ? "ConfirmedContractSnapshot" : "ConfirmedRegistrySnapshot"}</span><h2>확인할 정보부터 원문과 대조하세요</h2><p>{tab === "contract" ? "주소·당사자·금액·날짜·특약은 확인된 값만 계약서 검토에 사용합니다." : "현재 소유자와 유효한 권리부담을 먼저 확인하고, 말소 이력은 보조 정보로 확인합니다."}</p>{tab === "contract" && <div className={styles.contractTypeSwitch} role="group" aria-label="계약 유형"><span>계약 유형</span>{(typeLocked ? [contractSnapshot.contractType] : allowedContractTypes ?? ["전세", "월세", "매매"]).map((contractType) => <button className={contractSnapshot.contractType === contractType ? styles.contractTypeActive : ""} disabled={typeLocked} key={contractType} type="button" onClick={() => changeContractType(contractType)}>{contractType}</button>)}</div>}</div>
         <div className={styles.confirmationSummary}><div><strong>확인 필요 {pendingFields.length + pendingRights.length}건</strong><span>원문과 비교한 뒤 개별 항목을 확인 처리해주세요.</span></div><MapPin size={20} aria-hidden="true" /></div>
         {mode === "both" && <ComparisonSummary contract={contractSnapshot} registry={registrySnapshot} />}
         <div className={styles.snapshotGroups}>

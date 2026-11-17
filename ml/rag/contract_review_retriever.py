@@ -24,8 +24,14 @@ from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
     ContractReviewRetrievalQuery,
 )
+from ml.rag.precedent_eligibility import (
+    create_eligibility_filtered_precedent_retriever_from_env,
+)
 from ml.rag.precedent_retriever import BgeM3PrecedentRetriever, PrecedentSearchResult
-from ml.rag.reranker import CrossEncoderReranker, load_cross_encoder
+from ml.rag.reranker import (
+    SHARED_CROSS_ENCODER_MODEL_LOADER,
+    CrossEncoderReranker,
+)
 from ml.rag.statute_retriever import (
     BgeM3StatuteRetriever,
     StatuteSearchResult,
@@ -69,6 +75,18 @@ _REGISTERED_RENTAL_BUSINESS_LAW = re.compile(
 _REGISTERED_RENTAL_BUSINESS_MARKER = re.compile(
     r"임대사업자|등록임대|민간임대주택|공공임대주택|공공주택"
 )
+
+# 특약 문구(계약서 검토의 개별 특약, 특약 생성 요청) 전용 보조 질의다. 주제 질의는
+# "갱신요구권을 포기한다" 같은 생활 표현과 "강행규정 위반 약정은 무효" 같은 효력
+# 조문 사이의 어휘가 안 겹쳐서, 주제만으로는 강행규정 조문을 못 찾는 경우가 있다
+# (2026-11-15 확인: "계약갱신요구권을 행사하지 않겠다"는 질의로는 top-15에도
+# 주택임대차보호법 제10조가 안 나오지만, 이 보조 질의로는 0.77대 1위로 나온다).
+# 주제와 무관하게 "임차인에게 불리한 약정은 무효"라는 포괄 조문을 노리는 고정 접미사라,
+# 요청마다 새로 만들 필요 없이 원문 뒤에 그대로 붙인다.
+_VALIDITY_CHECK_QUERY_SUFFIX = " 특약이 임차인에게 불리하여 무효가 되는지, 강행규정 위반 여부"
+_VALIDITY_CHECK_CATEGORIES = frozenset({"special_term", "special_clause_request"})
+# 주제 질의에서 이미 찾은 조문과 겹치지 않게, 보조 질의로는 최대 1개만 더 보탠다.
+_VALIDITY_CHECK_MAX_EXTRA = 1
 
 
 @dataclass(frozen=True)
@@ -116,7 +134,12 @@ class ContractReviewRagRetriever:
         statute_reranker: Any | None = None,
         precedent_reranker: Any | None = None,
     ) -> None:
-        if min(statute_top_k, precedent_top_k, evidence_top_k, precedent_evidence_top_k) < 1:
+        if min(
+            statute_top_k,
+            precedent_top_k,
+            evidence_top_k,
+            precedent_evidence_top_k,
+        ) < 1:
             raise ValueError("검색 결과 수는 1 이상이어야 합니다.")
         if not -1 <= min_similarity <= 1 or (
             precedent_min_similarity is not None and not -1 <= precedent_min_similarity <= 1
@@ -148,8 +171,38 @@ class ContractReviewRagRetriever:
                     candidates.extend(self._retrieve_statutes(query))
                 if self._precedent_retriever is not None:
                     candidates.extend(self._retrieve_precedents(query))
-                evidence.extend(self._select_relevant_evidence(candidates, query.query))
+                selected = self._select_relevant_evidence(candidates, query.query)
+                if self._statute_retriever is not None and query.category in _VALIDITY_CHECK_CATEGORIES:
+                    selected = self._append_validity_check_evidence(query, selected)
+                evidence.extend(selected)
             return evidence
+
+    def _append_validity_check_evidence(
+        self,
+        query: ContractReviewRetrievalQuery,
+        selected: list[ContractReviewEvidence],
+    ) -> list[ContractReviewEvidence]:
+        """강행규정 위반으로 무효가 될 수 있는지를 노리는 보조 질의 결과를 덧붙인다.
+
+        주제 질의의 상위 선정 결과는 그대로 두고, 아직 없는 조문 중 가장 유사도
+        높은 것 하나만 추가한다(주제 재정렬에 끼워 넣어 밀려나지 않게 한다).
+        """
+
+        validity_query = ContractReviewRetrievalQuery(
+            item_id=query.item_id,
+            category=query.category,
+            query=query.query + _VALIDITY_CHECK_QUERY_SUFFIX,
+        )
+        already = {item.source_id for item in selected if item.source_type == "statute"}
+        extra = sorted(
+            (
+                candidate
+                for candidate in self._retrieve_statutes(validity_query)
+                if candidate.source_id not in already and candidate.similarity >= self._min_similarity
+            ),
+            key=lambda candidate: (-candidate.similarity, candidate.rank, candidate.source_id),
+        )[:_VALIDITY_CHECK_MAX_EXTRA]
+        return selected + extra
 
     def _select_relevant_evidence(
         self,
@@ -250,30 +303,45 @@ class ContractReviewRagRetriever:
         query: ContractReviewRetrievalQuery,
     ) -> list[ContractReviewEvidence]:
         assert self._precedent_retriever is not None
-        return [
-            ContractReviewEvidence(
-                item_id=query.item_id,
-                source_type="precedent",
-                source_id=result.precedent_id,
-                title=result.case_name or result.case_no or result.precedent_id,
-                text=result.text,
-                rank=result.rank,
-                similarity=result.similarity,
-                metadata={
-                    "case_no": result.case_no,
-                    "case_name": result.case_name,
-                    "court_name": result.court_name,
-                    "decision_date": result.decision_date,
-                    "decision_year": result.decision_year,
-                    "case_type": result.case_type,
-                    "judgment_type": result.judgment_type,
-                },
+        results = self._precedent_retriever.search(
+            query.query,
+            top_k=self._precedent_top_k,
+        )
+        evidence = []
+        for result in results:
+            matched_chunk = result.matched_chunks[0] if result.matched_chunks else None
+            evidence.append(
+                ContractReviewEvidence(
+                    item_id=query.item_id,
+                    source_type="precedent",
+                    source_id=result.precedent_id,
+                    title=result.case_name or result.case_no or result.precedent_id,
+                    text=result.text,
+                    rank=result.rank,
+                    similarity=result.similarity,
+                    metadata={
+                        "case_no": result.case_no,
+                        "case_name": result.case_name,
+                        "court_name": result.court_name,
+                        "decision_date": result.decision_date,
+                        "decision_year": result.decision_year,
+                        "case_type": result.case_type,
+                        "judgment_type": result.judgment_type,
+                        "matched_section": (
+                            matched_chunk.section if matched_chunk else None
+                        ),
+                        "matched_chunk_type": (
+                            matched_chunk.chunk_type if matched_chunk else None
+                        ),
+                        "matched_section_chunk_index": (
+                            matched_chunk.section_chunk_index
+                            if matched_chunk
+                            else None
+                        ),
+                    },
+                )
             )
-            for result in self._precedent_retriever.search(
-                query.query,
-                top_k=self._precedent_top_k,
-            )
-        ]
+        return evidence
 
 
 class SharedBgeM3ModelLoader:
@@ -292,26 +360,6 @@ class SharedBgeM3ModelLoader:
 
 
 _SHARED_BGE_MODEL_LOADER = SharedBgeM3ModelLoader(load_bge_model)
-
-
-class SharedCrossEncoderModelLoader:
-    """계약서 검토·특약 생성의 법령·판례 리랭커가 같은 KURE 가중치를 재사용하게 한다."""
-
-    def __init__(self, loader: Callable[..., Any]) -> None:
-        self._loader = loader
-        self._model: Any | None = None
-        self._lock = RLock()
-
-    def __call__(self, model_path: Any, *, max_length: int, device: str, trust_remote_code: bool) -> Any:
-        with self._lock:
-            if self._model is None:
-                self._model = self._loader(
-                    model_path, max_length=max_length, device=device, trust_remote_code=trust_remote_code
-                )
-            return self._model
-
-
-_SHARED_CROSS_ENCODER_MODEL_LOADER = SharedCrossEncoderModelLoader(load_cross_encoder)
 
 
 DEFAULT_RERANKER_NAME = "kure-reranker-nano"
@@ -340,12 +388,14 @@ def _create_statute_reranker_from_env() -> CrossEncoderReranker | None:
         max_length=int(os.getenv("RAG_STATUTE_RERANKER_MAX_LENGTH", "512")),
         batch_size=int(os.getenv("RAG_STATUTE_RERANKER_BATCH_SIZE", "16")),
         device=os.getenv("RAG_STATUTE_RERANKER_DEVICE", "auto").strip() or "auto",
-        model_loader=_SHARED_CROSS_ENCODER_MODEL_LOADER,
+        model_loader=SHARED_CROSS_ENCODER_MODEL_LOADER,
     )
 
 
 def _create_rag_retriever_from_env(
     enabled_variable: str,
+    *,
+    precedent_evidence_top_k: int,
 ) -> ContractReviewRagRetriever | None:
     """명시적으로 활성화한 기능에서만 지연 로딩 RAG 검색기를 만든다."""
 
@@ -359,13 +409,15 @@ def _create_rag_retriever_from_env(
         os.getenv("RAG_STATUTE_RERANKER_CANDIDATES", str(DEFAULT_RERANKER_CANDIDATES))
     )
     widened = max(candidates, 3) if reranker is not None else 3
+    precedent_retriever = create_eligibility_filtered_precedent_retriever_from_env(
+        BgeM3PrecedentRetriever(model_loader=_SHARED_BGE_MODEL_LOADER)
+    )
     return ContractReviewRagRetriever(
         statute_retriever=BgeM3StatuteRetriever(model_loader=_SHARED_BGE_MODEL_LOADER),
-        precedent_retriever=BgeM3PrecedentRetriever(
-            model_loader=_SHARED_BGE_MODEL_LOADER
-        ),
+        precedent_retriever=precedent_retriever,
         statute_top_k=widened,
         precedent_top_k=widened,
+        precedent_evidence_top_k=precedent_evidence_top_k,
         statute_reranker=reranker,
         precedent_reranker=reranker,
     )
@@ -374,10 +426,16 @@ def _create_rag_retriever_from_env(
 def create_contract_review_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
     """계약서 검토용 RAG 검색기를 환경 설정에 따라 만든다."""
 
-    return _create_rag_retriever_from_env("CONTRACT_REVIEW_RAG_ENABLED")
+    return _create_rag_retriever_from_env(
+        "CONTRACT_REVIEW_RAG_ENABLED",
+        precedent_evidence_top_k=3,
+    )
 
 
 def create_special_clause_rag_retriever_from_env() -> ContractReviewRagRetriever | None:
     """특약 생성용 RAG 검색기를 환경 설정에 따라 만든다."""
 
-    return _create_rag_retriever_from_env("SPECIAL_CLAUSE_RAG_ENABLED")
+    return _create_rag_retriever_from_env(
+        "SPECIAL_CLAUSE_RAG_ENABLED",
+        precedent_evidence_top_k=3,
+    )

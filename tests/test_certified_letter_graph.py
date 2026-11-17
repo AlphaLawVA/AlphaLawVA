@@ -2,10 +2,18 @@
 """내용증명 LangGraph의 조기 종료, 근거 분리와 단일 재작성 경로를 검증한다."""
 
 import unittest
+from dataclasses import replace
 from datetime import date
 
 from ml.agent.certified_letter.graph import build_certified_letter_graph
-from ml.agent.certified_letter.nodes import CertifiedLetterNodeDependencies
+from ml.agent.certified_letter.nodes import (
+    PRECEDENT_CANDIDATE_LIMIT,
+    PRECEDENT_RESULT_LIMIT,
+    STATUTE_CANDIDATE_LIMIT,
+    STATUTE_MIN_SIMILARITY,
+    STATUTE_RESULT_LIMIT,
+    CertifiedLetterNodeDependencies,
+)
 from ml.agent.certified_letter.state import (
     CertifiedLetterRequestData,
     ContractData,
@@ -26,6 +34,7 @@ from ml.agent.certified_letter.state import (
 
 def make_request(
     *,
+    sender_role: ContractPartyRole = ContractPartyRole.LESSEE,
     purpose: str = "보증금을 반환받고 싶습니다.",
     facts: str = (
         "임대인 홍길동에게 서울특별시 종로구 사직로 1로 보증금 반환을 "
@@ -34,7 +43,7 @@ def make_request(
     lessor_address: str = "서울특별시 종로구 사직로 1",
 ):
     return CertifiedLetterRequestData(
-        sender_role=ContractPartyRole.LESSEE,
+        sender_role=sender_role,
         purpose=purpose,
         facts=facts,
         requested_deadline=None,
@@ -130,6 +139,11 @@ class PassThroughReranker:
         return list(candidates)[:top_k]
 
 
+class BrokenReranker:
+    def rerank(self, query, candidates, *, top_k):
+        raise RuntimeError("리랭커 오류")
+
+
 class FakeScopeClassifier:
     def __init__(
         self,
@@ -139,8 +153,8 @@ class FakeScopeClassifier:
         self.result = ScopeClassification(decision, tuple(missing_fields))
         self.calls = []
 
-    def classify_scope(self, purpose, facts):
-        self.calls.append((purpose, facts))
+    def classify_scope(self, sender_role, purpose, facts):
+        self.calls.append((sender_role, purpose, facts))
         return self.result
 
 
@@ -174,15 +188,18 @@ class SequencedValidator:
 def make_dependencies(
     *,
     statutes=None,
+    precedents=None,
+    statute_reranker=None,
+    precedent_reranker=None,
     validation_responses=None,
     scope_decision=CertifiedLetterScopeDecision.IN_SCOPE,
     scope_missing_fields=(),
 ):
     scope_classifier = FakeScopeClassifier(scope_decision, scope_missing_fields)
     statute_search = FakeStatuteSearch(statutes)
-    precedent_search = FakePrecedentSearch()
-    statute_reranker = PassThroughReranker()
-    precedent_reranker = PassThroughReranker()
+    precedent_search = FakePrecedentSearch(precedents)
+    statute_reranker = statute_reranker or PassThroughReranker()
+    precedent_reranker = precedent_reranker or PassThroughReranker()
     generator = FakeGenerator()
     validator = SequencedValidator(validation_responses)
     dependencies = CertifiedLetterNodeDependencies(
@@ -213,12 +230,115 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         self.assertEqual(len(validator.calls), 1)
         self.assertEqual(len(statute_search.calls), 1)
         self.assertEqual(len(precedent_search.calls), 1)
+        self.assertEqual(statute_search.calls[0][1], STATUTE_CANDIDATE_LIMIT)
+        self.assertEqual(precedent_search.calls[0][1], PRECEDENT_CANDIDATE_LIMIT)
+        self.assertEqual(PRECEDENT_CANDIDATE_LIMIT, 20)
+        self.assertEqual(dependencies.statute_reranker.calls[0][2], STATUTE_RESULT_LIMIT)
+        self.assertEqual(
+            dependencies.precedent_reranker.calls[0][2],
+            PRECEDENT_RESULT_LIMIT,
+        )
 
         statute_query = statute_search.calls[0][0][0]
+        precedent_query = precedent_search.calls[0][0][0]
+        self.assertEqual(statute_query, precedent_query)
+        self.assertIn("전세 임대차", statute_query)
+        self.assertIn("보증금을 반환받고 싶습니다.", statute_query)
+        self.assertIn("보증금 반환을 요청했지만 아직 받지 못했습니다.", statute_query)
         self.assertNotIn("홍길동", statute_query)
         self.assertNotIn("서울특별시 종로구 사직로 1", statute_query)
-        self.assertIn("계약기간 2024-10-01부터 2026-09-30까지", statute_query)
-        self.assertIn("보증금 100000000원", statute_query)
+        self.assertNotIn("임대차보증금 반환", statute_query)
+        self.assertNotIn("관련 법령", statute_query)
+        self.assertNotIn("유사 판례", statute_query)
+        self.assertNotIn("발신인 lessee", statute_query)
+        self.assertNotIn("계약기간 2024-10-01부터 2026-09-30까지", statute_query)
+        self.assertNotIn("보증금 100000000원", statute_query)
+
+    def test_filters_low_similarity_statutes_before_reranking(self):
+        accepted = replace(
+            make_statute(),
+            chunk_id="statute:accepted",
+            similarity=STATUTE_MIN_SIMILARITY,
+        )
+        rejected = replace(
+            make_statute(),
+            chunk_id="statute:rejected",
+            similarity=STATUTE_MIN_SIMILARITY - 0.01,
+        )
+        reranker = PassThroughReranker()
+        dependencies, *_rest, generator, _validator = make_dependencies(
+            statutes=[rejected, accepted],
+            statute_reranker=reranker,
+        )
+
+        result = build_certified_letter_graph(dependencies).invoke(
+            {"request": make_request()}
+        )
+
+        self.assertEqual(result["selected_statutes"], (accepted,))
+        self.assertEqual(reranker.calls[0][1], (accepted,))
+        self.assertEqual(generator.generate_calls[0][1], (accepted,))
+
+    def test_logs_retrieval_reranking_and_citation_by_request_id(self):
+        dependencies, *_rest = make_dependencies()
+
+        with self.assertLogs("ml.agent.certified_letter.nodes", level="INFO") as logs:
+            build_certified_letter_graph(dependencies).invoke(
+                {"request": make_request(), "request_id": "trace-log-001"}
+            )
+
+        joined = "\n".join(logs.output)
+        self.assertIn("내용증명 법령 검색 후보", joined)
+        self.assertIn("내용증명 법령 리랭킹 결과", joined)
+        self.assertIn("내용증명 법령 인용 결과", joined)
+        self.assertIn("내용증명 판례 검색 후보", joined)
+        self.assertIn("내용증명 판례 리랭킹 결과", joined)
+        self.assertIn("trace-log-001", joined)
+        self.assertIn("주택임대차보호법", joined)
+        self.assertIn("제4조", joined)
+        self.assertIn("2006다62492", joined)
+
+    def test_returns_at_most_three_precedents_without_similarity_cutoff(self):
+        precedents = [
+            replace(
+                make_precedent(),
+                precedent_id=str(index),
+                similarity=-0.1 * index,
+            )
+            for index in range(1, 6)
+        ]
+        dependencies, *_rest = make_dependencies(precedents=precedents)
+
+        result = build_certified_letter_graph(dependencies).invoke(
+            {"request": make_request()}
+        )
+
+        self.assertEqual(len(result["selected_precedents"]), 3)
+        self.assertEqual(
+            [item.precedent_id for item in result["selected_precedents"]],
+            ["1", "2", "3"],
+        )
+
+    def test_reranker_failure_falls_back_to_dense_order(self):
+        statutes = [
+            replace(make_statute(), chunk_id=f"statute:{index}", similarity=score)
+            for index, score in enumerate((0.7, 0.9, 0.8, 0.6), start=1)
+        ]
+        dependencies, *_rest = make_dependencies(
+            statutes=statutes,
+            statute_reranker=BrokenReranker(),
+            precedent_reranker=BrokenReranker(),
+        )
+
+        with self.assertLogs("ml.agent.certified_letter.nodes", level="WARNING"):
+            result = build_certified_letter_graph(dependencies).invoke(
+                {"request": make_request()}
+            )
+
+        self.assertEqual(
+            [item.similarity for item in result["selected_statutes"]],
+            [0.9, 0.8, 0.7],
+        )
 
     def test_stops_out_of_scope_before_search(self):
         dependencies, statute_search, precedent_search, generator, _validator = (
@@ -245,6 +365,7 @@ class CertifiedLetterGraphTests(unittest.TestCase):
             dependencies.scope_classifier.calls,
             [
                 (
+                    ContractPartyRole.LESSEE,
                     "주말 저녁 메뉴를 추천해 주세요.",
                     "친구들과 먹을 저녁 음식 종류를 추천받고 싶습니다.",
                 )
@@ -277,11 +398,36 @@ class CertifiedLetterGraphTests(unittest.TestCase):
                 "분쟁 경위와 상대방의 구체적인 행위",
             ),
         )
+
+    def test_role_conflict_returns_sender_role_confirmation_label(self):
+        dependencies, statute_search, precedent_search, generator, _validator = (
+            make_dependencies(
+                scope_decision=CertifiedLetterScopeDecision.NEEDS_INFORMATION,
+                scope_missing_fields=("sender_role",),
+            )
+        )
+        graph = build_certified_letter_graph(dependencies)
+
+        result = graph.invoke(
+            {
+                "request": make_request(
+                    sender_role=ContractPartyRole.LESSOR,
+                    purpose="계약 종료 후 보증금을 반환받고 싶습니다.",
+                    facts="임대인이 보증금을 돌려주지 않고 있습니다.",
+                )
+            }
+        )
+
+        self.assertEqual(result["outcome"], "needs_information")
+        self.assertEqual(
+            result["missing_information"],
+            ("내용증명 발신인 역할과 요청 내용의 일치 여부",),
+        )
         self.assertEqual(statute_search.calls, [])
         self.assertEqual(precedent_search.calls, [])
         self.assertEqual(generator.generate_calls, [])
 
-    def test_code_checks_delivery_fields_after_in_scope_decision(self):
+    def test_delivery_address_is_not_required_before_draft_generation(self):
         dependencies, statute_search, precedent_search, generator, _validator = (
             make_dependencies()
         )
@@ -290,14 +436,10 @@ class CertifiedLetterGraphTests(unittest.TestCase):
         result = graph.invoke({"request": make_request(lessor_address="")})
 
         self.assertEqual(result["scope_decision"], "in_scope")
-        self.assertEqual(result["outcome"], "needs_information")
-        self.assertEqual(
-            result["missing_information"],
-            ("임대인의 송달 주소",),
-        )
-        self.assertEqual(statute_search.calls, [])
-        self.assertEqual(precedent_search.calls, [])
-        self.assertEqual(generator.generate_calls, [])
+        self.assertEqual(result["outcome"], "draft_ready")
+        self.assertNotEqual(statute_search.calls, [])
+        self.assertNotEqual(precedent_search.calls, [])
+        self.assertEqual(len(generator.generate_calls), 1)
 
     def test_in_scope_decision_continues_after_untrusted_instruction(self):
         dependencies, statute_search, _precedent_search, _generator, _validator = (

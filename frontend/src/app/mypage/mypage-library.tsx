@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bookmark, FileText, LoaderCircle, Trash2, X } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import {
+  CERTIFIED_LETTER_FOLLOW_UP_TITLES,
   getSavedCertifiedLetterResult,
   listCertifiedLetterResults,
   mapCertifiedLetterPrecedent,
@@ -278,7 +279,7 @@ export function MyPageLibrary() {
             <dl className={styles.parties}><div><dt>발신인</dt><dd>{selectedLetter.result.document.sender.name}</dd><small>{formatAddress(selectedLetter.result.document.sender)}</small></div><div><dt>수신인</dt><dd>{selectedLetter.result.document.recipient.name}</dd><small>{formatAddress(selectedLetter.result.document.recipient)}</small></div></dl>
             <div className={styles.letterBody}>{selectedLetter.result.document.body}</div>
             <section className={styles.modalSection}><h3>작성 전략</h3><p>{selectedLetter.result.strategy_summary}</p></section>
-            <section className={styles.modalSection}><h3>다음 단계</h3><ol>{selectedLetter.result.follow_up_actions.map((item) => <li key={`${item.order}-${item.action}`}>{item.action}</li>)}</ol></section>
+            <section className={styles.modalSection}><h3>다음 단계</h3><ol>{selectedLetter.result.follow_up_actions.map((item) => <li key={`${item.order}-${item.action}`}><strong>{CERTIFIED_LETTER_FOLLOW_UP_TITLES[item.order - 1] ?? "다음 단계"}</strong><p>{item.action}</p></li>)}</ol></section>
             <section className={styles.modalSection}><h3>관련 법령 {selectedLetter.result.statute_evidence.length}건</h3>{selectedLetter.result.statute_evidence.length === 0 ? <p>본문에 직접 인용된 관련 법령이 없습니다.</p> : <div className={styles.evidenceList}>{selectedLetter.result.statute_evidence.map((statute) => <article className={styles.evidenceCard} key={`${statute.statute_id ?? statute.law_name}-${statute.article_label}`}><strong>{statute.law_name} {statute.article_label}{statute.article_title ? ` (${statute.article_title})` : ""}</strong><p>{statute.explanation}</p><p>{statute.content}</p>{statute.source_url && <a href={statute.source_url} target="_blank" rel="noreferrer">원문 보기 ↗</a>}</article>)}</div>}</section>
             <section className={styles.modalSection}><h3>관련 판례 {selectedLetter.result.similar_precedents.length}건</h3><div className={styles.savedPrecedents}>{selectedLetter.result.similar_precedents.map((item) => { const precedent = mapCertifiedLetterPrecedent(item); return <PrecedentListItem key={precedent.precedentId} onOpenDetail={() => setSelectedLetterPrecedent({ precedent, initialView: "detail" })} onOpenFullText={() => setSelectedLetterPrecedent({ precedent, initialView: "fullText" })} precedent={precedent} />; })}</div></section>
             {selectedLetter.result.warnings.length > 0 && <section className={styles.modalSection}><h3>확인 사항</h3><ul>{selectedLetter.result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></section>}
@@ -321,7 +322,6 @@ function GenerationDetailBody({ detail }: { detail: SavedGenerationDetail }) {
             <p>요청: {item.request_text}</p>
             {item.draft_text && <div className={styles.letterBody}>{item.draft_text}</div>}
             {item.needs_input.length > 0 && <ul>{item.needs_input.map((question) => <li key={question}>{question}</li>)}</ul>}
-            {item.reason && <p>이유: {item.reason}</p>}
             {item.strategy && <p>협의 안내: {item.strategy}</p>}
           </section>
         ))}

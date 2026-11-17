@@ -3,6 +3,7 @@ import type {
   ConfirmedRegistrySnapshot as DemoRegistrySnapshot,
   SnapshotField,
 } from "@/lib/demo-types";
+import type { CaseBasis } from "@/lib/demo-types";
 
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000"
@@ -87,6 +88,43 @@ export type SpecialClauseDraftResult = {
   message: string;
   disclaimer: string;
 };
+
+function metadataText(
+  metadata: ContractEvidence["metadata"],
+  key: string,
+): string | undefined {
+  const value = metadata[key];
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+export function contractEvidenceToPrecedent(evidence: ContractEvidence): CaseBasis {
+  const precedentSummary = metadataText(evidence.metadata, "precedent_summary");
+  const easySummary = metadataText(evidence.metadata, "easy_summary");
+  const section = metadataText(evidence.metadata, "matched_section") ?? "검색 적중 부분";
+  const chunkType = metadataText(evidence.metadata, "matched_chunk_type");
+  const chunkIndex = evidence.metadata.matched_section_chunk_index;
+  return {
+    title: metadataText(evidence.metadata, "case_name") ?? evidence.title,
+    caseNumber: metadataText(evidence.metadata, "case_no")
+      ?? metadataText(evidence.metadata, "case_number")
+      ?? evidence.title,
+    precedentId: evidence.source_id,
+    court: metadataText(evidence.metadata, "court_name"),
+    decisionDate: metadataText(evidence.metadata, "decision_date"),
+    judgmentType: metadataText(evidence.metadata, "judgment_type"),
+    summary: precedentSummary ?? evidence.text,
+    easySummary,
+    evidenceChunks: [{
+      section,
+      content: evidence.text,
+      chunkType,
+      sectionChunkIndex: typeof chunkIndex === "number" ? chunkIndex : undefined,
+    }],
+    url: metadataText(evidence.metadata, "url") ?? "",
+  };
+}
 
 async function requestApi<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;

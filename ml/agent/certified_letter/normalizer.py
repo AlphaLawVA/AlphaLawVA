@@ -21,6 +21,7 @@ from ml.agent.certified_letter.state import (
     PartyData,
     PropertyData,
 )
+from ml.agent.certified_letter.value_normalizer import normalize_text
 
 
 DEFAULT_RELATIVE_DEADLINE = "이 내용증명을 받은 날부터 7일 이내"
@@ -34,8 +35,8 @@ def normalize_request(
     request: CertifiedLetterRequestData,
 ) -> NormalizedCertifiedLetterRequest:
     contract = _normalize_contract(request.contract)
-    purpose = _normalize_multiline(request.purpose)
-    facts = _normalize_multiline(request.facts)
+    purpose = _normalize_text_value(request.purpose)
+    facts = _normalize_text_value(request.facts)
 
     if request.requested_deadline is None:
         return NormalizedCertifiedLetterRequest(
@@ -67,6 +68,13 @@ def _normalize_contract(contract: ContractData) -> ContractData:
         property=_normalize_property(contract.property),
         lessor=_normalize_party(contract.lessor),
         lessee=_normalize_party(contract.lessee),
+        seller=_normalize_party(contract.seller),
+        buyer=_normalize_party(contract.buyer),
+        special_terms=tuple(
+            normalized
+            for term in contract.special_terms
+            if (normalized := _normalize_text_optional(term)) is not None
+        ),
     )
 
 
@@ -79,11 +87,13 @@ def _normalize_property(value: PropertyData) -> PropertyData:
     )
 
 
-def _normalize_party(value: PartyData) -> PartyData:
+def _normalize_party(value: PartyData | None) -> PartyData | None:
+    if value is None:
+        return None
     return replace(
         value,
         name=_normalize_single_line(value.name),
-        address=_normalize_single_line(value.address),
+        address=_normalize_optional(value.address),
         detail_address=_normalize_optional(value.detail_address),
         phone_number=_normalize_optional(value.phone_number),
     )
@@ -92,6 +102,15 @@ def _normalize_party(value: PartyData) -> PartyData:
 def _normalize_multiline(value: str) -> str:
     lines = [" ".join(line.split()) for line in value.replace("\r\n", "\n").split("\n")]
     return "\n".join(line for line in lines if line).strip()
+
+
+def _normalize_text_value(value: str) -> str:
+    return normalize_text(_normalize_multiline(value)).text
+
+
+def _normalize_text_optional(value: str | None) -> str | None:
+    normalized = _normalize_optional(value)
+    return normalize_text(normalized).text if normalized is not None else None
 
 
 def _normalize_single_line(value: str) -> str:

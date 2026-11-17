@@ -31,6 +31,8 @@ from api.models.contract_snapshots import ConfirmedContractSnapshot, PartyRole
 from api.models.generation_results import GenerationResultKind
 from api.models.registry_snapshots import ConfirmedRegistrySnapshot
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
+from api.services.precedent_case_repository import PrecedentCaseRepository
+from api.services.precedent_evidence_enricher import enrich_precedent_evidence_metadata
 from ml.agent.contract_review_graph import ContractReviewGraph
 from ml.agent.contract_review_graph import ContractReviewAnalyzer
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
@@ -48,11 +50,13 @@ class ContractReviewService:
         review_graph: ContractReviewGraph | None = None,
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         analyzer: ContractReviewAnalyzer | None = None,
+        precedent_repository: PrecedentCaseRepository | None = None,
     ) -> None:
         self._snapshot_store = snapshot_store
         self._review_graph = review_graph or ContractReviewGraph()
         self._evidence_retriever = evidence_retriever
         self._analyzer = analyzer
+        self._precedent_repository = precedent_repository or PrecedentCaseRepository()
         self._result_recorder: Callable[..., None] | None = None
 
     def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
@@ -102,7 +106,12 @@ class ContractReviewService:
                         text=item.text,
                         rank=item.rank,
                         similarity=item.similarity,
-                        metadata=item.metadata,
+                        metadata=enrich_precedent_evidence_metadata(
+                            source_type=item.source_type,
+                            source_id=item.source_id,
+                            metadata=item.metadata,
+                            repository=self._precedent_repository,
+                        ),
                     )
                     for item in precheck_result.evidence
                 ]

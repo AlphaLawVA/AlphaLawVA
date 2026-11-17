@@ -121,6 +121,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--bm25-tokenizer",
+        choices=("regex", "kiwi"),
+        default="regex",
+    )
+    parser.add_argument("--dense-weight", type=float, default=1.0)
+    parser.add_argument("--bm25-weight", type=float, default=1.0)
     return parser.parse_args()
 
 
@@ -128,6 +135,8 @@ def main() -> None:
     args = parse_args()
     if args.top_k < 10:
         raise ValueError("골드 지표 비교를 위해 --top-k는 10 이상이어야 합니다.")
+    if args.dense_weight <= 0 or args.bm25_weight <= 0:
+        raise ValueError("--dense-weight와 --bm25-weight는 0보다 커야 합니다.")
     dataset_path = args.dataset.resolve()
     db_dir = args.db_dir.resolve()
     model_cache = args.model_cache.resolve()
@@ -137,18 +146,24 @@ def main() -> None:
     if len(source_hashes) != 1 or manifest.get("source_sha256") not in source_hashes:
         raise ValueError("평가셋과 법령 DB의 source_sha256이 일치하지 않습니다.")
 
-    retriever = BgeM3StatuteRetriever(
+    hybrid_retriever = BgeM3StatuteRetriever(
         db_dir=db_dir,
         model_cache=model_cache,
         device=args.device,
     )
     questions = [case["question"] for case in cases]
     started = time.perf_counter()
-    dense_batches = retriever.search_many(questions, top_k=args.top_k)
-    dense_elapsed_seconds = time.perf_counter() - started
-    started = time.perf_counter()
-    hybrid_batches = retriever.search_many_hybrid(questions, top_k=args.top_k)
+    hybrid_batches = hybrid_retriever.search_many_hybrid(
+        questions,
+        top_k=args.top_k,
+        bm25_tokenizer_name=args.bm25_tokenizer,
+        dense_weight=args.dense_weight,
+        bm25_weight=args.bm25_weight,
+    )
     hybrid_elapsed_seconds = time.perf_counter() - started
+    started = time.perf_counter()
+    dense_batches = hybrid_retriever.search_many(questions, top_k=args.top_k)
+    dense_elapsed_seconds = time.perf_counter() - started
 
     result = {
         "schema_version": "statute_hybrid_comparison.v0.1",
@@ -161,9 +176,12 @@ def main() -> None:
         },
         "retrieval": {
             "dense": "BGE-M3 cosine ChromaDB",
-            "hybrid": "BGE-M3 dense + BM25, equal-weight RRF",
+            "hybrid": "BGE-M3 dense + BM25, weighted RRF",
             "top_k": args.top_k,
             "device": args.device,
+            "bm25_tokenizer": args.bm25_tokenizer,
+            "dense_weight": args.dense_weight,
+            "bm25_weight": args.bm25_weight,
             "bm25_k1": 1.5,
             "bm25_b": 0.75,
             "rrf_k": 60,

@@ -18,6 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
 from api.main import create_app
+from api.services.gemini_query_scope_guard import GeminiQueryScopeGuard
 from api.services.precedent_case_repository import (
     InvalidPrecedentIdError,
     PrecedentCaseDataError,
@@ -86,6 +87,7 @@ class ApiMainTests(unittest.TestCase):
             service.similarity_explainer,
             GeminiSimilarityExplainer,
         )
+        self.assertIsInstance(service.scope_guard, GeminiQueryScopeGuard)
 
     def test_registers_public_error_handlers(self):
         app = create_app(object())

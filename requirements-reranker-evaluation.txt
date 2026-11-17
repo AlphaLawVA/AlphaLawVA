@@ -1,0 +1,7 @@
+# 판례 리랭커 비교 전용 환경이다. 운영 requirements-embedding.txt와 분리한다.
+# Qwen3 CrossEncoder 통합을 지원하는 최소 검증 조합을 고정한다.
+sentence-transformers==5.4.1
+transformers==4.57.6
+torch==2.15.0
+chromadb==1.5.9
+python-dotenv==1.2.2

@@ -24,6 +24,8 @@ from api.models.contracts import (
     SpecialClauseDraftRequest,
     SpecialClauseDraftResponse,
 )
+from api.services.precedent_case_repository import PrecedentCaseRepository
+from api.services.precedent_evidence_enricher import enrich_precedent_evidence_metadata
 from ml.agent.contract_review_graph import ContractReviewEvidenceRetriever
 from ml.agent.special_clause_graph import (
     SpecialClauseGenerator,
@@ -56,11 +58,13 @@ class SpecialClauseService:
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         generator: SpecialClauseGenerator | None = None,
         scope_classifier: SpecialClauseScopeClassifier | None = None,
+        precedent_repository: PrecedentCaseRepository | None = None,
     ) -> None:
         self._graph = graph or SpecialClauseGraph()
         self._evidence_retriever = evidence_retriever
         self._generator = generator
         self._scope_classifier = scope_classifier
+        self._precedent_repository = precedent_repository or PrecedentCaseRepository()
         self._result_recorder: Callable[..., None] | None = None
 
     def set_result_recorder(self, recorder: Callable[..., None] | None) -> None:
@@ -148,7 +152,7 @@ class SpecialClauseService:
                 )
             )
         all_terminal = all(item.status != "pending_generation" for item in items)
-        # 초안이 생성된 경우 응답에는 초안이 실제로 인용한 근거만 싣는다(무관한 검색 결과는 뺀다).
+        # 법령은 초안이 실제로 사용한 근거만, 판례는 생성과 분리한 관련 판례를 반환한다.
         cited = {
             (f"request-{item.request_index}", source_id)
             for item in items
@@ -158,6 +162,7 @@ class SpecialClauseService:
             entry
             for entry in result.evidence
             if generation_status != GenerationStatus.GENERATED
+            or entry.source_type == "precedent"
             or (entry.item_id, entry.source_id) in cited
         ]
         response = SpecialClauseDraftResponse(
@@ -177,7 +182,12 @@ class SpecialClauseService:
                     "text": item.text,
                     "rank": item.rank,
                     "similarity": item.similarity,
-                    "metadata": item.metadata,
+                    "metadata": enrich_precedent_evidence_metadata(
+                        source_type=item.source_type,
+                        source_id=item.source_id,
+                        metadata=item.metadata,
+                        repository=self._precedent_repository,
+                    ),
                 }
                 for item in returned_evidence
             ],
@@ -227,10 +237,9 @@ class SpecialClauseService:
         if generation_status == GenerationStatus.GENERATED:
             drafts = [item for item in items or [] if item.status == "draft_ready"]
             without_evidence = [item for item in drafts if not item.evidence_source_ids]
-            if drafts and len(without_evidence) == len(drafts):
-                return "직접 연결된 법령 근거는 없어 당사자 합의 사항으로 작성한 초안을 구성했습니다."
+            # 법령 근거가 없다는 사실은 결과 화면의 관련 법령 영역이 따로 알리므로 문구에 반복하지 않는다.
             if without_evidence:
-                return "일부 초안은 직접 연결된 법령 근거 없이 당사자 합의 사항으로 작성했습니다."
+                return "특약 초안 또는 추가 확인 항목을 구성했습니다."
             return "근거가 연결된 특약 초안 또는 추가 확인 항목을 구성했습니다."
         if generation_status == GenerationStatus.UNAVAILABLE:
             return "검색 근거는 찾았지만 특약 초안 생성은 현재 사용할 수 없습니다."

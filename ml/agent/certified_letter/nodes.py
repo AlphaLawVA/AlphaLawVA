@@ -12,6 +12,8 @@ After:
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass
 
 from ml.agent.certified_letter.normalizer import normalize_request
@@ -29,21 +31,24 @@ from ml.agent.certified_letter.state import (
     CertifiedLetterScopeDecision,
     CertifiedLetterGraphState,
     WorkflowFailure,
-    recipient_role,
+    resolve_document_parties,
 )
+from ml.agent.certified_letter.value_normalizer import (
+    count_prompt_transformations,
+    missing_fact_values,
+    normalize_draft,
+)
+from ml.agent.certified_letter.prompts import build_generation_prompt, build_repair_prompt
 
 
-ISSUE_KEYWORDS = {
-    "임대차보증금 반환": ("보증금", "전세금", "반환"),
-    "임대차계약 종료 또는 해지": ("종료", "해지", "갱신", "퇴거"),
-    "임대인의 수선 의무": ("수리", "하자", "누수", "곰팡이"),
-    "차임 또는 관리비": ("월세", "차임", "관리비", "연체"),
-}
-
-STATUTE_CANDIDATE_LIMIT = 20
-STATUTE_RESULT_LIMIT = 5
+STATUTE_CANDIDATE_LIMIT = 10
+STATUTE_MIN_SIMILARITY = 0.35
+STATUTE_RESULT_LIMIT = 3
 PRECEDENT_CANDIDATE_LIMIT = 20
-PRECEDENT_RESULT_LIMIT = 5
+PRECEDENT_RESULT_LIMIT = 3
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -77,6 +82,7 @@ class CertifiedLetterNodes:
     ) -> CertifiedLetterGraphState:
         request = state["normalized_request"]
         classification = self.dependencies.scope_classifier.classify_scope(
+            request.sender_role,
             request.purpose,
             request.facts,
         )
@@ -99,8 +105,8 @@ class CertifiedLetterNodes:
             "scope_decision": decision.value,
             "outcome": decision.value,
             "message": (
-                "현재 알파 버전은 임대차보증금, 계약 종료·해지, 수선, "
-                "월세·관리비 관련 내용증명 초안을 지원합니다."
+                "현재 알파 버전은 부동산 임대차와 매매계약의 이행, 종료, "
+                "금전 지급, 인도·수선 관련 내용증명 초안을 지원합니다."
             ),
         }
 
@@ -110,14 +116,18 @@ class CertifiedLetterNodes:
     ) -> CertifiedLetterGraphState:
         request = state["normalized_request"]
         missing = []
-        if not request.contract.lessor.name:
-            missing.append("임대인 이름")
-        if not request.contract.lessor.address:
-            missing.append("임대인의 송달 주소")
-        if not request.contract.lessee.name:
-            missing.append("임차인 이름")
-        if not request.contract.lessee.address:
-            missing.append("임차인 주소")
+        try:
+            sender, recipient = resolve_document_parties(request)
+        except ValueError:
+            return {
+                "missing_information": ("계약 당사자 정보",),
+                "outcome": "needs_information",
+                "message": "내용증명 초안을 작성하려면 계약 당사자 정보가 필요합니다.",
+            }
+        if not sender.name:
+            missing.append("발신인 이름")
+        if not recipient.name:
+            missing.append("수신인 이름")
         if not missing:
             return {"missing_information": ()}
         return {
@@ -135,46 +145,23 @@ class CertifiedLetterNodes:
             f"{request.purpose} {request.facts}",
             state,
         )
-        issues = tuple(
-            issue
-            for issue, keywords in ISSUE_KEYWORDS.items()
-            if any(keyword in searchable_text for keyword in keywords)
-        ) or ("임대차계약상 의무",)
-        contract_label = (
-            "전세" if request.contract.contract_type == "jeonse" else "월세"
-        )
-        contract = request.contract
-        payment_context = f"보증금 {contract.payment.deposit}원"
-        if contract.payment.monthly_rent is not None:
-            payment_context += f" 월세 {contract.payment.monthly_rent}원"
-        period_context = (
-            f"계약기간 {contract.period.start_date.isoformat()}부터 "
-            f"{contract.period.end_date.isoformat()}까지"
-        )
+        contract_label = {
+            "jeonse": "전세 임대차",
+            "monthly_rent": "월세 임대차",
+            "sale": "부동산 매매",
+        }.get(request.contract.contract_type, "부동산 계약")
         context = " ".join(
             (
-                f"{contract_label} 임대차",
-                (
-                    f"발신인 {request.sender_role.value} "
-                    f"수신인 {recipient_role(request.sender_role).value}"
-                ),
-                period_context,
-                payment_context,
+                contract_label,
                 searchable_text,
             )
         ).strip()
-        statute_queries = tuple(
-            _limit_query(f"{issue} 관련 법령 {context}") for issue in issues
-        )
-        precedent_queries = tuple(
-            _limit_query(f"{issue} 유사 판례 {context}") for issue in issues
-        )
+        query = _limit_query(context)
         return {
-            "legal_issues": issues,
-            "statute_queries": statute_queries,
-            "precedent_queries": precedent_queries,
+            "legal_issues": (),
+            "statute_queries": (query,),
+            "precedent_queries": (query,),
         }
-
     def retrieve_statutes(
         self,
         state: CertifiedLetterGraphState,
@@ -183,6 +170,12 @@ class CertifiedLetterNodes:
             state["statute_queries"],
             candidate_limit=STATUTE_CANDIDATE_LIMIT,
         )
+        logger.info(
+            "내용증명 법령 검색 후보: request_id=%s legal_issues=%s candidates=%s",
+            state.get("request_id", "unknown"),
+            state.get("legal_issues", ()),
+            _statute_trace_entries(candidates),
+        )
         return {"statute_candidates": tuple(candidates)}
 
     def rerank_statutes(
@@ -190,10 +183,34 @@ class CertifiedLetterNodes:
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
         query = " ".join(state["statute_queries"])
-        selected = self.dependencies.statute_reranker.rerank(
-            query,
-            state.get("statute_candidates", ()),
-            top_k=STATUTE_RESULT_LIMIT,
+        candidates = tuple(
+            candidate
+            for candidate in state.get("statute_candidates", ())
+            if candidate.similarity >= STATUTE_MIN_SIMILARITY
+        )
+        try:
+            selected = self.dependencies.statute_reranker.rerank(
+                query,
+                candidates,
+                top_k=STATUTE_RESULT_LIMIT,
+            )
+        except Exception:  # noqa: BLE001 - 리랭커 장애가 내용증명 생성을 막지 않게 한다.
+            logger.warning(
+                "내용증명 법령 리랭커 실패, dense 유사도 순서를 사용합니다.",
+                exc_info=True,
+            )
+            selected = sorted(
+                candidates,
+                key=lambda candidate: candidate.similarity,
+                reverse=True,
+            )[:STATUTE_RESULT_LIMIT]
+        logger.info(
+            "내용증명 법령 리랭킹 결과: request_id=%s min_similarity=%s "
+            "eligible_candidates=%s selected=%s",
+            state.get("request_id", "unknown"),
+            STATUTE_MIN_SIMILARITY,
+            _statute_trace_entries(candidates),
+            _statute_trace_entries(selected),
         )
         return {"selected_statutes": tuple(selected)}
 
@@ -205,6 +222,11 @@ class CertifiedLetterNodes:
             state["precedent_queries"],
             candidate_limit=PRECEDENT_CANDIDATE_LIMIT,
         )
+        logger.info(
+            "내용증명 판례 검색 후보: request_id=%s candidates=%s",
+            state.get("request_id", "unknown"),
+            _precedent_trace_entries(candidates),
+        )
         return {"precedent_candidates": tuple(candidates)}
 
     def rerank_precedents(
@@ -212,10 +234,28 @@ class CertifiedLetterNodes:
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
         query = " ".join(state["precedent_queries"])
-        selected = self.dependencies.precedent_reranker.rerank(
-            query,
-            state.get("precedent_candidates", ()),
-            top_k=PRECEDENT_RESULT_LIMIT,
+        candidates = tuple(state.get("precedent_candidates", ()))
+        try:
+            selected = self.dependencies.precedent_reranker.rerank(
+                query,
+                candidates,
+                top_k=PRECEDENT_RESULT_LIMIT,
+            )
+        except Exception:  # noqa: BLE001 - 리랭커 장애가 내용증명 생성을 막지 않게 한다.
+            logger.warning(
+                "내용증명 판례 리랭커 실패, dense 유사도 순서를 사용합니다.",
+                exc_info=True,
+            )
+            selected = sorted(
+                candidates,
+                key=lambda candidate: candidate.similarity,
+                reverse=True,
+            )[:PRECEDENT_RESULT_LIMIT]
+        logger.info(
+            "내용증명 판례 리랭킹 결과: request_id=%s candidates=%s selected=%s",
+            state.get("request_id", "unknown"),
+            _precedent_trace_entries(candidates),
+            _precedent_trace_entries(selected),
         )
         return {"selected_precedents": tuple(selected)}
 
@@ -229,11 +269,23 @@ class CertifiedLetterNodes:
         self,
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
-        draft = self.dependencies.generator.generate(
-            state["normalized_request"],
+        request = state["normalized_request"]
+        input_transformations = count_prompt_transformations(
+            build_generation_prompt(request, state["selected_statutes"])
+        )
+        generated = self.dependencies.generator.generate(
+            request,
             state["selected_statutes"],
         )
-        return {"draft": draft}
+        normalized = normalize_draft(generated)
+        trace = dict(state.get("trace", {}))
+        trace.update(
+            {
+                "input_normalization_count": input_transformations,
+                "output_normalization_count": normalized.transformations,
+            }
+        )
+        return {"draft": normalized.draft, "trace": trace}
 
     def validate_draft(
         self,
@@ -250,15 +302,34 @@ class CertifiedLetterNodes:
         self,
         state: CertifiedLetterGraphState,
     ) -> CertifiedLetterGraphState:
+        request = state["normalized_request"]
+        input_transformations = count_prompt_transformations(
+            build_repair_prompt(
+                request,
+                state["selected_statutes"],
+                state["draft"],
+                state["validation_issues"],
+            )
+        )
         repaired = self.dependencies.generator.repair(
-            state["normalized_request"],
+            request,
             state["selected_statutes"],
             state["draft"],
             state["validation_issues"],
         )
+        normalized = normalize_draft(repaired)
+        trace = dict(state.get("trace", {}))
+        trace["input_normalization_count"] = (
+            int(trace.get("input_normalization_count", 0)) + input_transformations
+        )
+        trace["output_normalization_count"] = (
+            int(trace.get("output_normalization_count", 0))
+            + normalized.transformations
+        )
         return {
-            "draft": repaired,
+            "draft": normalized.draft,
             "repair_attempts": state.get("repair_attempts", 0) + 1,
+            "trace": trace,
         }
 
     def mark_validation_failure(
@@ -278,24 +349,54 @@ class CertifiedLetterNodes:
     ) -> CertifiedLetterGraphState:
         if "failure" in state or "outcome" in state:
             return {}
+        request = state["normalized_request"]
+        missing_values = missing_fact_values(
+            facts=request.facts,
+            body=state["draft"].body,
+        )
+        cited_statutes = _cited_statute_trace_entries(
+            state["draft"].body,
+            state.get("selected_statutes", ()),
+        )
+        logger.info(
+            "내용증명 법령 인용 결과: request_id=%s selected=%s cited=%s",
+            state.get("request_id", "unknown"),
+            _statute_trace_entries(state.get("selected_statutes", ())),
+            cited_statutes,
+        )
+        logger.info(
+            "내용증명 값 정규화 완료: request_id=%s input_transformations=%s "
+            "output_transformations=%s missing_fact_values=%s missing_values=%s",
+            state.get("request_id", "unknown"),
+            state.get("trace", {}).get("input_normalization_count", 0),
+            state.get("trace", {}).get("output_normalization_count", 0),
+            bool(missing_values),
+            missing_values,
+        )
         return {"outcome": "draft_ready"}
 
 
 def _redact_contract_pii(text: str, state: CertifiedLetterGraphState) -> str:
     contract = state["normalized_request"].contract
     redacted = text
-    pii_values = (
-        contract.lessor.name,
-        contract.lessor.address,
-        contract.lessor.detail_address,
-        contract.lessor.phone_number,
-        contract.lessee.name,
-        contract.lessee.address,
-        contract.lessee.detail_address,
-        contract.lessee.phone_number,
-        contract.property.address,
-        contract.property.detail_address,
+    parties = (
+        contract.lessor,
+        contract.lessee,
+        contract.seller,
+        contract.buyer,
     )
+    pii_values = [
+        value
+        for party in parties
+        if party is not None
+        for value in (
+            party.name,
+            party.address,
+            party.detail_address,
+            party.phone_number,
+        )
+    ]
+    pii_values.extend((contract.property.address, contract.property.detail_address))
     for value in pii_values:
         if value:
             redacted = redacted.replace(value, " ")
@@ -304,3 +405,59 @@ def _redact_contract_pii(text: str, state: CertifiedLetterGraphState) -> str:
 
 def _limit_query(value: str) -> str:
     return value[:2000].strip()
+
+
+def _statute_trace_entries(statutes: object) -> str:
+    """법령 원문 없이 검색·리랭킹 결과를 추적 가능한 메타데이터로 남긴다."""
+
+    return json.dumps(
+        [
+            {
+                "statute_id": item.statute_id,
+                "law_name": item.law_name,
+                "article_label": item.article_label,
+                "similarity": round(item.similarity, 4),
+            }
+            for item in statutes
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _precedent_trace_entries(precedents: object) -> str:
+    """판례 원문 없이 검색·리랭킹 결과를 추적 가능한 메타데이터로 남긴다."""
+
+    return json.dumps(
+        [
+            {
+                "precedent_id": item.precedent_id,
+                "case_number": item.case_number,
+                "case_name": item.case_name,
+                "court_name": item.court_name,
+                "decision_date": item.decision_date,
+                "similarity": round(item.similarity, 4),
+            }
+            for item in precedents
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _cited_statute_trace_entries(
+    body: str,
+    selected_statutes: object,
+) -> str:
+    """선정 법령 중 본문에 정형 인용된 항목만 로그 메타데이터로 만든다."""
+
+    from ml.agent.certified_letter.validators import extract_statute_citations
+
+    cited = extract_statute_citations(body)
+    selected = [
+        item
+        for item in selected_statutes
+        if (item.law_name.replace(" ", ""), item.article_label.replace(" ", ""))
+        in cited
+    ]
+    return _statute_trace_entries(selected)

@@ -6,10 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronRight, CircleCheck, CircleHelp, ExternalLink, TriangleAlert } from "lucide-react";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
 import { SaveGenerationResultButton } from "@/components/save-generation-result-button";
+import { StatuteExcerpt } from "@/components/statute-excerpt";
+import { statuteOfficialUrl } from "@/lib/statute-link";
 import { clauseReviews as demoClauseReviews, registryReviews as demoRegistryReviews } from "@/lib/mock-data";
 import { loadContractReviewResult } from "@/lib/contract-review-session";
 import type { CaseBasis, ClauseReview, DocumentMode, LegalBasis, RegistryReview } from "@/lib/demo-types";
-import type { ContractEvidence, ContractReviewItem, ContractReviewResult } from "@/lib/contract-api";
+import { contractEvidenceToPrecedent, type ContractEvidence, type ContractReviewItem, type ContractReviewResult } from "@/lib/contract-api";
 import { getPrecedentFullText, mergePrecedentFullText } from "@/lib/precedent-api";
 import styles from "../contract-review.module.css";
 
@@ -42,32 +44,27 @@ function statusBadgeClass(status: string): string {
 }
 
 function statuteBasis(evidence: ContractEvidence): LegalBasis {
+  const law = String(evidence.metadata.law_name ?? evidence.title);
+  const article = String(evidence.metadata.article_label ?? "");
   return {
-    law: String(evidence.metadata.law_name ?? evidence.title),
-    article: String(evidence.metadata.article_label ?? ""),
+    law,
+    article,
     excerpt: evidence.text,
     explanation: "검토 의견에 연결된 법령 근거입니다. 계약서 원문과 함께 확인하세요.",
-    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
-  };
-}
-
-function precedentBasis(evidence: ContractEvidence): CaseBasis {
-  return {
-    title: evidence.title,
-    caseNumber: String(evidence.metadata.case_number ?? evidence.title),
-    precedentId: evidence.source_id,
-    summary: evidence.text,
-    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : "",
+    url: typeof evidence.metadata.url === "string" ? evidence.metadata.url : statuteOfficialUrl(law, article),
   };
 }
 
 function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
   return result.contract_items.map((item) => {
     const analysis = result.analysis.find((entry) => entry.item_id === item.item_id);
-    const evidence = result.evidence.filter((entry) => (
-      entry.item_id === item.item_id
+    const itemEvidence = result.evidence.filter((entry) => entry.item_id === item.item_id);
+    // 법령은 판단에 인용된 것만, 판례는 인용과 무관하게 관련 판례로 따로 보여준다.
+    const citedStatutes = itemEvidence.filter((entry) => (
+      entry.source_type === "statute"
       && (!analysis || analysis.evidence_source_ids.includes(entry.source_id))
     ));
+    const relatedPrecedents = itemEvidence.filter((entry) => entry.source_type === "precedent");
     return {
       id: item.item_id,
       title: item.label,
@@ -76,8 +73,8 @@ function liveClauseReviews(result: ContractReviewResult): ClauseReview[] {
       reason: analysis?.summary ?? item.message,
       revision: analysis?.revision ?? "근거 기반 수정 초안을 생성하지 못했습니다. 원문을 직접 확인하세요.",
       negotiation: analysis?.negotiation ?? "적용 범위와 사실관계를 상대방과 확인하세요.",
-      statutes: evidence.filter((entry) => entry.source_type === "statute").map(statuteBasis),
-      precedents: evidence.filter((entry) => entry.source_type === "precedent").map(precedentBasis),
+      statutes: citedStatutes.map(statuteBasis),
+      precedents: relatedPrecedents.map(contractEvidenceToPrecedent),
     };
   });
 }
@@ -141,6 +138,8 @@ export function ResultDemo() {
   const [selectedId, setSelectedId] = useState(demoClauseReviews[0].id);
   const [precedentModal, setPrecedentModal] = useState<{ precedent: CaseBasis; initialView: "detail" | "fullText" } | null>(null);
   const [fullTextLoading, setFullTextLoading] = useState(false);
+  const [fullTextLoadingId, setFullTextLoadingId] = useState<string | null>(null);
+  const [precedentError, setPrecedentError] = useState("");
   const liveResult = useSyncExternalStore(
     () => () => undefined,
     loadContractReviewResult,
@@ -164,6 +163,20 @@ export function ResultDemo() {
   const safeRegistryCount = registryReviews.filter((item) => item.status === "safe").length;
   const cautionRegistryCount = registryReviews.filter((item) => item.status === "caution").length;
   const checkRegistryCount = registryReviews.length - safeRegistryCount - cautionRegistryCount;
+
+  async function openPrecedentFullTextFromList(precedent: CaseBasis) {
+    if (fullTextLoadingId) return;
+    setPrecedentError("");
+    setFullTextLoadingId(precedent.precedentId);
+    try {
+      const fullText = await getPrecedentFullText(precedent.precedentId);
+      setPrecedentModal({ precedent: mergePrecedentFullText(precedent, fullText), initialView: "fullText" });
+    } catch (loadError) {
+      setPrecedentError(loadError instanceof Error ? loadError.message : "판례 전문을 불러오지 못했습니다.");
+    } finally {
+      setFullTextLoadingId(null);
+    }
+  }
 
   async function openPrecedentFullText() {
     if (!precedentModal || fullTextLoading) return;
@@ -252,7 +265,7 @@ export function ResultDemo() {
             ))}
           </div>
 
-          <article className={styles.detailPanel}>
+          <article className={styles.detailPanel} key={selectedClause.id}>
             <span className={styles.detailStatus}>
               {selectedClause.status === "safe" && <CircleCheck size={16} color="var(--success)" aria-hidden="true" />}
               {selectedClause.status === "caution" && <TriangleAlert size={16} color="var(--status-caution)" aria-hidden="true" />}
@@ -283,25 +296,27 @@ export function ResultDemo() {
             )}
             <details>
               <summary>관련 법령 {selectedClause.statutes.length}건</summary>
+              {selectedClause.statutes.length === 0 && <p className={styles.noEvidence}>이 조항의 판단 근거로 직접 연결된 법령은 없습니다.</p>}
               <div className={styles.evidenceList}>
                 {selectedClause.statutes.map((statute) => (
                   <article className={styles.evidenceCard} key={`${statute.law}-${statute.article}`}>
                     <div className={styles.evidenceHeading}>
                       <strong>{statute.law} {statute.article}</strong>
-                      {statute.url && <a href={statute.url} target="_blank" rel="noreferrer">원문 <ExternalLink size={14} /></a>}
                     </div>
-                    <p className={styles.evidenceExcerpt}>{statute.excerpt}</p>
+                    <StatuteExcerpt text={statute.excerpt} />
                     <p>{statute.explanation}</p>
+                    {statute.url && <a className={styles.statuteLink} href={statute.url} target="_blank" rel="noreferrer">국가법령정보센터에서 원문 보기 <ExternalLink size={14} /></a>}
                   </article>
                 ))}
               </div>
             </details>
             <details>
               <summary>관련 판례 {selectedClause.precedents.length}건</summary>
+              {precedentError && <p className={styles.noEvidence} role="alert">{precedentError}</p>}
               {selectedClause.precedents.length > 0 ? (
                 <div className={styles.evidenceList}>
                   {selectedClause.precedents.map((precedent) => (
-                    <PrecedentListItem key={precedent.caseNumber} onOpenDetail={() => setPrecedentModal({ precedent, initialView: "detail" })} onOpenFullText={() => setPrecedentModal({ precedent, initialView: "fullText" })} precedent={precedent} />
+                    <PrecedentListItem key={precedent.caseNumber} fullTextLoading={fullTextLoadingId === precedent.precedentId} onOpenDetail={() => setPrecedentModal({ precedent, initialView: "detail" })} onOpenFullText={() => void openPrecedentFullTextFromList(precedent)} precedent={precedent} />
                   ))}
                 </div>
               ) : <p className={styles.noEvidence}>이 조항의 판단 근거로 직접 연결된 판례는 없습니다.</p>}

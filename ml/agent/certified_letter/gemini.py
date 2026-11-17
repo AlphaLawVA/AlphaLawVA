@@ -25,6 +25,7 @@ from ml.agent.certified_letter.prompts import PromptBundle
 from ml.agent.certified_letter.scope import build_scope_prompt
 from ml.agent.certified_letter.state import (
     CertifiedLetterScopeDecision,
+    ContractPartyRole,
     DraftPartyData,
     LetterDraftData,
     ScopeClassification,
@@ -44,7 +45,10 @@ PARTY_SCHEMA = {
     "type": "object",
     "properties": {
         "name": {"type": "string", "description": "계약 입력에 있는 당사자 이름"},
-        "address": {"type": "string", "description": "계약 입력에 있는 송달 주소"},
+        "address": {
+            "type": ["string", "null"],
+            "description": "계약 입력에 있는 송달 주소 또는 null",
+        },
         "detail_address": {
             "type": ["string", "null"],
             "description": "계약 입력에 있는 상세 주소 또는 null",
@@ -69,13 +73,14 @@ LETTER_DRAFT_SCHEMA = {
         },
         "strategy_summary": {
             "type": "string",
-            "description": "본문과 분리된 작성 전략 요약",
+            "description": "사용자의 목적과 확인된 사실을 초안에 어떻게 반영했는지 설명하는 2~3문장의 작성 방향",
         },
         "follow_up_actions": {
             "type": "array",
             "items": {"type": "string"},
-            "maxItems": 8,
-            "description": "발송 전후 확인할 후속 조치",
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "발송 전 확인, 발송 및 기록 보관, 기한 경과 후 대응 순서의 내용 3개",
         },
         "warnings": {
             "type": "array",
@@ -107,9 +112,9 @@ SCOPE_CLASSIFICATION_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "string",
-                "enum": ["purpose", "facts"],
+                "enum": ["sender_role", "purpose", "facts"],
             },
-            "maxItems": 2,
+            "maxItems": 3,
         },
     },
     "required": ["decision", "missing_fields"],
@@ -209,8 +214,13 @@ class GeminiStructuredLetterModel:
         )
         return draft
 
-    def classify_scope(self, purpose: str, facts: str) -> ScopeClassification:
-        prompt = build_scope_prompt(purpose, facts)
+    def classify_scope(
+        self,
+        sender_role: ContractPartyRole,
+        purpose: str,
+        facts: str,
+    ) -> ScopeClassification:
+        prompt = build_scope_prompt(sender_role, purpose, facts)
         self._ensure_session_budget(
             prompt,
             max_output_tokens=SCOPE_MAX_OUTPUT_TOKENS,
@@ -359,9 +369,12 @@ class GeminiStructuredLetterModel:
         missing_fields = value["missing_fields"]
         if (
             not isinstance(missing_fields, list)
-            or len(missing_fields) > 2
+            or len(missing_fields) > 3
             or len(set(missing_fields)) != len(missing_fields)
-            or any(item not in {"purpose", "facts"} for item in missing_fields)
+            or any(
+                item not in {"sender_role", "purpose", "facts"}
+                for item in missing_fields
+            )
         ):
             raise ValueError("Gemini 범위 분류 missing_fields가 올바르지 않습니다.")
         if decision is CertifiedLetterScopeDecision.NEEDS_INFORMATION:
@@ -389,13 +402,12 @@ class GeminiStructuredLetterModel:
                 f"{field}.detail_address",
                 maximum=300,
             )
+        address = value["address"]
+        if address is not None:
+            address = cls._required_text(address, f"{field}.address", maximum=300)
         return DraftPartyData(
             name=cls._required_text(value["name"], f"{field}.name", maximum=100),
-            address=cls._required_text(
-                value["address"],
-                f"{field}.address",
-                maximum=300,
-            ),
+            address=address,
             detail_address=detail_address,
         )
 

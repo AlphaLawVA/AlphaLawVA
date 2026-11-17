@@ -4,6 +4,12 @@ const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
+export const CERTIFIED_LETTER_FOLLOW_UP_TITLES = [
+  "발송 전 확인",
+  "발송 및 기록 보관",
+  "기한 경과 후 대응",
+] as const;
+
 type ApiErrorPayload = {
   error?: {
     message?: string;
@@ -19,7 +25,8 @@ export class CertifiedLetterApiError extends Error {
 }
 
 export type CertifiedLetterContractInput = {
-  contract_type: "jeonse" | "monthly_rent";
+  contract_type: "jeonse" | "monthly_rent" | "sale";
+  contract_date: string | null;
   property: {
     address: string;
     detail_address: string | null;
@@ -28,27 +35,47 @@ export type CertifiedLetterContractInput = {
   period: {
     start_date: string;
     end_date: string;
-  };
+  } | null;
   payment: {
-    deposit: number;
+    deposit: number | null;
     monthly_rent: number | null;
+    sale_price: number | null;
+    down_payment: number | null;
+    interim_payment: number | null;
+    interim_payment_2: number | null;
+    balance: number | null;
   };
   lessor: {
     name: string;
-    address: string;
+    address: string | null;
     detail_address: string | null;
     phone_number: string | null;
-  };
+  } | null;
   lessee: {
     name: string;
-    address: string;
+    address: string | null;
     detail_address: string | null;
     phone_number: string | null;
-  };
+  } | null;
+  seller: {
+    name: string;
+    address: string | null;
+    detail_address: string | null;
+    phone_number: string | null;
+  } | null;
+  buyer: {
+    name: string;
+    address: string | null;
+    detail_address: string | null;
+    phone_number: string | null;
+  } | null;
+  handover_date: string | null;
+  ownership_transfer_date: string | null;
+  special_terms: string[];
 };
 
 export type CertifiedLetterDraftRequest = {
-  sender_role: "lessee" | "lessor";
+  sender_role: "lessee" | "lessor" | "buyer" | "seller";
   purpose: string;
   facts: string;
   requested_deadline: string | null;
@@ -226,48 +253,79 @@ function parsePeriod(value: string) {
 }
 
 function parseMoney(value: string, label: string) {
-  const digits = value.replace(/[^0-9]/g, "");
+  // 지급 일정 필드는 "금액 · 지급일" 형식이다. 날짜 숫자까지 합치면
+  // 금액이 비정상적으로 커지므로, 첫 번째 금액 표기만 읽는다.
+  const amountText = value.match(/[0-9][0-9,]*/)?.[0] ?? "";
+  const digits = amountText.replace(/[^0-9]/g, "");
   if (!digits) throw new Error(`${label} 금액을 확인해주세요.`);
   const amount = Number(digits);
   if (!Number.isSafeInteger(amount)) throw new Error(`${label} 금액이 너무 큽니다.`);
   return amount;
 }
 
+function parseOptionalMoney(value: string | null, label: string) {
+  if (!value || value === "없음") return null;
+  return parseMoney(value, label);
+}
+
+function parseOptionalDate(value: string | null) {
+  if (!value || value === "없음") return null;
+  return parseDate(value);
+}
+
+function specialTerms(snapshot: ConfirmedContractSnapshot) {
+  return (optionalField(snapshot, "special-terms") ?? "")
+    .split(/\n+/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+}
+
 export function buildCertifiedLetterContract(
   snapshot: ConfirmedContractSnapshot,
 ): CertifiedLetterContractInput {
-  if (snapshot.contractType === "매매") {
-    throw new Error("현재 내용증명 생성은 전세와 월세 계약만 지원합니다.");
-  }
-
-  const period = parsePeriod(requiredField(snapshot, "lease-period", "임대차 기간"));
+  const isSale = snapshot.contractType === "매매";
+  const contractDate = parseDate(requiredField(snapshot, "contract-date", "계약일"));
   const monthlyRentValue = optionalField(snapshot, "monthly-rent");
+  const payment = {
+    deposit: isSale ? null : parseMoney(requiredField(snapshot, "deposit", "보증금"), "보증금"),
+    monthly_rent: snapshot.contractType === "월세"
+      ? parseMoney(monthlyRentValue ?? "", "월세")
+      : null,
+    sale_price: isSale ? parseMoney(requiredField(snapshot, "deposit", "매매대금"), "매매대금") : null,
+    down_payment: parseOptionalMoney(optionalField(snapshot, "down-payment"), "계약금"),
+    interim_payment: parseOptionalMoney(optionalField(snapshot, "interim-payment"), "중도금"),
+    interim_payment_2: parseOptionalMoney(optionalField(snapshot, "interim-payment-2"), "2차 중도금"),
+    balance: parseOptionalMoney(optionalField(snapshot, "balance"), "잔금"),
+  };
+  const parties = {
+    name: requiredField(snapshot, "lessor", isSale ? "매도인 이름" : "임대인 이름"),
+    address: optionalField(snapshot, "lessor-address"),
+    detail_address: optionalField(snapshot, "lessor-detail-address"),
+    phone_number: optionalField(snapshot, "lessor-phone"),
+  };
+  const counterparty = {
+    name: requiredField(snapshot, "lessee", isSale ? "매수인 이름" : "임차인 이름"),
+    address: optionalField(snapshot, "lessee-address"),
+    detail_address: optionalField(snapshot, "lessee-detail-address"),
+    phone_number: optionalField(snapshot, "lessee-phone"),
+  };
   return {
-    contract_type: snapshot.contractType === "전세" ? "jeonse" : "monthly_rent",
+    contract_type: isSale ? "sale" : snapshot.contractType === "전세" ? "jeonse" : "monthly_rent",
+    contract_date: contractDate,
     property: {
       address: requiredField(snapshot, "property-address", "목적물 주소"),
       detail_address: optionalField(snapshot, "property-detail"),
       building_type: optionalField(snapshot, "building-info")?.split("·")[0]?.trim() || null,
     },
-    period,
-    payment: {
-      deposit: parseMoney(requiredField(snapshot, "deposit", "보증금"), "보증금"),
-      monthly_rent: snapshot.contractType === "월세"
-        ? parseMoney(monthlyRentValue ?? "", "월세")
-        : null,
-    },
-    lessor: {
-      name: requiredField(snapshot, "lessor", "임대인 이름"),
-      address: requiredField(snapshot, "lessor-address", "임대인 주소"),
-      detail_address: optionalField(snapshot, "lessor-detail-address"),
-      phone_number: optionalField(snapshot, "lessor-phone"),
-    },
-    lessee: {
-      name: requiredField(snapshot, "lessee", "임차인 이름"),
-      address: requiredField(snapshot, "lessee-address", "임차인 주소"),
-      detail_address: optionalField(snapshot, "lessee-detail-address"),
-      phone_number: optionalField(snapshot, "lessee-phone"),
-    },
+    period: isSale ? null : parsePeriod(requiredField(snapshot, "lease-period", "임대차 기간")),
+    payment,
+    lessor: isSale ? null : parties,
+    lessee: isSale ? null : counterparty,
+    seller: isSale ? parties : null,
+    buyer: isSale ? counterparty : null,
+    handover_date: parseOptionalDate(optionalField(snapshot, isSale ? "handover-date" : "move-in-date")),
+    ownership_transfer_date: parseOptionalDate(optionalField(snapshot, "ownership-transfer-date")),
+    special_terms: specialTerms(snapshot),
   };
 }
 

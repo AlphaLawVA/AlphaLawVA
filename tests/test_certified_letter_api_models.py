@@ -159,6 +159,46 @@ class CertifiedLetterDraftRequestTests(unittest.TestCase):
 
         self.assertEqual(request.sender_role.value, "lessor")
 
+    def test_accepts_sale_contract_with_buyer_sender_and_optional_delivery_addresses(self):
+        payload = make_request_data()
+        payload["sender_role"] = "buyer"
+        payload["contract"] = {
+            "contract_type": "sale",
+            "contract_date": "2026-10-05",
+            "property": payload["contract"]["property"],
+            "period": None,
+            "payment": {
+                "deposit": None,
+                "monthly_rent": None,
+                "sale_price": 500_000_000,
+                "down_payment": 50_000_000,
+                "interim_payment": 100_000_000,
+                "interim_payment_2": None,
+                "balance": 350_000_000,
+            },
+            "lessor": None,
+            "lessee": None,
+            "seller": {"name": "홍매도", "address": None},
+            "buyer": {"name": "김매수", "address": None},
+            "handover_date": "2026-11-30",
+            "ownership_transfer_date": "2026-11-30",
+            "special_terms": ["잔금 지급일까지 새로운 담보권을 설정하지 않는다."],
+        }
+
+        request = CertifiedLetterDraftRequest.model_validate(payload)
+
+        self.assertEqual(request.contract.contract_type.value, "sale")
+        self.assertEqual(request.sender_role.value, "buyer")
+        self.assertEqual(request.contract.payment.sale_price, 500_000_000)
+        self.assertIsNone(request.contract.buyer.address)
+
+    def test_rejects_sender_role_from_another_contract_type(self):
+        payload = make_request_data()
+        payload["sender_role"] = "buyer"
+
+        with self.assertRaises(ValidationError):
+            CertifiedLetterDraftRequest.model_validate(payload)
+
     def test_rejects_unknown_fields(self):
         payload = make_request_data()
         payload["user_id"] = "legacy-user"
