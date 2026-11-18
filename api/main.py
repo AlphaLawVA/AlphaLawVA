@@ -76,9 +76,7 @@ from api.services.registry_ocr_service import (
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotRepository
 from api.services.confirmed_snapshot_store import ConfirmedSnapshotStore
 from api.services.confirmed_snapshot_store import SnapshotNotFoundError
-from api.services.gemini_similarity_explainer import (
-    create_gemini_similarity_explainer_from_env,
-)
+from api.services.openai_similarity_explainer import create_openai_similarity_explainer_from_env
 from api.services.gemini_contract_review_analyzer import (
     create_gemini_contract_review_analyzer_from_env,
 )
@@ -534,7 +532,7 @@ def create_app(
             favorites=create_precedent_favorite_store_from_env(),
             retriever=create_precedent_search_retriever_from_env(),
             scope_guard=create_gemini_query_scope_guard_from_env(),
-            similarity_explainer=create_gemini_similarity_explainer_from_env(),
+            similarity_explainer=create_openai_similarity_explainer_from_env(),
         )
     )
     app.include_router(certified_letters_router)

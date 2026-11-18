@@ -69,7 +69,7 @@ export type PrecedentSearchResponse = {
 
 export type SimilarityExplanation = {
   status: "generated" | "generating" | "not_generated" | "failed";
-  method: "local_llm" | "gemini" | "matched_chunks_only";
+  method: "local_llm" | "gemini" | "openai" | "matched_chunks_only";
   model: string | null;
   matched_reason: string | null;
   matched_chunks: MatchedChunk[];

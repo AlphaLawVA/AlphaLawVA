@@ -24,7 +24,7 @@ from api.services.precedent_case_repository import (
     PrecedentCaseDataError,
     PrecedentCaseNotFoundError,
 )
-from api.services.gemini_similarity_explainer import GeminiSimilarityExplainer
+from api.services.openai_similarity_explainer import OpenAISimilarityExplainer
 from api.services.precedent_favorites import PrecedentFavoriteNotFoundError
 from api.services.precedent_search_service import (
     PrecedentSearchBackendUnavailableError,
@@ -75,7 +75,7 @@ class ApiMainTests(unittest.TestCase):
             os.environ,
             {
                 "GEMINI_API_KEY": "test-key",
-                "PRECEDENT_SIMILARITY_GEMINI_MODEL": "gemini-3.5-flash-lite",
+                "OPENAI_API_KEY": "test-key",
             },
         ):
             app = create_app()
@@ -85,7 +85,7 @@ class ApiMainTests(unittest.TestCase):
         self.assertFalse(service.retriever.is_loaded)
         self.assertIsInstance(
             service.similarity_explainer,
-            GeminiSimilarityExplainer,
+            OpenAISimilarityExplainer,
         )
         self.assertIsInstance(service.scope_guard, GeminiQueryScopeGuard)
 

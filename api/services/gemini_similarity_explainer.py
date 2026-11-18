@@ -131,6 +131,7 @@ _MANIFEST_LOCK = Lock()
 
 
 class GeminiSimilarityExplainer:
+    system_prompt = SYSTEM_PROMPT
     def __init__(
         self,
         *,
@@ -201,7 +202,7 @@ class GeminiSimilarityExplainer:
             ],
         }
         request_payload = {
-            "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "systemInstruction": {"parts": [{"text": self.system_prompt}]},
             "contents": [
                 {
                     "role": "user",

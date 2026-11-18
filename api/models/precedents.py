@@ -48,6 +48,7 @@ class SimilarityExplanationStatus(str, Enum):
 class SimilarityExplanationMethod(str, Enum):
     LOCAL_LLM = "local_llm"
     GEMINI = "gemini"
+    OPENAI = "openai"
     MATCHED_CHUNKS_ONLY = "matched_chunks_only"
 
 
@@ -264,6 +265,7 @@ class SimilarityExplanation(ApiModel):
             if self.method not in {
                 SimilarityExplanationMethod.LOCAL_LLM,
                 SimilarityExplanationMethod.GEMINI,
+                SimilarityExplanationMethod.OPENAI,
             }:
                 raise ValueError("generated 상태에는 LLM 생성 method가 필요합니다.")
             if not self.model or not self.matched_reason:
@@ -283,6 +285,7 @@ class SimilarityExplanation(ApiModel):
             if self.method not in {
                 SimilarityExplanationMethod.LOCAL_LLM,
                 SimilarityExplanationMethod.GEMINI,
+                SimilarityExplanationMethod.OPENAI,
             }:
                 raise ValueError("generating 또는 failed 상태에는 LLM method가 필요합니다.")
             if not self.model:
