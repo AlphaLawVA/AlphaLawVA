@@ -12,7 +12,7 @@ shared_env_file = os.environ.get("ALPHALAWVA_SHARED_ENV_FILE", "").strip()
 if shared_env_file:
     load_dotenv(Path(shared_env_file), override=True)
 
-from ml.rag.statute_retriever import BgeM3StatuteRetriever
+from ml.rag.statute_retriever import BgeM3StatuteRetriever  # noqa: E402
 
 
 BASE_QUERY = (

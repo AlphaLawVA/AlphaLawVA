@@ -69,8 +69,7 @@ def ready_response(*, body: str | None = None) -> dict:
                 "body": body
                 or (
                     "계약 종료에 따라 보증금 100,000,000원의 반환을 요청합니다. "
-                    "「주택임대차보호법」 제4조를 근거로 이 내용증명을 받은 "
-                    "날부터 7일 이내 이행해 주시기 바랍니다."
+                    "「주택임대차보호법」 제4조를 근거로 반환을 요청합니다."
                 ),
             },
             "strategy_summary": "계약 종료와 보증금 반환 요청을 통지합니다.",
@@ -203,8 +202,7 @@ class CertifiedLetterEvaluationTests(unittest.TestCase):
         response = ready_response(
             body=(
                 "보증금 60,000,000원의 반환을 요청합니다. "
-                "「주택임대차보호법」 제4조를 근거로 이 내용증명을 받은 "
-                "날부터 7일 이내 이행해 주시기 바랍니다."
+                "「주택임대차보호법」 제4조를 근거로 반환을 요청합니다."
             )
         )
         response["result"]["document"]["sender"] = {
