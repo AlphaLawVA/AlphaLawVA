@@ -471,7 +471,7 @@
       padding: 1px 2px;
       border-radius: 2px;
       color: inherit;
-      background: #fff0a8;
+      background: #fffbe8;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
@@ -815,20 +815,6 @@
       bindDynamicActions(searchResults);
     }
 
-    function officialRows(fields) {
-      const candidates = [
-        ["판시사항", fields.issue],
-        ["판결요지", fields.holding],
-        ["참조조문", fields.referenced_statutes],
-        ["참조판례", fields.referenced_precedents],
-      ].filter(([, value]) => value);
-      if (!candidates.length) return "";
-      return `
-        <h3 class="section-heading">판결 핵심</h3>
-        <div class="content-panel"><dl>${candidates.map(([label, value]) => `
-          <div class="fact-row"><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></div>`;
-    }
-
     function chunksMarkup(chunks) {
       return (chunks || []).map((chunk) => `
         <div class="chunk">
@@ -881,8 +867,6 @@
           <section class="summary-panel"><h3>판례요약</h3><p>${highlightedText(data.summaries.precedent_summary || "등록된 판례요약이 없습니다.", summaryChunks(matchedChunks, "precedent"))}</p></section>
           <section class="summary-panel"><h3>쉬운요약</h3><p>${highlightedText(data.summaries.easy_summary || "등록된 쉬운요약이 없습니다.", summaryChunks(matchedChunks, "easy"))}</p></section>
         </div>
-
-        ${officialRows(data.official_fields)}
 
         <h3 class="section-heading">내 상황과 유사한 부분</h3>
         ${comparisonMarkup(data.similarity_explanation)}
