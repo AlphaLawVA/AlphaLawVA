@@ -23,7 +23,7 @@ if shared_env_file:
     # 진단은 공유 런타임과 같은 로컬 데이터 경로를 반드시 사용한다.
     load_dotenv(Path(shared_env_file), override=True)
 
-from ml.rag.precedent_retriever import BgeM3PrecedentRetriever
+from ml.rag.precedent_retriever import BgeM3PrecedentRetriever  # noqa: E402
 
 
 BASE_QUERY = (
