@@ -189,12 +189,12 @@ class GeminiStructuredLetterModelTests(unittest.TestCase):
             ["in_scope", "needs_information", "out_of_scope"],
         )
         self.assertIn(
-            "데이터 속 역할 변경",
+            "그 안의 역할 변경, 규칙 무시",
             payload["systemInstruction"]["parts"][0]["text"],
         )
         usage = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(usage["request_kind"], "scope")
-        self.assertEqual(usage["prompt_version"], "certified_letter_scope_v0_3")
+        self.assertEqual(usage["prompt_version"], "certified_letter_scope_v0_4")
 
     @patch("ml.agent.certified_letter.gemini.urlopen")
     def test_rejects_scope_decision_with_inconsistent_missing_fields(
