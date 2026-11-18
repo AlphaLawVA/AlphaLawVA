@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, ChevronDown, FileSearch, MapPin, ScanText, ShieldCheck } from "lucide-react";
 import { DemoDocument } from "@/components/demo-document";
 import { confirmedContractSnapshot, confirmedRegistrySnapshot, contractSnapshots } from "@/lib/mock-data";
 import { createContractReview } from "@/lib/contract-api";
+import { isAbortError } from "@/lib/job-polling";
 import { saveContractReviewResult } from "@/lib/contract-review-session";
 import {
   clearContractOcrDraft,
@@ -21,6 +22,15 @@ import { LiveProgress } from "@/components/live-progress";
 import styles from "../contract-review.module.css";
 
 type VerifyTab = "contract" | "registry";
+
+// 서버 처리 단계(precheck, retrieve, analyze, validate, repair)를 진행 화면의 단계 임계값(12/38/68/92)에 맞춘다.
+const REVIEW_STAGE_PROGRESS: Record<string, number> = {
+  precheck: 12,
+  retrieve: 38,
+  analyze: 68,
+  validate: 92,
+  repair: 92,
+};
 
 type VerifySnapshotDemoProps = {
   initialContractSnapshot?: ConfirmedContractSnapshot;
@@ -115,13 +125,9 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
   const groupedPriorityFields = useMemo(() => groupFields(priorityFields), [priorityFields]);
   const groupedAutomaticFields = useMemo(() => groupFields(automaticFields), [automaticFields]);
 
-  useEffect(() => {
-    if (!isSubmitting) return;
-    const timer = window.setInterval(() => {
-      setReviewProgress((value) => Math.min(92, value + (value < 55 ? 5 : 2)));
-    }, 650);
-    return () => window.clearInterval(timer);
-  }, [isSubmitting]);
+  // 화면을 떠나면 진행 중인 폴링을 멈춘다.
+  const reviewAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => reviewAbort.current?.abort(), []);
 
   if (missingOcrDraft) {
     return <section className={styles.panel}><div className={styles.validationBanner} role="alert"><AlertCircle size={19} /><div><strong>OCR 확인 정보를 찾을 수 없습니다</strong><span>이전 결과 대신 업로드한 문서를 다시 인식해야 합니다.</span></div></div><div className={styles.actions}><Link className={styles.primaryButton} href="/contract-review">문서 다시 선택</Link></div></section>;
@@ -206,16 +212,29 @@ function VerifySnapshotContent({ allowedContractTypes, initialContractSnapshot, 
     setSubmissionError("");
     setReviewProgress(12);
     setIsSubmitting(true);
+    reviewAbort.current?.abort();
+    const controller = new AbortController();
+    reviewAbort.current = controller;
     try {
       const result = await createContractReview(
         contractSnapshot,
         mode === "both" ? registrySnapshot : null,
+        {
+          signal: controller.signal,
+          // 서버가 알려 주는 처리 단계에 맞춰 진행도를 올린다(뒤로 가지 않는다).
+          onUpdate: (snapshot) => {
+            const next = snapshot.stage ? REVIEW_STAGE_PROGRESS[snapshot.stage] : undefined;
+            if (next) setReviewProgress((value) => Math.max(value, next));
+          },
+        },
       );
+      if (controller.signal.aborted) return;
       saveContractReviewResult(result);
       clearContractOcrDraft();
       clearDocumentPreviews();
       router.push(`/contract-review/result?documents=${mode}`);
     } catch (error) {
+      if (isAbortError(error)) return;
       setSubmissionError(
         error instanceof Error ? error.message : "계약서 검토 요청을 처리하지 못했습니다.",
       );

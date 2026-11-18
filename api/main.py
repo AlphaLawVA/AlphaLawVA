@@ -13,6 +13,7 @@ After:
 # RAG 경로 환경변수를 서비스 import 전에 읽어야 하므로 아래 import 순서는 의도적이다.
 # ruff: noqa: E402
 
+import logging
 import os
 from pathlib import Path
 
@@ -54,6 +55,14 @@ from api.services.certified_letter_results import (
     create_certified_letter_result_store_from_env,
 )
 from api.services.contract_review_service import ContractReviewService
+from api.services.contract_review_jobs import (
+    ContractReviewIdempotencyConflictError,
+    ContractReviewJobNotFoundError,
+)
+from api.services.special_clause_jobs import (
+    SpecialClauseIdempotencyConflictError,
+    SpecialClauseJobNotFoundError,
+)
 from api.services.contract_ocr_service import (
     ContractOcrError,
     ContractOcrService,
@@ -312,6 +321,50 @@ async def certified_letter_generation_unavailable_error_handler(
     )
 
 
+async def contract_review_not_found_error_handler(
+    _request: Request,
+    _error: ContractReviewJobNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.CONTRACT_REVIEW_JOB_NOT_FOUND,
+        message="계약서 검토 작업이 없거나 만료되었습니다.",
+    )
+
+
+async def contract_review_idempotency_conflict_error_handler(
+    _request: Request,
+    _error: ContractReviewIdempotencyConflictError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=409,
+        code=ApiErrorCode.CONTRACT_REVIEW_IDEMPOTENCY_CONFLICT,
+        message="같은 중복 방지 키를 다른 요청에 사용할 수 없습니다.",
+    )
+
+
+async def special_clause_not_found_error_handler(
+    _request: Request,
+    _error: SpecialClauseJobNotFoundError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=404,
+        code=ApiErrorCode.SPECIAL_CLAUSE_JOB_NOT_FOUND,
+        message="특약 생성 작업이 없거나 만료되었습니다.",
+    )
+
+
+async def special_clause_idempotency_conflict_error_handler(
+    _request: Request,
+    _error: SpecialClauseIdempotencyConflictError,
+) -> JSONResponse:
+    return _error_response(
+        status_code=409,
+        code=ApiErrorCode.SPECIAL_CLAUSE_IDEMPOTENCY_CONFLICT,
+        message="같은 중복 방지 키를 다른 요청에 사용할 수 없습니다.",
+    )
+
+
 async def snapshot_not_found_error_handler(
     _request: Request,
     _error: SnapshotNotFoundError,
@@ -416,6 +469,27 @@ async def generation_result_not_ready_error_handler(
     )
 
 
+STAGE_TIMING_LOGGER = "ml.agent.stage_tracking"
+
+
+def _enable_stage_timing_log() -> None:
+    """그래프 단계별 소요 시간 로그(INFO)가 기본 서버 설정에서도 출력되게 한다.
+
+    uvicorn은 앱 로거를 설정하지 않아 INFO 로그가 버려지므로, 이 로거에만 핸들러를 붙인다.
+    여러 번 호출해도 핸들러는 한 번만 붙는다.
+    """
+
+    logger = logging.getLogger(STAGE_TIMING_LOGGER)
+    if any(getattr(h, "_alphalawva_stage_timing", False) for h in logger.handlers):
+        return
+    handler = logging.StreamHandler()
+    handler._alphalawva_stage_timing = True  # type: ignore[attr-defined]
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
 def create_app(
     precedent_search_service: PrecedentSearchService | None = None,
     certified_letter_service: CertifiedLetterService | None = None,
@@ -429,6 +503,7 @@ def create_app(
     generation_result_store: GenerationResultRepository | None = None,
     auth_verifier: AuthVerifier | None = None,
 ) -> FastAPI:
+    _enable_stage_timing_log()
     app = FastAPI(
         title="AlphaLawVA API",
         description="AlphaLawVA backend API",
@@ -570,6 +645,22 @@ def create_app(
     app.add_exception_handler(
         CertifiedLetterGenerationUnavailableError,
         certified_letter_generation_unavailable_error_handler,
+    )
+    app.add_exception_handler(
+        ContractReviewJobNotFoundError,
+        contract_review_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        ContractReviewIdempotencyConflictError,
+        contract_review_idempotency_conflict_error_handler,
+    )
+    app.add_exception_handler(
+        SpecialClauseJobNotFoundError,
+        special_clause_not_found_error_handler,
+    )
+    app.add_exception_handler(
+        SpecialClauseIdempotencyConflictError,
+        special_clause_idempotency_conflict_error_handler,
     )
     app.add_exception_handler(
         SnapshotNotFoundError,

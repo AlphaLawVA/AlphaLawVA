@@ -68,6 +68,11 @@ UNCONFIRMED_EVENT_PHRASES = (
     "합의하였",
     "거부하였",
 )
+UNEXPECTED_DEADLINE_PATTERN = re.compile(
+    r"(?:\d+\s*(?:일|주|개월|달)\s*(?:이내|내에|안에))"
+    r"|(?:20\d{2}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*까지)"
+    r"|(?:가능한\s*빨리|지체\s*없이)"
+)
 
 
 class CertifiedLetterDraftValidator:
@@ -81,6 +86,7 @@ class CertifiedLetterDraftValidator:
         issues.extend(_validate_parties(request, draft))
         issues.extend(_validate_required_content(draft))
         issues.extend(_validate_citations(statute_evidence, draft.body))
+        issues.extend(_validate_used_statute_source_ids(statute_evidence, draft))
         issues.extend(_validate_money(request, draft.body))
         issues.extend(_validate_dates(request, draft.body))
         issues.extend(_validate_unconfirmed_events(request, draft.body))
@@ -182,6 +188,25 @@ def extract_statute_citations(body: str) -> set[tuple[str, str]]:
     }
 
 
+def _validate_used_statute_source_ids(
+    statute_evidence: Sequence[StatuteEvidenceData],
+    draft: LetterDraftData,
+) -> list[ValidationIssue]:
+    allowed = {item.chunk_id for item in statute_evidence}
+    unsupported = sorted(set(draft.used_statute_source_ids) - allowed)
+    if not unsupported:
+        return []
+    return [
+        ValidationIssue(
+            code="unsupported_statute_source_id",
+            message=(
+                "검색 근거에 없는 법령 source_id가 있습니다: "
+                + ", ".join(unsupported)
+            ),
+        )
+    ]
+
+
 def _validate_money(
     request: NormalizedCertifiedLetterRequest,
     body: str,
@@ -272,15 +297,24 @@ def _validate_deadline(
     request: NormalizedCertifiedLetterRequest,
     body: str,
 ) -> list[ValidationIssue]:
-    if request.is_deadline_suggested:
-        has_deadline = "7일 이내" in body and "받" in body
-    else:
-        deadline = request.requested_deadline
-        assert deadline is not None
-        has_deadline = (
-            deadline.isoformat() in body
-            or f"{deadline.year}년 {deadline.month}월 {deadline.day}일" in body
-        )
+    deadline = request.requested_deadline
+    if deadline is None:
+        relevant_body = _deadline_relevant_body(body)
+        if not UNEXPECTED_DEADLINE_PATTERN.search(relevant_body):
+            return []
+        return [
+            ValidationIssue(
+                code="unexpected_deadline",
+                message=(
+                    "기한 없이 작성하는 요청인데 요구 또는 후속 조치에 "
+                    "입력되지 않은 이행 기한이 있습니다."
+                ),
+            )
+        ]
+    has_deadline = (
+        deadline.isoformat() in body
+        or f"{deadline.year}년 {deadline.month}월 {deadline.day}일" in body
+    )
     if has_deadline:
         return []
     return [
@@ -291,6 +325,11 @@ def _validate_deadline(
     ]
 
 
+def _deadline_relevant_body(body: str) -> str:
+    demand_section = body.find("3. 요구 사항")
+    return body[demand_section:] if demand_section >= 0 else body
+
+
 def _validate_safety(draft: LetterDraftData) -> list[ValidationIssue]:
     combined = " ".join(
         (
@@ -298,7 +337,6 @@ def _validate_safety(draft: LetterDraftData) -> list[ValidationIssue]:
             draft.body,
             draft.strategy_summary,
             *draft.follow_up_actions,
-            *draft.warnings,
         )
     )
     issues = []
@@ -314,13 +352,6 @@ def _validate_safety(draft: LetterDraftData) -> list[ValidationIssue]:
             ValidationIssue(
                 code="unsupported_legal_claim",
                 message="승소, 처벌 또는 법적 효력을 보장하는 표현이 있습니다.",
-            )
-        )
-    if not any("초안" in warning for warning in draft.warnings):
-        issues.append(
-            ValidationIssue(
-                code="missing_draft_warning",
-                message="법률 검토 전 초안이라는 경고가 없습니다.",
             )
         )
     if any(marker in combined.lower() for marker in PROMPT_LEAK_MARKERS):

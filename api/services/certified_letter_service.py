@@ -12,8 +12,6 @@ After:
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -44,6 +42,7 @@ from api.services.certified_letter_jobs import (
     CertifiedLetterJobStore,
     CertifiedLetterJobTransitionError,
 )
+from api.services.job_store import build_request_fingerprint
 from api.services.precedent_case_repository import (
     PrecedentCaseRepository,
     PrecedentCaseRepositoryError,
@@ -116,13 +115,12 @@ class CertifiedLetterService:
             raise CertifiedLetterGenerationUnavailableError(
                 "내용증명 생성 모델이 구성되지 않았습니다."
             )
-        normalized_key = _normalize_idempotency_key(idempotency_key)
-        fingerprint = _request_fingerprint(request)
+        fingerprint = build_request_fingerprint(request.model_dump(mode="json"))
         now = self.clock()
         job, is_new = self.jobs.create(
             draft_id=self.uuid_factory(),
             request_fingerprint=fingerprint,
-            idempotency_key=normalized_key,
+            idempotency_key=idempotency_key,
             now=now,
         )
         if is_new:
@@ -154,9 +152,7 @@ class CertifiedLetterService:
 
         try:
             request = self._take_request(draft_id)
-            state = self.graph.invoke(
-                {"request": request, "request_id": str(draft_id)}
-            )
+            state = self.graph.invoke({"request": request, "request_id": str(draft_id)})
             if failure := state.get("failure"):
                 logger.warning(
                     "내용증명 검증 실패: draft_id=%s issue_codes=%s repair_attempts=%s",
@@ -281,23 +277,10 @@ def _to_api_result(
     precedent_repository: PrecedentCaseRepository | None = None,
 ) -> CertifiedLetterDraftResult:
     draft = state["draft"]
-    normalized_request = state["normalized_request"]
     selected_statutes = state.get("selected_statutes", ())
     cited_statutes = extract_statute_citations(draft.body)
-    no_statute_warning = (
-        "본문에 직접 인용된 관련 법령 없이 작성된 초안입니다. "
-        "발송 전 법적 근거를 별도로 확인해 주세요."
-        if not cited_statutes
-        else ""
-    )
-    warnings = _unique_strings(
-        (
-            *draft.warnings,
-            *normalized_request.warnings,
-            no_statute_warning,
-            "이 문서는 법률 검토 전 초안입니다.",
-        )
-    )
+    selected_source_ids = {item.chunk_id for item in selected_statutes}
+    used_source_ids = set(draft.used_statute_source_ids) & selected_source_ids
     statutes = [
         StatuteEvidence(
             statute_id=item.statute_id,
@@ -314,7 +297,8 @@ def _to_api_result(
             source_url=item.source_url,
         )
         for item in selected_statutes
-        if (
+        if item.chunk_id in used_source_ids
+        or (
             _normalize_law_name(item.law_name),
             _normalize_article(item.article_label),
         )
@@ -346,7 +330,7 @@ def _to_api_result(
         ],
         statute_evidence=statutes,
         similar_precedents=precedents,
-        warnings=warnings,
+        warnings=[],
     )
 
 
@@ -388,10 +372,7 @@ def _to_similar_precedent(
         ],
         full_text_sections=_full_text_sections(case_data),
         source_url=item.source_url
-        or (
-            "https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq="
-            f"{item.precedent_id}"
-        ),
+        or (f"https://law.go.kr/LSW/precInfoP.do?mode=0&precSeq={item.precedent_id}"),
     )
 
 
@@ -444,25 +425,6 @@ def _to_job_response(job: CertifiedLetterJob) -> CertifiedLetterDraftJobResponse
     )
 
 
-def _request_fingerprint(request: CertifiedLetterDraftRequest) -> str:
-    serialized = json.dumps(
-        request.model_dump(mode="json"),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-
-def _normalize_idempotency_key(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    return normalized
-
-
 def _parse_date(value: str | None) -> date | None:
     if not value:
         return None
@@ -476,10 +438,6 @@ def _parse_date(value: str | None) -> date | None:
         return date(*(int(part) for part in match.groups()))
     except ValueError:
         return None
-
-
-def _unique_strings(values) -> list[str]:
-    return list(dict.fromkeys(value.strip() for value in values if value.strip()))
 
 
 def _optional_text(value: Any) -> str | None:

@@ -19,6 +19,7 @@ from typing import Protocol, TypedDict
 from langgraph.graph import END, StateGraph
 
 from ml.agent.output_validation import find_output_issues
+from ml.agent.stage_tracking import StageCallback, staged_node
 from ml.agent.special_clause_scope import ScopeDecision, classify_request_scope, is_too_short
 from ml.agent.contract_review_graph import (
     ContractReviewEvidence,
@@ -87,6 +88,7 @@ class SpecialClauseGraphState(TypedDict):
     generation_issues: dict[str, list[str]]
     generation_repair_attempts: int
     validation_dropped_item_ids: list[str]
+    on_stage: StageCallback | None
 
 
 class SpecialClauseGraph:
@@ -94,13 +96,17 @@ class SpecialClauseGraph:
 
     def __init__(self) -> None:
         builder = StateGraph(SpecialClauseGraphState)
-        builder.add_node("check_scope", self._check_scope)
-        builder.add_node("build_retrieval_queries", self._build_retrieval_queries)
-        builder.add_node("retrieve_evidence", self._retrieve_evidence)
-        builder.add_node("generate_drafts", self._generate_drafts)
-        builder.add_node("validate_generations", self._validate_generations)
-        builder.add_node("repair_generations", self._repair_generations)
-        builder.add_node("drop_invalid_generations", self._drop_invalid_generations)
+        # 노드 시작 시 단계 이름을 알리고 노드별 소요 시간을 로그로 남긴다.
+        for name, stage, node in (
+            ("check_scope", "scope", self._check_scope),
+            ("build_retrieval_queries", "retrieve", self._build_retrieval_queries),
+            ("retrieve_evidence", "retrieve", self._retrieve_evidence),
+            ("generate_drafts", "generate", self._generate_drafts),
+            ("validate_generations", "validate", self._validate_generations),
+            ("repair_generations", "repair", self._repair_generations),
+            ("drop_invalid_generations", "validate", self._drop_invalid_generations),
+        ):
+            builder.add_node(name, staged_node(stage, node, name=name))
         builder.set_entry_point("check_scope")
         builder.add_conditional_edges(
             "check_scope",
@@ -130,6 +136,7 @@ class SpecialClauseGraph:
         evidence_retriever: ContractReviewEvidenceRetriever | None = None,
         generator: SpecialClauseGenerator | None = None,
         scope_classifier: SpecialClauseScopeClassifier | None = None,
+        on_stage: StageCallback | None = None,
     ) -> SpecialClauseGraphResult:
         """요청 검증 후 검색·생성 결과를 사용자 확인용으로 구성한다."""
 
@@ -147,6 +154,7 @@ class SpecialClauseGraph:
                 "generation_issues": {},
                 "generation_repair_attempts": 0,
                 "validation_dropped_item_ids": [],
+                "on_stage": on_stage,
             }
         )
         return SpecialClauseGraphResult(

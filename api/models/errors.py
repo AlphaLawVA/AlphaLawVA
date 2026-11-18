@@ -33,6 +33,10 @@ class ApiErrorCode(str, Enum):
         "certified_letter_idempotency_conflict"
     )
     GENERATION_SERVICE_UNAVAILABLE = "generation_service_unavailable"
+    CONTRACT_REVIEW_JOB_NOT_FOUND = "contract_review_job_not_found"
+    CONTRACT_REVIEW_IDEMPOTENCY_CONFLICT = "contract_review_idempotency_conflict"
+    SPECIAL_CLAUSE_JOB_NOT_FOUND = "special_clause_job_not_found"
+    SPECIAL_CLAUSE_IDEMPOTENCY_CONFLICT = "special_clause_idempotency_conflict"
     SNAPSHOT_NOT_FOUND = "snapshot_not_found"
     AUTHENTICATION_REQUIRED = "authentication_required"
     AUTHENTICATION_SERVICE_UNAVAILABLE = "authentication_service_unavailable"

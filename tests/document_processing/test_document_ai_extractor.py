@@ -13,7 +13,9 @@ import unittest
 
 from ml.document_processing.contracts.document_ai_extractor import (
     Line,
+    dated_groups,
     dates,
+    extract_document_ai,
     korean_amount,
     load_lines,
     money,
@@ -24,6 +26,41 @@ from ml.document_processing.contracts.document_ai_extractor import (
     sale_articles,
 )
 from ml.evaluation.contracts.evaluate_document_ai import distance, evaluate
+
+
+def _document(rows):
+    """(페이지, 텍스트, (x0, y0, x1, y1)) 목록으로 Document AI 응답 모양의 문서를 만든다."""
+
+    text = ""
+    pages: dict[int, list] = {}
+    for page, content, (x0, y0, x1, y1) in rows:
+        start = len(text)
+        text += content
+        pages.setdefault(page, []).append(
+            {
+                "layout": {
+                    "textAnchor": {
+                        "textSegments": [{"startIndex": str(start), "endIndex": str(len(text))}]
+                    },
+                    "boundingPoly": {
+                        "normalizedVertices": [
+                            {"x": x0, "y": y0},
+                            {"x": x1, "y": y0},
+                            {"x": x1, "y": y1},
+                            {"x": x0, "y": y1},
+                        ]
+                    },
+                }
+            }
+        )
+        text += "\n"
+    return {
+        "text": text,
+        "pages": [
+            {"dimension": {"width": 1, "height": 1}, "lines": pages[number]}
+            for number in sorted(pages)
+        ],
+    }
 
 
 class DocumentAiExtractorTests(unittest.TestCase):
@@ -86,6 +123,43 @@ class DocumentAiExtractorTests(unittest.TestCase):
         ]
         assert dates(lines) == ["2026-10-20"]
         assert dates([Line("2026년 2월 31일", 1, (0, 0, 1, 0.1))]) == []
+
+    def test_dated_groups_keep_only_the_row_that_holds_each_date(self):
+        lines = [
+            Line("123456", 3, (0.1, 0.30, 0.5, 0.32)),
+            Line("2026년", 3, (0.1, 0.50, 0.2, 0.52)),
+            Line("11월 3일", 3, (0.3, 0.502, 0.5, 0.522)),
+            Line("1234567", 3, (0.1, 0.70, 0.5, 0.72)),
+            Line("2026년 12월 1일", 3, (0.1, 0.80, 0.5, 0.82)),
+        ]
+
+        groups = dated_groups(lines)
+
+        assert [value for value, _ in groups] == ["2026-11-03", "2026-12-01"]
+        assert [line.text for line in groups[0][1]] == ["2026년", "11월 3일"]
+        assert [line.text for line in groups[1][1]] == ["2026년 12월 1일"]
+
+    def test_contract_date_evidence_is_the_date_row_not_the_whole_page(self):
+        # 서로 다른 줄의 숫자 6자리와 7자리가 한 문자열로 이어 붙으면 주민등록번호 모양이 되어
+        # 추출 결과 전체가 거부되던 문제(전세 계약서 3페이지)의 회귀 테스트다.
+        extraction = extract_document_ai(
+            _document(
+                [
+                    (1, "서울특별시 강남구 테헤란로 1", (0.1, 0.1, 0.6, 0.12)),
+                    (2, "특약사항", (0.1, 0.1, 0.4, 0.12)),
+                    (3, "123456", (0.1, 0.30, 0.5, 0.32)),
+                    (3, "1234567", (0.1, 0.40, 0.5, 0.42)),
+                    (3, "2026년 11월 3일", (0.1, 0.50, 0.4, 0.52)),
+                ]
+            ),
+            "jeonse",
+        ).model_dump(mode="json")
+
+        contract_date = extraction["contract_date"]
+        assert contract_date["value"] == "2026-11-03"
+        assert contract_date["raw_text"] == "2026년 11월 3일"
+        assert contract_date["source"]["bounding_box"]["y_min"] == 0.5
+        assert "123456" not in str(extraction)
 
     def test_sale_number_and_body_share_row(self):
         lines = [

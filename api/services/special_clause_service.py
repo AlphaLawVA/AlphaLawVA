@@ -13,16 +13,28 @@ After:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from api.models.generation_results import GenerationResultKind
 from api.models.contracts import (
+    ContractJobError,
     EvidenceStatus,
     GenerationStatus,
+    SpecialClauseDraftAccepted,
     SpecialClauseDraftItem,
+    SpecialClauseDraftJobResponse,
     SpecialClauseDraftRequest,
     SpecialClauseDraftResponse,
+)
+from api.services.job_store import build_request_fingerprint
+from api.services.special_clause_jobs import (
+    SpecialClauseJob,
+    SpecialClauseJobNotFoundError,
+    SpecialClauseJobStore,
+    SpecialClauseJobTransitionError,
 )
 from api.services.precedent_case_repository import PrecedentCaseRepository
 from api.services.precedent_evidence_enricher import enrich_precedent_evidence_metadata
@@ -32,6 +44,7 @@ from ml.agent.special_clause_graph import (
     SpecialClauseGraph,
     SpecialClauseScopeClassifier,
 )
+from ml.agent.stage_tracking import StageCallback
 from ml.agent.special_clause_scope import (
     OUT_OF_SCOPE_MESSAGE,
     TOO_SHORT_QUESTION,
@@ -48,6 +61,12 @@ def _api_status(generation_status: str) -> str:
     return "needs_information" if generation_status == "needs_input" else generation_status
 
 
+@dataclass(frozen=True)
+class SpecialClauseSubmission:
+    response: SpecialClauseDraftAccepted
+    is_new: bool
+
+
 class SpecialClauseService:
     """자연어 특약 요청을 근거 기반 사용자 확인용 결과로 구성한다."""
 
@@ -59,7 +78,11 @@ class SpecialClauseService:
         generator: SpecialClauseGenerator | None = None,
         scope_classifier: SpecialClauseScopeClassifier | None = None,
         precedent_repository: PrecedentCaseRepository | None = None,
+        jobs: SpecialClauseJobStore | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
+        self._jobs = jobs or SpecialClauseJobStore()
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._graph = graph or SpecialClauseGraph()
         self._evidence_retriever = evidence_retriever
         self._generator = generator
@@ -72,9 +95,77 @@ class SpecialClauseService:
 
         self._result_recorder = recorder
 
+    def submit(
+        self,
+        payload: SpecialClauseDraftRequest,
+        *,
+        idempotency_key: str | None = None,
+    ) -> SpecialClauseSubmission:
+        """요청을 작업으로 접수한다. 실제 생성은 process가 맡는다."""
+
+        job, is_new = self._jobs.create(
+            draft_id=uuid4(),
+            request=payload,
+            request_fingerprint=build_request_fingerprint(payload.model_dump(mode="json")),
+            idempotency_key=idempotency_key,
+            now=self._clock(),
+        )
+        return SpecialClauseSubmission(
+            response=SpecialClauseDraftAccepted(
+                draft_id=job.draft_id,
+                status=job.status,
+                created_at=job.created_at,
+            ),
+            is_new=is_new,
+        )
+
+    def process(self, draft_id: UUID) -> SpecialClauseDraftResponse | None:
+        """접수된 작업을 실행해 완료 또는 실패로 기록한다(백그라운드에서 호출)."""
+
+        try:
+            job = self._jobs.mark_processing(draft_id, now=self._clock())
+        except (SpecialClauseJobNotFoundError, SpecialClauseJobTransitionError):
+            logger.warning("특약 생성 작업 실행 건너뜀: draft_id=%s reason=not_queued", draft_id)
+            return None
+
+        def on_stage(stage: str) -> None:
+            try:
+                self._jobs.set_stage(draft_id, stage, now=self._clock())
+            except (SpecialClauseJobNotFoundError, SpecialClauseJobTransitionError):
+                pass
+
+        try:
+            response = self.create_draft(job.request, draft_id=draft_id, on_stage=on_stage)
+            self._jobs.mark_completed(draft_id, result=response, now=self._clock())
+            return response
+        except Exception as error:  # noqa: BLE001 - 어떤 실패든 작업을 failed로 닫아야 한다.
+            logger.exception(
+                "특약 생성 작업 실패: draft_id=%s error_type=%s",
+                draft_id,
+                type(error).__name__,
+            )
+            try:
+                self._jobs.mark_failed(
+                    draft_id,
+                    error=ContractJobError(
+                        code="special_clause_generation_failed",
+                        message="특약 초안을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                    ),
+                    now=self._clock(),
+                )
+            except (SpecialClauseJobNotFoundError, SpecialClauseJobTransitionError):
+                pass
+            return None
+
+    def get(self, draft_id: UUID) -> SpecialClauseDraftJobResponse:
+        return _to_job_response(self._jobs.get(draft_id, now=self._clock()))
+
     def create_draft(
         self,
         payload: SpecialClauseDraftRequest,
+        *,
+        draft_id: UUID | None = None,
+        on_stage: StageCallback | None = None,
     ) -> SpecialClauseDraftResponse:
         evidence_status = EvidenceStatus.PENDING_RETRIEVAL
         generation_status = GenerationStatus.PENDING
@@ -84,6 +175,7 @@ class SpecialClauseService:
                 evidence_retriever=self._evidence_retriever,
                 generator=self._generator,
                 scope_classifier=self._scope_classifier,
+                on_stage=on_stage,
             )
         except (FileNotFoundError, RuntimeError, ValueError):
             # 근거 검색·생성 실패 원인이 응답에는 드러나지 않으므로 서버 로그에 남긴다(요청 본문은 남기지 않는다).
@@ -166,7 +258,7 @@ class SpecialClauseService:
             or (entry.item_id, entry.source_id) in cited
         ]
         response = SpecialClauseDraftResponse(
-            draft_id=uuid4(),
+            draft_id=draft_id or uuid4(),
             status=(
                 "completed"
                 if generation_status == GenerationStatus.GENERATED or all_terminal
@@ -248,3 +340,16 @@ class SpecialClauseService:
         if evidence_status == EvidenceStatus.UNAVAILABLE:
             return "검색 근거를 불러올 수 없어 특약 초안 생성을 진행하지 않았습니다."
         return "특약 생성 요청을 접수했습니다. 검색과 생성 모델 연결 전에는 초안을 반환하지 않습니다."
+
+
+def _to_job_response(job: SpecialClauseJob) -> SpecialClauseDraftJobResponse:
+    return SpecialClauseDraftJobResponse(
+        draft_id=job.draft_id,
+        status=job.status,
+        stage=job.stage,
+        result=job.result,
+        error=job.error,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        completed_at=job.completed_at,
+    )

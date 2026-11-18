@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Bookmark, Check, CheckCircle2, Download, FileText, Info, LoaderCircle, ScanText, Upload } from "lucide-react";
+import { AlertCircle, Bookmark, Check, CheckCircle2, Download, ExternalLink, FileText, Info, LoaderCircle, ScanText, Upload } from "lucide-react";
 import { LiveProgress } from "@/components/live-progress";
 import { PrecedentListItem, PrecedentModal } from "@/components/precedent-ui";
+import { StatuteExcerpt } from "@/components/statute-excerpt";
 import { UploadGuide } from "@/components/upload-guide";
 import { createContractOcrDraft, mapContractOcrDraftToSnapshot } from "@/lib/contract-ocr-api";
 import {
@@ -19,6 +20,7 @@ import type { CertifiedLetterResult } from "@/lib/certified-letter-api";
 import { certifiedLetterContractSnapshot } from "@/lib/certified-letter-data";
 import type { CaseBasis, ConfirmedContractSnapshot } from "@/lib/demo-types";
 import { validateDemoFile } from "@/lib/demo-validation";
+import { statuteOfficialUrl } from "@/lib/statute-link";
 import { clearDocumentPreviews, setDocumentPreview } from "@/lib/document-preview-store";
 import { createClient } from "@/lib/supabase/client";
 import { VerifySnapshotDemo } from "../contract-review/verify/verify-snapshot-demo";
@@ -27,6 +29,7 @@ import reviewStyles from "../contract-review/contract-review.module.css";
 import styles from "../feature-demo.module.css";
 
 type Stage = "upload" | "processing" | "verify" | "request" | "generating" | "result";
+type DeadlineMode = "date" | "none" | "";
 
 const purposeExample = "예: 계약 종료 후 보증금 전액을 반환받고 싶습니다.";
 const factsExample =
@@ -48,6 +51,7 @@ export default function CertifiedLetterPage() {
   const [senderRole, setSenderRole] = useState<"lessee" | "lessor" | "buyer" | "seller">("lessee");
   const [purpose, setPurpose] = useState("");
   const [facts, setFacts] = useState("");
+  const [deadlineMode, setDeadlineMode] = useState<DeadlineMode>("");
   const [requestedDeadline, setRequestedDeadline] = useState("");
   const [senderDeliveryAddress, setSenderDeliveryAddress] = useState("");
   const [recipientDeliveryAddress, setRecipientDeliveryAddress] = useState("");
@@ -145,6 +149,14 @@ export default function CertifiedLetterPage() {
       setError("내용증명으로 달성하려는 목적을 조금 더 구체적으로 적어주세요.");
       return;
     }
+    if (!deadlineMode) {
+      setError("이행 기한을 지정할지, 기한 없이 작성할지 선택해 주세요.");
+      return;
+    }
+    if (deadlineMode === "date" && !requestedDeadline) {
+      setError("상대방에게 요구할 이행 기한을 선택해 주세요.");
+      return;
+    }
     try {
       const contract = buildCertifiedLetterContract(confirmedSnapshot);
       setError("");
@@ -156,7 +168,7 @@ export default function CertifiedLetterPage() {
           sender_role: senderRole,
           purpose: purpose.trim(),
           facts: facts.trim(),
-          requested_deadline: requestedDeadline || null,
+          requested_deadline: deadlineMode === "date" ? requestedDeadline : null,
           contract,
         },
         crypto.randomUUID(),
@@ -234,6 +246,7 @@ export default function CertifiedLetterPage() {
     setSenderRole("lessee");
     setPurpose("");
     setFacts("");
+    setDeadlineMode("");
     setRequestedDeadline("");
     setSenderDeliveryAddress("");
     setRecipientDeliveryAddress("");
@@ -268,6 +281,12 @@ export default function CertifiedLetterPage() {
     }
   }
 
+  const isSale = confirmedSnapshot.contractType === "매매";
+  const contractAmountSummary = isSale
+    ? "매매대금, 계약금·중도금·잔금(있는 경우)"
+    : confirmedSnapshot.contractType === "월세"
+      ? "보증금과 월세"
+      : "전세보증금";
   const stepIndex = stage === "upload" || stage === "processing" ? 0 : stage === "verify" ? 1 : stage === "request" ? 2 : 3;
   const currentOcrStageIndex = Math.max(
     0,
@@ -364,14 +383,81 @@ export default function CertifiedLetterPage() {
               <textarea aria-describedby="letter-facts-guide" id="letter-facts" placeholder={factsExample} value={facts} onChange={(event) => setFacts(event.target.value)} />
             </div>
             <div className={styles.field}>
-              <label htmlFor="requested-deadline">희망 이행 기한 (선택)</label>
-              <p className={styles.fieldGuide} id="requested-deadline-guide">상대방이 언제까지 이행하기를 원하는지 선택해 주세요. 정해진 날짜가 없다면 비워두어도 됩니다.</p>
-              <input aria-describedby="requested-deadline-guide" id="requested-deadline" type="date" value={requestedDeadline} onChange={(event) => setRequestedDeadline(event.target.value)} />
+              <fieldset className={styles.deadlineFieldset}>
+                <legend>희망 이행 기한</legend>
+                <p className={styles.fieldGuide} id="requested-deadline-guide">
+                  상대방이 이행해야 할 사항이 있는 경우에는 기한을 지정해 주세요.<br />
+                  별도의 이행 요구 없이 의사를 통지하는 경우에는 기한을 지정하지 않을 수 있습니다.
+                </p>
+                <div className={styles.deadlineChoices}>
+                  <label className={deadlineMode === "date" ? styles.deadlineChoiceActive : undefined}>
+                    <input
+                      checked={deadlineMode === "date"}
+                      name="deadline-mode"
+                      type="radio"
+                      value="date"
+                      onChange={() => {
+                        setDeadlineMode("date");
+                        setError("");
+                      }}
+                    />
+                    <span>기한 지정</span>
+                  </label>
+                  <label className={deadlineMode === "none" ? styles.deadlineChoiceActive : undefined}>
+                    <input
+                      checked={deadlineMode === "none"}
+                      name="deadline-mode"
+                      type="radio"
+                      value="none"
+                      onChange={() => {
+                        setDeadlineMode("none");
+                        setRequestedDeadline("");
+                        setError("");
+                      }}
+                    />
+                    <span>기한 미지정 (의사 통지)</span>
+                  </label>
+                </div>
+                {deadlineMode === "date" && (
+                  <input
+                    aria-describedby="requested-deadline-guide"
+                    id="requested-deadline"
+                    type="date"
+                    value={requestedDeadline}
+                    onChange={(event) => {
+                      setRequestedDeadline(event.target.value);
+                      setError("");
+                    }}
+                  />
+                )}
+                {deadlineMode === "none" && (
+                  <p className={styles.deadlineWarning} role="note">
+                    <Info size={17} aria-hidden="true" />
+                    상대방에게 지급·반환 등 이행을 요구한다면 기한을 지정해 주세요. 이 선택은 별도의 이행 요구 없이 의사를 통지하는 경우에 적합합니다.
+                  </p>
+                )}
+              </fieldset>
             </div>
             {error && <div className={styles.validationNotice} role="alert"><AlertCircle size={19} /><div><strong>입력 내용을 확인해주세요</strong><span>{error}</span></div></div>}
             <div className={styles.actions}><button className={styles.secondaryButton} type="button" onClick={() => setStage("verify")}>이전</button><button className={styles.primaryButton} type="button" onClick={() => void generateLetter()}><FileText size={17} />초안 만들기</button></div>
           </section>
-          <aside className={styles.sidePanel}><h2>계약서에서 이미 가져온 정보</h2><div className={styles.exampleList}><p><b>계약 기본정보</b><span>계약 종류, 기간, 목적물 주소</span></p><p><b>당사자 정보</b><span>임대인·임차인의 이름과 주소</span></p><p><b>금액 정보</b><span>보증금과 월세</span></p></div></aside>
+          <aside className={styles.sidePanel}>
+            <h2>확인된 계약 정보</h2>
+            <div className={styles.exampleList}>
+              <p>
+                <b>계약 기본정보</b>
+                <span>{isSale
+                  ? "계약일, 계약한 집의 주소, 인도일·소유권 이전일(있는 경우)"
+                  : "계약일, 임대차 기간, 계약한 집의 주소"}</span>
+              </p>
+              <p>
+                <b>당사자 정보</b>
+                <span>{isSale ? "매도인·매수인의 이름과 주소" : "임대인·임차인의 이름과 주소"}</span>
+              </p>
+              <p><b>금액 정보</b><span>{contractAmountSummary}</span></p>
+              <p><b>특약 사항</b><span>앞에서 확인한 계약서 특약</span></p>
+            </div>
+          </aside>
         </div>
       )}
 
@@ -434,7 +520,17 @@ export default function CertifiedLetterPage() {
               <p><span>발신인</span><strong>{draftResult.document.sender.name} (서명 또는 날인)</strong></p>
             </footer>
           </article>
-          <div className={styles.draftNotice}><Info size={18} /><span>이 문서는 AI가 계약서와 입력 내용을 바탕으로 작성한 법률 검토 전 초안입니다. 발송 전 당사자·금액·날짜와 법령 근거를 다시 확인하세요.</span></div>
+          <div className={styles.draftNotice}>
+            <Info size={18} aria-hidden="true" />
+            <div className={styles.draftNoticeCopy}>
+              <strong>발송 전 확인해 주세요</strong>
+              <p>이 문서는 AI가 작성한 법률 검토 전 초안입니다.</p>
+              <p>
+                내용증명에 작성한 내용은 향후 분쟁이나 소송에서 중요한 자료로 쓰일 수 있으며, 의도와 다르게 해석될 여지가 있습니다.
+                발송 전에 사실관계와 표현을 꼼꼼히 살펴보시고, 필요시 법률 전문가의 도움을 받아보세요.
+              </p>
+            </div>
+          </div>
           <div className={styles.letterAnalysisGrid}>
             <section className={styles.panel}><h2>작성 전략</h2><p className={styles.panelLead}>{draftResult.strategy_summary}</p></section>
             <section className={styles.panel}><h2>다음 단계</h2><div className={styles.exampleList}>{draftResult.follow_up_actions.map((step) => <p key={`${step.order}-${step.action}`}><b>{String(step.order).padStart(2, "0")} {CERTIFIED_LETTER_FOLLOW_UP_TITLES[step.order - 1] ?? "다음 단계"}</b><span>{step.action}</span></p>)}</div></section>
@@ -443,19 +539,14 @@ export default function CertifiedLetterPage() {
             <h2>관련 근거</h2>
             <details className={styles.detailDisclosure}>
               <summary>관련 법령 {draftResult.statute_evidence.length}건</summary>
-              {draftResult.statute_evidence.length > 0 ? (
-                <div className={styles.basisGrid}>
-                  {draftResult.statute_evidence.map((statute) => (
-                    <article className={styles.basisCard} key={`${statute.statute_id ?? statute.law_name}-${statute.article_label}`}>
-                      <strong>{statute.law_name} {statute.article_label}</strong>
-                      {statute.article_title && <p>{statute.article_title}</p>}
-                      <span>{statute.explanation}</span>
-                      <p style={{ whiteSpace: "pre-wrap" }}>{statute.content}</p>
-                      {statute.source_url && <a href={statute.source_url} target="_blank" rel="noreferrer">원문 보기</a>}
-                    </article>
-                  ))}
-                </div>
-              ) : <p>최종 내용증명 본문에 직접 인용된 관련 법령이 없습니다.</p>}
+              {draftResult.statute_evidence.length > 0 ? draftResult.statute_evidence.map((statute) => (
+                <article className={styles.basisCard} key={`${statute.statute_id ?? statute.law_name}-${statute.article_label}`}>
+                  <strong>{statute.law_name} {statute.article_label}</strong>
+                  <StatuteExcerpt text={statute.content} />
+                  <span>{statute.explanation}</span>
+                  <a href={statute.source_url ?? statuteOfficialUrl(statute.law_name, statute.article_label)} target="_blank" rel="noreferrer">국가법령정보센터에서 원문 보기 <ExternalLink size={14} /></a>
+                </article>
+              )) : <p>이 내용증명에 직접 연결된 법령 근거는 없습니다.</p>}
             </details>
             <details className={styles.detailDisclosure}>
               <summary>관련 판례 {relatedPrecedents.length}건</summary>
