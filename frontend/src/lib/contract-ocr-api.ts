@@ -122,6 +122,12 @@ function dateValue(value: string | null | undefined) {
   return value ? value.replaceAll("-", ".") : "";
 }
 
+// OCR 결과가 이미 "매월 1일"이면 그대로 두고, 숫자만 오면 "매월 N일"로 맞춘다.
+function paymentDayValue(value: string | null | undefined) {
+  const day = value?.match(/\d+/)?.[0];
+  return day ? `매월 ${day}일` : "";
+}
+
 function moneyValue(value: number | null | undefined) {
   return value === null || value === undefined ? "" : value.toLocaleString("ko-KR");
 }
@@ -260,7 +266,7 @@ export function mapContractOcrDraftToSnapshot(draft: ContractOcrDraft): Confirme
   if (contractType === "월세") {
     updates.push(
       ["monthly-rent", moneyValue(extraction.payment.monthly_rent?.value), extraction.payment.monthly_rent?.source, "차임", review(["payment.monthly_rent"], [extraction.payment.monthly_rent])],
-      ["rent-payment-date", extraction.payment.monthly_rent_payment_day?.value ? `매월 ${extraction.payment.monthly_rent_payment_day.value}일` : "", extraction.payment.monthly_rent_payment_day?.source, "차임 지급일", review(["payment.monthly_rent_payment_day"], [extraction.payment.monthly_rent_payment_day])],
+      ["rent-payment-date", paymentDayValue(extraction.payment.monthly_rent_payment_day?.value), extraction.payment.monthly_rent_payment_day?.source, "차임 지급일", review(["payment.monthly_rent_payment_day"], [extraction.payment.monthly_rent_payment_day])],
       ["rent-payment-method", extraction.payment.payment_timing?.value === "postpaid" ? "후불" : extraction.payment.payment_timing?.value === "prepaid" ? "선불" : "", extraction.payment.payment_timing?.source, "차임 지급 방식", review(["payment.payment_timing"], [extraction.payment.payment_timing])],
     );
   }
