@@ -13,6 +13,7 @@ After:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,8 @@ from ml.agent.contract_review_graph import (
 )
 from precedents.precedent_config import load_env_file
 
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -349,6 +352,9 @@ class GeminiContractReviewAnalyzer:
                     item, allowed_sources, seen_item_ids, statute_sources
                 )
             except ValueError as error:
+                # 항목이 조용히 사라지지 않게 제외 이유만 남긴다(응답 내용은 남기지 않는다).
+                item_id = item.get("item_id") if isinstance(item, dict) else None
+                logger.warning("계약서 검토 항목 응답 제외: item_id=%s 이유=%s", item_id, error)
                 first_error = first_error or error
                 continue
             analyses.append(analysis)

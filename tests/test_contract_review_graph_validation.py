@@ -141,6 +141,42 @@ class ContractReviewValidationTests(unittest.TestCase):
         self.assertEqual(analyzer.calls[1]["item_ids"], ["term-1"])
         self.assertEqual(sorted(a.item_id for a in result.analyses), ["term-1", "term-2"])
 
+    def test_item_missing_from_response_is_retried_once_with_feedback(self) -> None:
+        analyzer = ScriptedAnalyzer(
+            [_analysis("term-2", revision="하자는 임대인이 책임진다.")],
+            [_analysis("term-1")],
+        )
+
+        result = _prepare(analyzer, terms=(TERM, "임대인은 하자를 책임진다."))
+
+        self.assertEqual(len(analyzer.calls), 2)
+        self.assertEqual(analyzer.calls[1]["item_ids"], ["term-1"])
+        self.assertIn("term-1", analyzer.calls[1]["feedback"])
+        self.assertEqual(sorted(a.item_id for a in result.analyses), ["term-1", "term-2"])
+
+    def test_item_still_missing_after_retry_is_left_out_without_more_calls(self) -> None:
+        analyzer = ScriptedAnalyzer(
+            [_analysis("term-2", revision="하자는 임대인이 책임진다.")],
+            [],
+        )
+
+        result = _prepare(analyzer, terms=(TERM, "임대인은 하자를 책임진다."))
+
+        self.assertEqual(len(analyzer.calls), 2)
+        self.assertEqual([a.item_id for a in result.analyses], ["term-2"])
+        self.assertFalse(result.analysis_unavailable)
+
+    def test_retry_failure_keeps_the_answered_items(self) -> None:
+        analyzer = ScriptedAnalyzer(
+            [_analysis("term-2", revision="하자는 임대인이 책임진다.")],
+            RuntimeError("모델 호출 실패"),
+        )
+
+        result = _prepare(analyzer, terms=(TERM, "임대인은 하자를 책임진다."))
+
+        self.assertEqual([a.item_id for a in result.analyses], ["term-2"])
+        self.assertFalse(result.analysis_unavailable)
+
     def test_without_analyzer_nothing_is_validated(self) -> None:
         result = _prepare(None)
 

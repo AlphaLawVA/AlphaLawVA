@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Protocol, TypedDict
+from typing import Any, Protocol, TypedDict
 
 from langgraph.graph import END, StateGraph
 
@@ -295,7 +295,47 @@ class ContractReviewGraph:
             )
         except (RuntimeError, ValueError):
             return {"analyses": [], "analysis_unavailable": True}
+        analyses = ContractReviewGraph._retry_missing_analyses(state, analyzer, analyses)
         return {"analyses": analyses, "analysis_unavailable": False}
+
+    @staticmethod
+    def _retry_missing_analyses(
+        state: ContractReviewGraphState,
+        analyzer: Any,
+        analyses: list[ContractReviewAnalysis],
+    ) -> list[ContractReviewAnalysis]:
+        """근거가 있는데 응답에서 빠진 항목만 안내와 함께 한 번 다시 요청한다.
+
+        분석기는 항목 하나가 형식·근거 규칙을 어기면 그 항목만 조용히 제외한다.
+        그 때문에 특약 한 줄의 검토가 화면에서 기본 문구로 바뀌는 일이 있어, 제외된
+        항목은 규칙을 알려 주고 한 번 더 받는다. 다시 받아도 규칙을 어기면 그대로 둔다.
+        """
+
+        answered = {analysis.item_id for analysis in analyses}
+        with_evidence = {entry.item_id for entry in state["evidence"]}
+        missing = [
+            query
+            for query in state["retrieval_queries"]
+            if query.item_id in with_evidence and query.item_id not in answered
+        ]
+        if not missing:
+            return analyses
+        feedback = {
+            query.item_id: [
+                "이전 응답이 형식이나 근거 규칙을 어겨 제외됐습니다. 제공된 근거의 "
+                "source_id만 인용하고 글자 수 제한을 지켜 이 항목의 검토 의견을 다시 작성하세요."
+            ]
+            for query in missing
+        }
+        try:
+            retried = analyzer.analyze(
+                missing,
+                [entry for entry in state["evidence"] if entry.item_id in feedback],
+                feedback=feedback,
+            )
+        except (RuntimeError, ValueError):
+            return analyses
+        return analyses + [item for item in retried if item.item_id in feedback]
 
     @staticmethod
     def _validate_analysis(

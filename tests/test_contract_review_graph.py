@@ -93,7 +93,10 @@ class FakePrecedentRetriever:
 
 
 class FakeAnalyzer:
-    def analyze(self, queries, evidence):
+    def analyze(self, queries, evidence, feedback=None):
+        if feedback is not None:
+            # 빠진 항목을 다시 요청받아도 첫 질의 하나만 분석하는 가짜 분석기다.
+            return []
         return [
             ContractReviewAnalysis(
                 item_id=queries[0].item_id,
