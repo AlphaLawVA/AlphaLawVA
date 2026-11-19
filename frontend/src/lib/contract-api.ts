@@ -456,7 +456,7 @@ export async function createContractReview(
 }
 
 export const CONTRACT_REVIEW_SLOW_AFTER_MS = 180_000;
-export const CONTRACT_REVIEW_GIVE_UP_AFTER_MS = 300_000;
+export const CONTRACT_REVIEW_GIVE_UP_AFTER_MS = 600_000;
 
 // 특약 생성은 202로 접수한 뒤 GET으로 결과를 기다린다(lib/job-polling.ts).
 // 같은 클릭의 중복 접수를 막도록 요청마다 새 Idempotency-Key를 보낸다.
