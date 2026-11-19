@@ -304,18 +304,10 @@ class SpecialClauseService:
         savable = any(
             item.status in {"draft_ready", "needs_information"} for item in response.items
         )
-        first_request = next(
-            (
-                item.request_text
-                for item in response.items
-                if item.status != "out_of_scope"
-            ),
-            response.items[0].request_text,
-        )
         self._result_recorder(
             kind=GenerationResultKind.SPECIAL_CLAUSE,
             source_id=response.draft_id,
-            title=f"특약 초안 · {first_request[:40]}",
+            title=f"특약 초안 {len(response.items)}건",
             payload=response.model_dump(mode="json"),
             saveable=savable,
         )
