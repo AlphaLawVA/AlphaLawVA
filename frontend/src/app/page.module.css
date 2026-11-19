@@ -29,6 +29,18 @@
   line-height: 1;
 }
 
+.heroLogo {
+  width: clamp(300px, 34vw, 480px);
+  max-width: 100%;
+  line-height: 0;
+}
+
+.heroLogo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .lead {
   max-width: 570px;
   margin-top: 28px;

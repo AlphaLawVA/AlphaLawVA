@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -47,7 +48,15 @@ export default function Home() {
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>부동산 계약을 이해하는 법률 파트너</p>
-            <h1>AlphaLawVA</h1>
+            <h1 className={styles.heroLogo}>
+              <Image
+                src="/alphalawva-logo.webp"
+                alt="AlphaLawVA"
+                width={2000}
+                height={667}
+                preload
+              />
+            </h1>
             <p className={styles.lead}>
               계약서를 읽는 순간부터 문제가 생긴 뒤 대응하는 순간까지,
               필요한 정보를 확인하고 다음 행동을 결정할 수 있도록 돕습니다.
