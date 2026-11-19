@@ -297,6 +297,29 @@ export default function CertifiedLetterPage() {
     ? new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(generatedAt)
     : "";
 
+  // 계약서 검토의 문서 분석 화면과 같은 전체 화면 배경·배치를 쓴다(헤더·단계 표시 없이 가운데 패널만).
+  if (stage === "processing") {
+    return (
+      <main className={reviewStyles.processingPage}>
+        <section className={reviewStyles.processingPanel}>
+          <span className={reviewStyles.processingIcon}><ScanText size={30} aria-hidden="true" /></span>
+          <p className={reviewStyles.processingEyebrow}>문서 분석 중</p>
+          <h1>업로드한 문서를 읽고 있습니다</h1>
+          <p>{isRealOcr ? "Google Document AI가 문서를 인식하고 있습니다. 이 화면을 닫거나 새로고침하지 말고 잠시 기다려주세요." : "페이지 수와 글씨 상태에 따라 시간이 조금 더 걸릴 수 있습니다. 이 화면을 닫지 말고 잠시 기다려주세요."}</p>
+          <div className={reviewStyles.progressHeader}><span>{ocrStages[currentOcrStageIndex].label}</span><strong>{progress}%</strong></div>
+          <div className={`${reviewStyles.progressTrack} ${reviewStyles.progressTrackActive}`}><span style={{ width: `${progress}%` }} /></div>
+          <LiveProgress waitingHint="문서 인식에 시간이 걸리고 있습니다. 서버가 처리 중이니 닫지 말고 기다려주세요." />
+          <ol className={reviewStyles.processingSteps}>
+            {ocrStages.map((ocrStage, index) => {
+              const done = progress === 100 || index < currentOcrStageIndex;
+              return <li className={done ? reviewStyles.processingDone : ""} key={ocrStage.label}><i>{done ? <Check size={14} /> : index + 1}</i><span>{ocrStage.label}</span></li>;
+            })}
+          </ol>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className={stage === "verify" ? `${styles.page} ${styles.pageWide}` : styles.page}>
       <header className={styles.header}>
@@ -344,24 +367,6 @@ export default function CertifiedLetterPage() {
           </section>
           <UploadGuide purpose="letter" />
         </div>
-      )}
-
-      {stage === "processing" && (
-        <section className={reviewStyles.processingPanel} style={{ margin: "0 auto" }}>
-          <span className={reviewStyles.processingIcon}><ScanText size={30} aria-hidden="true" /></span>
-          <p className={reviewStyles.processingEyebrow}>문서 분석 중</p>
-          <h1>업로드한 문서를 읽고 있습니다</h1>
-          <p>{isRealOcr ? "Google Document AI가 문서를 인식하고 있습니다. 이 화면을 닫거나 새로고침하지 말고 잠시 기다려주세요." : "페이지 수와 글씨 상태에 따라 시간이 조금 더 걸릴 수 있습니다. 이 화면을 닫지 말고 잠시 기다려주세요."}</p>
-          <div className={reviewStyles.progressHeader}><span>{ocrStages[currentOcrStageIndex].label}</span><strong>{progress}%</strong></div>
-          <div className={`${reviewStyles.progressTrack} ${reviewStyles.progressTrackActive}`}><span style={{ width: `${progress}%` }} /></div>
-          <LiveProgress waitingHint="문서 인식에 시간이 걸리고 있습니다. 서버가 처리 중이니 닫지 말고 기다려주세요." />
-          <ol className={reviewStyles.processingSteps}>
-            {ocrStages.map((ocrStage, index) => {
-              const done = progress === 100 || index < currentOcrStageIndex;
-              return <li className={done ? reviewStyles.processingDone : ""} key={ocrStage.label}><i>{done ? <Check size={14} /> : index + 1}</i><span>{ocrStage.label}</span></li>;
-            })}
-          </ol>
-        </section>
       )}
 
       {stage === "verify" && <VerifySnapshotDemo allowedContractTypes={["전세", "월세", "매매"]} initialContractSnapshot={confirmedSnapshot} lockContractType={isRealOcr} modeOverride="contract" onBack={() => { setIsRealOcr(false); setStage("upload"); }} onComplete={(snapshot) => { setConfirmedSnapshot(snapshot); setSenderRole(snapshot.contractType === "매매" ? "buyer" : "lessee"); setStage("request"); }} submitLabel="요청 입력으로" />}
