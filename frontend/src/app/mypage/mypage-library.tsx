@@ -16,7 +16,6 @@ import type {
 import type { CaseBasis } from "@/lib/demo-types";
 import { getGenerationResult, listGenerationResults } from "@/lib/contract-api";
 import type {
-  ContractReviewResult,
   SavedGenerationDetail,
   SavedGenerationSummary,
   SpecialClauseDraftResult,
@@ -33,6 +32,7 @@ import {
 } from "@/lib/precedent-api";
 import type { PrecedentFavoriteResponse } from "@/lib/precedent-api";
 import { createClient } from "@/lib/supabase/client";
+import { SavedGenerationDetailBody } from "./saved-generation-detail";
 import styles from "./mypage.module.css";
 
 type LibraryState = {
@@ -220,7 +220,7 @@ export function MyPageLibrary() {
             <div className={styles.sectionHeading}><div><FileText size={20} /><h2 id={`${kind}-results-title`}>{heading}</h2></div><span>{items.length}건</span></div>
             {items.length === 0 ? <p className={styles.empty}>{emptyText}</p> : (
               <div className={styles.resultList}>{items.map((item) => (
-                <button className={styles.resultItem} key={item.result_id} type="button" onClick={() => void openGeneration(item.result_id)}><span><strong>{item.title}</strong><small>{formatDate(item.created_at)}</small></span><b>{detailLoadingId === item.result_id ? "불러오는 중" : "상세 보기"}</b></button>
+                <button className={styles.resultItem} key={item.result_id} type="button" onClick={() => void openGeneration(item.result_id)}><span><strong>{generationListTitle(item)}</strong><small>{formatDate(item.created_at)}</small></span><b>{detailLoadingId === item.result_id ? "불러오는 중" : "상세 보기"}</b></button>
               ))}</div>
             )}
           </section>
@@ -265,8 +265,16 @@ export function MyPageLibrary() {
           <article className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="saved-generation-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className={styles.modalClose} type="button" aria-label="닫기" onClick={() => setSelectedGeneration(null)}><X size={20} /></button>
             <p className={styles.modalEyebrow}>{selectedGeneration.kind === "contract_review" ? "저장한 계약서 검토" : "저장한 특약 생성"}</p>
-            <h2 id="saved-generation-title">{selectedGeneration.title}</h2>
-            <GenerationDetailBody detail={selectedGeneration} />
+            <h2 id="saved-generation-title">
+              {selectedGeneration.kind === "special_clause"
+                ? `특약 초안 ${(selectedGeneration.payload as SpecialClauseDraftResult).items.length}건`
+                : selectedGeneration.title}
+            </h2>
+            <p className={styles.modalDate}>{formatDate(selectedGeneration.created_at)} 저장</p>
+            <SavedGenerationDetailBody
+              detail={selectedGeneration}
+              onOpenPrecedent={(precedent, initialView) => setSelectedLetterPrecedent({ precedent, initialView })}
+            />
           </article>
         </div>
       )}
@@ -303,52 +311,16 @@ function groupFavoritesByQuery(favorites: PrecedentFavoriteResponse[]) {
   return [...groups.entries()].map(([query, items]) => ({ query, favorites: items }));
 }
 
+// 예전에 저장한 특약 생성 결과는 제목에 요청 문장 일부가 붙어 있어(예: "특약 초안 · 집주인이…") 목록에서는 앞부분만 보여 준다.
+function generationListTitle(item: SavedGenerationSummary) {
+  if (item.kind === "special_clause" && item.title.startsWith("특약 초안 ·")) return "특약 초안";
+  return item.title;
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date(value));
 }
 
 function formatAddress(party: { address: string; detail_address: string | null }) {
   return [party.address, party.detail_address].filter(Boolean).join(" ");
-}
-
-function GenerationDetailBody({ detail }: { detail: SavedGenerationDetail }) {
-  if (detail.kind === "special_clause") {
-    const draft = detail.payload as SpecialClauseDraftResult;
-    return (
-      <>
-        {draft.items.map((item) => (
-          <section className={styles.modalSection} key={item.request_index}>
-            <h3>{item.title ?? `요청 ${item.request_index}`}</h3>
-            <p>요청: {item.request_text}</p>
-            {item.draft_text && <div className={styles.letterBody}>{item.draft_text}</div>}
-            {item.needs_input.length > 0 && <ul>{item.needs_input.map((question) => <li key={question}>{question}</li>)}</ul>}
-            {item.strategy && <p>협의 안내: {item.strategy}</p>}
-          </section>
-        ))}
-        <p>{draft.disclaimer}</p>
-      </>
-    );
-  }
-  const review = detail.payload as ContractReviewResult;
-  return (
-    <>
-      {review.analysis.length > 0 && (
-        <section className={styles.modalSection}>
-          <h3>검토 의견 {review.analysis.length}건</h3>
-          {review.analysis.map((item) => (
-            <div key={item.item_id}>
-              <p>{item.summary}</p>
-              {item.revision && <p>수정 제안: {item.revision}</p>}
-              {item.negotiation && <p>협의 안내: {item.negotiation}</p>}
-            </div>
-          ))}
-        </section>
-      )}
-      <section className={styles.modalSection}>
-        <h3>확인 필요 항목</h3>
-        <ul>{review.precheck_items.map((item) => <li key={item.item_id}><strong>{item.label}</strong> {item.message}</li>)}</ul>
-      </section>
-      <p>{review.disclaimer}</p>
-    </>
-  );
 }

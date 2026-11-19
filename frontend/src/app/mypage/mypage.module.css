@@ -491,3 +491,145 @@
     flex-direction: column;
   }
 }
+
+/* 저장한 계약서 검토·특약 생성 상세: 내용증명 상세와 같은 톤의 카드 구성 */
+.groupTitle {
+  margin-top: 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--navy);
+  font-size: 17px;
+}
+
+.summaryChips {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summaryChips span,
+.statusBadge {
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.statusSafe { color: var(--success); background: var(--success-bg); }
+.statusCaution { color: var(--status-caution); background: var(--status-caution-bg); }
+.statusCheck { color: #7a5b00; background: var(--status-check-bg); }
+
+.resultCard {
+  margin-top: 16px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.resultCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resultCardHeader h3 {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.resultIndex {
+  padding: 4px 9px;
+  border-radius: 4px;
+  color: var(--navy);
+  background: var(--navy-soft);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.requestQuote,
+.draftBlock,
+.noteBlock {
+  margin-top: 14px;
+}
+
+.requestQuote {
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--line-strong);
+}
+
+.draftBlock {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.requestQuote small,
+.draftBlock small,
+.noteBlock small {
+  display: block;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.requestQuote p,
+.draftBlock p,
+.noteBlock p,
+.plainText {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.requestQuote p,
+.noteBlock p {
+  color: var(--text-muted);
+}
+
+.noteBlock ul {
+  margin: 8px 0 0 18px;
+  color: var(--text-muted);
+  line-height: 1.75;
+}
+
+.plainText {
+  margin-top: 14px;
+}
+
+.disclosure {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.disclosure > summary {
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.disclosure > p {
+  margin-top: 8px;
+  color: var(--text-muted);
+}
+
+.disclaimer {
+  margin-top: 24px;
+  color: var(--text-subtle);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.modalDate {
+  margin-top: 6px;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
