@@ -276,7 +276,7 @@ class PrecedentSearchEligibilityTests(unittest.TestCase):
             self.assertEqual(manifest["residential_lease_eligible_case_count"], 1)
             self.assertEqual(manifest["residential_sale_added_case_count"], 1)
 
-    def test_versioned_manifest_contains_reviewed_691_case_allowlist(self):
+    def test_versioned_manifest_contains_deduplicated_case_allowlist(self):
         root = Path(__file__).resolve().parents[1]
         manifest_path = (
             root
@@ -292,12 +292,19 @@ class PrecedentSearchEligibilityTests(unittest.TestCase):
             manifest["policy_version"],
             "residential_real_estate_manual_review_v3",
         )
-        self.assertEqual(manifest["base_reviewed_eligible_case_count"], 750)
-        self.assertEqual(manifest["distribution_excluded_case_count"], 72)
-        self.assertEqual(manifest["residential_lease_eligible_case_count"], 678)
+        self.assertEqual(manifest["source_case_count"], 2962)
+        self.assertEqual(manifest["base_reviewed_eligible_case_count"], 738)
+        self.assertEqual(manifest["distribution_excluded_case_count"], 71)
+        self.assertEqual(manifest["residential_lease_eligible_case_count"], 667)
         self.assertEqual(manifest["residential_sale_added_case_count"], 13)
-        self.assertEqual(manifest["eligible_case_count"], 691)
-        self.assertEqual(len(eligible_ids), 691)
+        self.assertEqual(manifest["eligible_case_count"], 680)
+        self.assertEqual(len(eligible_ids), 680)
+        duplicates = manifest["deduplicated_precedent_ids"]
+        self.assertEqual(len(duplicates), 53)
+        self.assertEqual(duplicates["613093"], "615961")
+        self.assertNotIn("613093", eligible_ids)
+        self.assertIn("615961", eligible_ids)
+        self.assertTrue(set(duplicates).isdisjoint(eligible_ids))
         self.assertEqual(len(eligible_ids), len(set(eligible_ids)))
         self.assertIn("607217", eligible_ids)
         self.assertIn("606789", eligible_ids)
